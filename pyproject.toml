@@ -1,0 +1,69 @@
+[tool.poetry]
+authors = ["Laurel Orr <lorr1@cs.stanford.edu>, Avanika Narayan <avanikan@stanford.edu>"]
+classifiers = [
+  "Programming Language :: Python",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.8",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10"
+]
+description = "Manifest for Prompt Programming"
+name = "manifest"
+repository = "https://github.com/HazyResearch/manifest"
+version = "0.0.1"
+
+[tool.poetry.urls]
+"Bug Tracker" = "https://github.com/HazyResearch/manifest/issues"
+
+[tool.poetry.dependencies]
+python = "^3.8"
+sqlitedict = "^2.0.0"
+openai = "^0.18.1"
+redis = "^4.3.1"
+
+[tool.poetry.dev-dependencies]
+black = "^22.3.0"
+flake8 = "^4.0.0"
+flake8-docstrings = "^1.6.0"
+isort = "^5.9.3"
+mypy = "^0.950"
+pep8-naming = "^0.12.1"
+pre-commit = "^2.14.0"
+pytest = "^7.0.0"
+pytest-cov = "^3.0.0"
+python-dotenv = "^0.20.0"
+recommonmark = "^0.7.1"
+
+[build-system]
+build-backend = "poetry.core.masonry.api"
+requires = ["poetry-core>=1.0.0"]
+
+# Additional Tool Configurations
+[tool.mypy]
+disallow_untyped_defs = true
+strict_optional = false
+
+[[tool.mypy.overrides]]
+ignore_missing_imports = true
+module = [
+  "numpy",
+  "tqdm",
+  "sqlitedict",
+]
+
+[tool.isort]
+combine_as_imports = true
+force_grid_wrap = 0
+include_trailing_comma = true
+known_first_party = ["manifest"]
+line_length = 88
+multi_line_output = 3
+
+[tool.pytest.ini_options]
+log_format = "[%(levelname)s] %(message)s"
+log_date_format = "%Y-%m-%d %H:%M:%S"
+addopts = "-v -rsXx"
+# The following options are useful for local debugging
+# addopts = "-v -rsXx -s -x --pdb"
+# log_cli_level = "DEBUG"
+# log_cli = true
