@@ -1,0 +1,10 @@
+# This is our code-style check. We currently allow the following exceptions:
+#   - E731: do not assign a lambda expression, use a def
+#   - E402: module level import not at top of file
+#   - W503: line break before binary operator
+
+[flake8]
+exclude = .git
+max-line-length = 88
+ignore = E731, E402, W503
+per-file-ignores = __init__.py:F401
