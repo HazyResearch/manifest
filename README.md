@@ -19,3 +19,10 @@ or
 pip install poetry
 make dev
 ```
+
+# Development
+Before submitting a PR, run
+```
+export REDIS_PORT="6379"  # or whatever PORT local redis is running for those tests
+make test
+```

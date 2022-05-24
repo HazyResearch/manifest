@@ -2,7 +2,7 @@
 from abc import ABC, abstractmethod
 from typing import Any, Callable, Dict, Optional, Tuple
 
-from manifest.clients import Response
+from manifest.clients.response import Response
 
 
 class Client(ABC):

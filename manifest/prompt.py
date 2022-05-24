@@ -4,6 +4,8 @@ import inspect
 import logging
 from typing import Any, Callable, List, Optional, Union
 
+import dill
+
 logging.getLogger("openai").setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
 
@@ -52,10 +54,9 @@ class Prompt:
         Return the prompt as str.
 
         Returns:
-            json object.
+            prompt as str.
         """
-        # TODO: implement
-        pass
+        return dill.dumps(self.prompt_func)
 
     @classmethod
     def deserialize(cls, obj: str) -> "Prompt":
@@ -68,5 +69,4 @@ class Prompt:
         Return:
             prompt.
         """
-        # TODO: implement
-        pass
+        return Prompt(dill.loads(obj))
