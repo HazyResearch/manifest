@@ -5,11 +5,11 @@ from typing import Any, Iterable, List, Optional, Union
 logging.getLogger("openai").setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
 
-from manifest import Prompt
 from manifest.caches.redis import RedisCache
 from manifest.caches.sqlite import SQLiteCache
 from manifest.clients.dummy import DummyClient
 from manifest.clients.openai import OpenAIClient
+from manifest.prompt import Prompt
 
 CLIENT_CONSTRUCTORS = {
     "openai": OpenAIClient,

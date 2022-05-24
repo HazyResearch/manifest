@@ -20,8 +20,8 @@ def test_init():
     with pytest.raises(ValueError) as exc_info:
         response = Response({"choices": [{"blah": "hello"}]})
     assert str(exc_info.value) == (
-        "Response must be serialized to a dict ",
-        "with a list of choices with text field",
+        "Response must be serialized to a dict "
+        "with a list of choices with text field"
     )
 
     response = Response({"choices": [{"text": "hello"}]})
