@@ -39,7 +39,6 @@ def test_init():
     assert str(exc_info.value) == "Prompts must have zero or one input."
 
 
-@pytest.mark.skip(reason="Not implemented")
 def test_serialize():
     """Test prompt serialization."""
     str_prompt = "This is a test prompt"
@@ -47,8 +46,10 @@ def test_serialize():
 
     # String prompt
     prompt = Prompt(str_prompt)
-    assert Prompt.deserialize(prompt.serialize()) == prompt
+    assert Prompt.deserialize(prompt.serialize()).prompt_func() == prompt.prompt_func()
 
     # Function single inputs
     prompt = Prompt(func_single_prompt)
-    assert Prompt.deserialize(prompt.serialize()) == prompt
+    assert Prompt.deserialize(prompt.serialize()).prompt_func(1) == prompt.prompt_func(
+        1
+    )

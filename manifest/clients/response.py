@@ -23,8 +23,8 @@ class Response:
         if len(self.response["choices"]) > 0:
             if "text" not in self.response["choices"][0]:
                 raise ValueError(
-                    "Response must be serialized to a dict with a ",
-                    "list of choices with text field",
+                    "Response must be serialized to a dict with a "
+                    "list of choices with text field"
                 )
 
     def __getitem__(self, key: str) -> str:
