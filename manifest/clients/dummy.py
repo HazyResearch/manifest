@@ -3,7 +3,6 @@ import logging
 from typing import Any, Callable, Dict, Optional, Tuple
 
 from manifest.clients import Client
-from manifest.clients.response import Response
 
 logger = logging.getLogger(__name__)
 
@@ -28,9 +27,7 @@ class DummyClient(Client):
         """Close the client."""
         pass
 
-    def get_request(
-        self, query: str, **kwargs: Any
-    ) -> Tuple[Callable[[], Response], Dict]:
+    def get_request(self, query: str, **kwargs: Any) -> Tuple[Callable[[], Dict], Dict]:
         """
         Get request string function.
 
@@ -46,7 +43,7 @@ class DummyClient(Client):
             "num_results": kwargs.get("num_results", self.num_results),
         }
 
-        def _run_completion() -> Response:
-            return Response({"choices": [{"text": "hello"}] * self.num_results})
+        def _run_completion() -> Dict:
+            return {"choices": [{"text": "hello"}] * self.num_results}
 
         return _run_completion, request_params

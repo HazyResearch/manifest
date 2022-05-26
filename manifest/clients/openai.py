@@ -5,7 +5,6 @@ from typing import Any, Callable, Dict, Optional, Tuple
 
 import openai
 
-from manifest.clients import Response
 from manifest.clients.client import Client
 
 logging.getLogger("openai").setLevel(logging.WARNING)
@@ -28,7 +27,7 @@ class OpenAIClient(Client):
         engine: Optional[str] = "text-ada-001",
         temperature: Optional[float] = 0.0,
         max_tokens: Optional[int] = 10,
-        top_p: Optional[int] = 1,
+        top_p: Optional[float] = 1.0,
         frequency_penalty: Optional[int] = 0,
         presence_penalty: Optional[int] = 0,
         n: Optional[int] = 1,
@@ -59,9 +58,7 @@ class OpenAIClient(Client):
         """Close the client."""
         pass
 
-    def get_request(
-        self, query: str, **kwargs: Any
-    ) -> Tuple[Callable[[], Response], Dict]:
+    def get_request(self, query: str, **kwargs: Any) -> Tuple[Callable[[], Dict], Dict]:
         """
         Get request string function.
 
@@ -85,9 +82,9 @@ class OpenAIClient(Client):
             "n": kwargs.get("n", self.n),
         }
 
-        def _run_completion() -> Response:
+        def _run_completion() -> Dict:
             try:
-                return Response(openai.Completion.create(**request_params))
+                return openai.Completion.create(**request_params)
             except openai.error.OpenAIError as e:
                 logger.error(e)
                 raise e

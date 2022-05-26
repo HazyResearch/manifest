@@ -17,12 +17,16 @@ class RedisCache(Cache):
             connection_str: connection string.
         """
         host, port = connection_str.split(":")
-        self.redis = redis.Redis(host=host, port=int(port))
+        self.redis = redis.Redis(host=host, port=int(port), db=0)
         return
 
     def close(self) -> None:
         """Close the client."""
         self.redis.close()
+
+    def _normalize_table_key(self, key: str, table: str) -> str:
+        """Cast key for prompt key."""
+        return f"{table}:{key}"
 
     def get_key(self, key: str, table: str = "default") -> Union[str, None]:
         """
@@ -32,8 +36,13 @@ class RedisCache(Cache):
 
         Args:
             key: key for cache.
+            table: table to get key in.
         """
-        pass
+        norm_key = self._normalize_table_key(key, table)
+        if self.redis.exists(norm_key):
+            return self.redis.get(norm_key).decode("utf-8")
+        else:
+            return None
 
     def set_key(self, key: str, value: str, table: str = "default") -> None:
         """
@@ -44,8 +53,10 @@ class RedisCache(Cache):
         Args:
             key: key for cache.
             value: new value for key.
+            table: table to set key in.
         """
-        self.redis[key] = value
+        self.redis.set(self._normalize_table_key(key, table), value)
+        self.commit()
 
     def commit(self) -> None:
         """Commit any results."""
