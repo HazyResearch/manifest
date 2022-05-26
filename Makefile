@@ -3,18 +3,17 @@ dev:
 	poetry run pre-commit install
 
 test: dev check
-	poetry install
 	poetry run pytest tests
 
 format:
-	isort --atomic manifest/ tests/
-	black manifest/ tests/
+	poetry run isort --atomic manifest/ tests/
+	poetry run black manifest/ tests/
 
 check:
-	isort -c manifest/ tests/
-	black manifest/ tests/ --check
-	flake8 manifest/ tests/
-	mypy manifest/
+	poetry run isort -c manifest/ tests/
+	poetry run black manifest/ tests/ --check
+	poetry run flake8 manifest/ tests/
+	poetry run mypy manifest/
 
 clean:
 	pip uninstall -y manifest
