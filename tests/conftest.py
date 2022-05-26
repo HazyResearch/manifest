@@ -3,6 +3,7 @@ import os
 import shutil
 
 import pytest
+import redis
 
 
 @pytest.fixture
@@ -32,5 +33,5 @@ def redis_cache():
         port = os.environ.get("REDIS_PORT", 6379)
     yield f"{host}:{port}"
     # Clear out the database
-    # db = redis.Redis(host=host, port=port)
-    # db.flushdb()
+    db = redis.Redis(host=host, port=port)
+    db.flushdb()
