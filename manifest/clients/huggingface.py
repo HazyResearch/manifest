@@ -15,22 +15,22 @@ class HuggingFaceClient(Client):
     def connect(
         self,
         connection_str: Optional[str] = None,
-        temperature: Optional[float] = 1.0,
-        max_tokens: Optional[int] = 10,
-        top_p: Optional[float] = 1.0,
-        top_k: Optional[int] = 0,
-        repetition_penalty: Optional[float] = 1.0,
-        n: Optional[int] = 1,
-        **kwargs: Any,
+        client_args: Dict[str, Any] = {},
     ) -> None:
-        """Connect to the HuggingFace url."""
+        """
+        Connect to the HuggingFace url.
+
+        Arsg:
+            connection_str: connection string.
+            client_args: client arguments.
+        """
         self.host = connection_str.rstrip("/")
-        self.temperature = temperature
-        self.max_tokens = max_tokens
-        self.top_p = top_p
-        self.top_k = top_k
-        self.repetition_penalty = repetition_penalty
-        self.n = n
+        self.temperature = client_args.pop("temperature", 1.0)
+        self.max_tokens = client_args.pop("max_tokens", 10)
+        self.top_p = client_args.pop("top_p", 0)
+        self.top_k = client_args.pop("top_k", 0)
+        self.repetition_penalty = client_args.pop("repetition_penalty", 1.0)
+        self.n = client_args.pop("n", 1)
 
     def close(self) -> None:
         """Close the client."""

@@ -1,14 +1,16 @@
-"""Dummy client."""
+"""OpenAI client."""
 import logging
 from typing import Any, Callable, Dict, Optional, Tuple
 
-from manifest.clients import Client
+import requests
+
+from manifest.clients.client import Client
 
 logger = logging.getLogger(__name__)
 
 
-class DummyClient(Client):
-    """Dummy client."""
+class OPTClient(Client):
+    """OPT client."""
 
     def connect(
         self,
@@ -16,15 +18,17 @@ class DummyClient(Client):
         client_args: Dict[str, Any] = {},
     ) -> None:
         """
-        Connect to dummpy server.
+        Connect to the OPT url.
 
-        This is a dummy client that returns identity responses. Used for testing.
-
-        Args:
+        Arsg:
             connection_str: connection string.
             client_args: client arguments.
         """
-        self.num_results = client_args.pop("num_results", 1)
+        self.host = connection_str.rstrip("/")
+        self.temperature = client_args.pop("temperature", 1.0)
+        self.max_tokens = client_args.pop("max_tokens", 10)
+        self.top_p = client_args.pop("top_p", 0)
+        self.n = client_args.pop("n", 1)
 
     def close(self) -> None:
         """Close the client."""
@@ -43,10 +47,15 @@ class DummyClient(Client):
         """
         request_params = {
             "prompt": query,
-            "num_results": kwargs.get("num_results", self.num_results),
+            "temperature": kwargs.get("temperature", self.temperature),
+            "max_tokens": kwargs.get("max_tokens", self.max_tokens),
+            "top_p": kwargs.get("top_p", self.top_p),
+            "n": kwargs.get("n", self.n),
         }
 
         def _run_completion() -> Dict:
-            return {"choices": [{"text": "hello"}] * self.num_results}
+            post_str = self.host + "/completions"
+            res = requests.post(post_str, json=request_params)
+            return res.json()
 
         return _run_completion, request_params

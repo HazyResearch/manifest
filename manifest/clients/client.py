@@ -6,7 +6,9 @@ from typing import Any, Callable, Dict, Optional, Tuple
 class Client(ABC):
     """Client class."""
 
-    def __init__(self, connection_str: Optional[str] = None, **kwargs: Any):
+    def __init__(
+        self, connection_str: Optional[str] = None, client_args: Dict[str, Any] = {}
+    ):
         """
         Initialize client.
 
@@ -17,8 +19,9 @@ class Client(ABC):
 
         Args:
             connection_str: connection string for client.
+            client_args: client arguments.
         """
-        self.connect(connection_str, **kwargs)
+        self.connect(connection_str, client_args)
 
     @abstractmethod
     def close(self) -> None:
@@ -26,7 +29,7 @@ class Client(ABC):
         raise NotImplementedError()
 
     @abstractmethod
-    def connect(self, connection_str: str, **kwargs: Any) -> None:
+    def connect(self, connection_str: str, client_args: Dict[str, Any]) -> None:
         """
         Connect to client.
 
