@@ -2,8 +2,6 @@
 from abc import ABC, abstractmethod
 from typing import Any, Callable, Dict, Optional, Tuple
 
-from manifest.clients.response import Response
-
 
 class Client(ABC):
     """Client class."""
@@ -38,9 +36,7 @@ class Client(ABC):
         raise NotImplementedError()
 
     @abstractmethod
-    def get_request(
-        self, query: str, **kwargs: Any
-    ) -> Tuple[Callable[[], Response], Dict]:
+    def get_request(self, query: str, **kwargs: Any) -> Tuple[Callable[[], Dict], Dict]:
         """
         Get request function.
 

@@ -1,9 +1,9 @@
 """Cache for queries and responses."""
 import json
 from abc import ABC, abstractmethod
-from typing import Any, Callable, Dict, Tuple, Union
+from typing import Any, Callable, Dict, Union
 
-from manifest.clients.response import Response
+from manifest.response import Response
 
 
 def request_to_key(request: Dict) -> str:
@@ -28,6 +28,32 @@ def key_to_request(key: str) -> Dict:
 
     Returns:
         unnormalized request dict.
+    """
+    return json.loads(key)
+
+
+def response_to_key(response: Dict) -> str:
+    """
+    Normalize a response into a key.
+
+    Args:
+        response: response to normalize.
+
+    Returns:
+        normalized key.
+    """
+    return json.dumps(response, sort_keys=True)
+
+
+def key_to_response(key: str) -> Dict:
+    """
+    Convert the normalized version to the response.
+
+    Args:
+        key: normalized key to convert.
+
+    Returns:
+        unnormalized response dict.
     """
     return json.loads(key)
 
@@ -97,17 +123,17 @@ class Cache(ABC):
         raise NotImplementedError()
 
     def get(
-        self, request: Dict, overwrite_cache: bool, compute: Callable[[], Response]
-    ) -> Tuple[Response, bool]:
+        self, request: Dict, overwrite_cache: bool, compute: Callable[[], Dict]
+    ) -> Response:
         """Get the result of request (by calling compute as needed)."""
         key = request_to_key(request)
         cached_response = self.get_key(key)
         if cached_response and not overwrite_cache:
             cached = True
-            response = Response.deserialize(cached_response)
+            response = key_to_response(cached_response)
         else:
             # Type Response
             response = compute()
-            self.set_key(key, response.serialize())
+            self.set_key(key, response_to_key(response))
             cached = False
-        return response, cached
+        return Response(response, cached, request)

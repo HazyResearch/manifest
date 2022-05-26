@@ -1,6 +1,5 @@
 """SQLite cache."""
 import logging
-from pathlib import Path
 from typing import Any, Union
 
 from sqlitedict import SqliteDict
@@ -20,18 +19,17 @@ class SQLiteCache(Cache):
         Args:
             connection_str: connection string.
         """
-        self.cache_dir = connection_str
-        Path(self.cache_dir).mkdir(parents=True, exist_ok=True)
-        # If more than two tables, switch to full on SQL connection
-        self.query_file = Path(self.cache_dir, "query.sqlite")
-        self.prompt_file = Path(self.cache_dir, "prompts.sqlite")
-        self.cache = SqliteDict(self.query_file, autocommit=False)
-        self.prompt_cache = SqliteDict(self.prompt_file, autocommit=False)
+        self.cache_file = connection_str
+        self.cache = SqliteDict(self.cache_file, autocommit=True)
         return
 
     def close(self) -> None:
         """Close the client."""
         self.cache.close()
+
+    def _normalize_table_key(self, key: str, table: str) -> str:
+        """Cast key for prompt key."""
+        return f"{table}:{key}"
 
     def get_key(self, key: str, table: str = "default") -> Union[str, None]:
         """
@@ -43,14 +41,7 @@ class SQLiteCache(Cache):
             key: key for cache.
             table: table to get key in.
         """
-        if table == "prompt":
-            return self.prompt_cache.get(key)
-        else:
-            if table != "default":
-                raise ValueError(
-                    "SQLiteDict only support table of `default` or `prompt`"
-                )
-        return self.cache.get(key)
+        return self.cache.get(self._normalize_table_key(key, table))
 
     def set_key(self, key: str, value: str, table: str = "default") -> None:
         """
@@ -63,17 +54,9 @@ class SQLiteCache(Cache):
             value: new value for key.
             table: table to set key in.
         """
-        if table == "prompt":
-            self.prompt_cache[key] = value
-        else:
-            if table != "default":
-                raise ValueError(
-                    "SQLiteDict only support table of `default` or `prompt`"
-                )
-            self.cache[key] = value
+        self.cache[self._normalize_table_key(key, table)] = value
         self.commit()
 
     def commit(self) -> None:
         """Commit any results."""
-        self.prompt_cache.commit()
         self.cache.commit()
