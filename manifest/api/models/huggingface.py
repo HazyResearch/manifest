@@ -2,6 +2,7 @@
 from typing import Any, List
 
 from transformers import (
+    AutoModelForSeq2SeqLM,
     AutoTokenizer,
     GPT2LMHeadModel,
     GPTJForCausalLM,
@@ -17,6 +18,16 @@ MODEL_REGISTRY = {
     "EleutherAI/gpt-neo-1.3B": GPTNeoForCausalLM,
     "EleutherAI/gpt-neo-2.7B": GPTNeoForCausalLM,
     "gpt2": GPT2LMHeadModel,
+    "bigscience/T0pp": AutoModelForSeq2SeqLM,
+}
+
+MODEL_PIPELINE = {
+    "EleutherAI/gpt-j-6B": "text-generation",
+    "EleutherAI/gpt-neo-125M": "text-generation",
+    "EleutherAI/gpt-neo-1.3B": "text-generation",
+    "EleutherAI/gpt-neo-2.7B": "text-generation",
+    "gpt2": "text-generation",
+    "bigscience/T0pp": "text2text-generation",
 }
 
 
@@ -37,7 +48,7 @@ class HuggingFaceModel(Model):
         )
         tokenizer = AutoTokenizer.from_pretrained(model_name)
         self.pipeline = pipeline(
-            "text-generation", model=model, tokenizer=tokenizer, device=device
+            MODEL_PIPELINE[model_name], model=model, tokenizer=tokenizer, device=device
         )
 
     def generate(self, prompt: str, **kwargs: Any) -> List[str]:

@@ -2,21 +2,24 @@
 import logging
 from typing import Any, Iterable, List, Optional, Union
 
-from manifest.response import Response
-
-logging.getLogger("openai").setLevel(logging.WARNING)
-logger = logging.getLogger(__name__)
+from tqdm.auto import tqdm
 
 from manifest.caches.redis import RedisCache
 from manifest.caches.sqlite import SQLiteCache
 from manifest.clients.dummy import DummyClient
 from manifest.clients.huggingface import HuggingFaceClient
 from manifest.clients.openai import OpenAIClient
+from manifest.clients.opt import OPTClient
 from manifest.prompt import Prompt
+from manifest.response import Response
+
+logging.getLogger("openai").setLevel(logging.WARNING)
+logger = logging.getLogger(__name__)
 
 CLIENT_CONSTRUCTORS = {
     "openai": OpenAIClient,
     "huggingface": HuggingFaceClient,
+    "opt": OPTClient,
     "dummy": DummyClient,
 }
 
@@ -62,10 +65,14 @@ class Manifest:
                 f"Choices are {list(CACHE_CONSTRUCTORS.keys())}"
             )
         self.client_name = client_name
+        # Must pass kwargs as dict to client "pop" methods removed used arguments
         self.client = CLIENT_CONSTRUCTORS[client_name](  # type: ignore
-            client_connection, **kwargs
+            client_connection, client_args=kwargs
         )
-        self.cache = CACHE_CONSTRUCTORS[cache_name](cache_connection, **kwargs)
+        self.cache = CACHE_CONSTRUCTORS[cache_name](cache_connection, cache_args=kwargs)
+        if len(kwargs) > 0:
+            raise ValueError(f"{list(kwargs.items())} arguments are not recognized.")
+
         self.stop_token = stop_token
 
     def close(self) -> None:
@@ -119,6 +126,7 @@ class Manifest:
         overwrite_cache: bool = False,
         stop_token: Optional[str] = None,
         return_response: bool = False,
+        verbose: bool = False,
         **kwargs: Any,
     ) -> Iterable[Union[str, List[str], Response]]:
         """
@@ -141,7 +149,7 @@ class Manifest:
             self.run(
                 prompt, inp, overwrite_cache, stop_token, return_response, **kwargs
             )
-            for inp in input
+            for inp in tqdm(input, desc="Running batch", disable=not verbose)
         ]
 
     def save_prompt(self, name: str, prompt: Prompt) -> None:

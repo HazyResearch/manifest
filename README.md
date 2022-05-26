@@ -31,7 +31,7 @@ A Manifest prompt is a function that accepts a single input to generate a string
 ```
 from manifest import Prompt
 prompt = Prompt(lambda x: "Hello, my name is {x}")
-print(promt("Laurel"))
+print(prompt("Laurel"))
 >>> "Hello, my name is Laurel"
 ```
 We also let you use static strings
