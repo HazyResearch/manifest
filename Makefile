@@ -1,6 +1,7 @@
 dev:
 	poetry install
 	poetry run pre-commit install
+	poetry run mypy --install-types
 
 test: dev check
 	poetry run pytest tests

@@ -1,6 +1,6 @@
 """Model class."""
 from abc import ABC, abstractmethod
-from typing import Any, List
+from typing import Any, Dict, List
 
 
 class Model(ABC):
@@ -16,6 +16,11 @@ class Model(ABC):
         Args:
             model_name: model name string.
         """
+        raise NotImplementedError()
+
+    @abstractmethod
+    def get_init_params(self) -> Dict:
+        """Return init params to determine what model is being used."""
         raise NotImplementedError()
 
     @abstractmethod

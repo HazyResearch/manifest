@@ -61,19 +61,20 @@ def key_to_response(key: str) -> Dict:
 class Cache(ABC):
     """A cache for request/response pairs."""
 
-    def __init__(self, connection_str: str, **kwargs: Any):
+    def __init__(self, connection_str: str, cache_args: Dict[str, Any] = {}):
         """
         Initialize client.
 
-        kwargs are passed to client as default parameters.
+        cache_args are passed to client as default parameters.
 
         For clients like OpenAI that do not require a connection,
         the connection_str can be None.
 
         Args:
             connection_str: connection string for client.
+            cache_args: cache arguments.
         """
-        self.connect(connection_str, **kwargs)
+        self.connect(connection_str, cache_args)
 
     @abstractmethod
     def close(self) -> None:
@@ -81,7 +82,7 @@ class Cache(ABC):
         raise NotImplementedError()
 
     @abstractmethod
-    def connect(self, connection_str: str, **kwargs: Any) -> None:
+    def connect(self, connection_str: str, cache_args: Dict[str, Any]) -> None:
         """
         Connect to client.
 

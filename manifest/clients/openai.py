@@ -24,35 +24,32 @@ class OpenAIClient(Client):
     def connect(
         self,
         connection_str: Optional[str] = None,
-        engine: Optional[str] = "text-ada-001",
-        temperature: Optional[float] = 0.0,
-        max_tokens: Optional[int] = 10,
-        top_p: Optional[float] = 1.0,
-        frequency_penalty: Optional[int] = 0,
-        presence_penalty: Optional[int] = 0,
-        n: Optional[int] = 1,
-        **kwargs: Any,
+        client_args: Dict[str, Any] = {},
     ) -> None:
         """
         Connect to the OpenAI server.
 
         connection_str is passed as default OPENAI_API_KEY if variable not set.
+
+        Args:
+            connection_str: connection string.
+            client_args: client arguments.
         """
         openai.api_key = os.environ.get("OPENAI_API_KEY", connection_str)
         if openai.api_key is None:
             raise ValueError(
-                "OpenAI API key not set. Set OPENAI_API_KEY environment ",
-                "svariable or pass through `connection_str`.",
+                "OpenAI API key not set. Set OPENAI_API_KEY environment "
+                "variable or pass through `connection_str`."
             )
-        self.engine = engine
+        self.engine = client_args.pop("engine", "text-davinci-002")
         if self.engine not in OPENAI_ENGINES:
             raise ValueError(f"Invalid engine {self.engine}. Must be {OPENAI_ENGINES}.")
-        self.temperature = temperature
-        self.max_tokens = max_tokens
-        self.top_p = top_p
-        self.frequency_penalty = frequency_penalty
-        self.presence_penalty = presence_penalty
-        self.n = n
+        self.temperature = client_args.pop("temperature", 0.0)
+        self.max_tokens = client_args.pop("max_tokens", 10)
+        self.top_p = client_args.pop("top_p", 1.0)
+        self.frequency_penalty = client_args.pop("frequency_penalty", 0.0)
+        self.presence_penalty = client_args.pop("presence_penalty", 0.0)
+        self.n = client_args.pop("n", 1)
 
     def close(self) -> None:
         """Close the client."""

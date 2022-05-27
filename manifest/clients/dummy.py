@@ -13,15 +13,18 @@ class DummyClient(Client):
     def connect(
         self,
         connection_str: Optional[str] = None,
-        num_results: Optional[int] = 1,
-        **kwargs: Any,
+        client_args: Dict[str, Any] = {},
     ) -> None:
         """
         Connect to dummpy server.
 
         This is a dummy client that returns identity responses. Used for testing.
+
+        Args:
+            connection_str: connection string.
+            client_args: client arguments.
         """
-        self.num_results = num_results
+        self.num_results = client_args.pop("num_results", 1)
 
     def close(self) -> None:
         """Close the client."""

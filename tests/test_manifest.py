@@ -10,6 +10,15 @@ from manifest.clients.dummy import DummyClient
 @pytest.mark.usefixtures("sqlite_cache")
 def test_init(sqlite_cache):
     """Test manifest initialization."""
+    with pytest.raises(ValueError) as exc_info:
+        Manifest(
+            client_name="dummy",
+            cache_name="sqlite",
+            cache_connection=sqlite_cache,
+            sep_tok="",
+        )
+    assert str(exc_info.value) == "[('sep_tok', '')] arguments are not recognized."
+
     manifest = Manifest(
         client_name="dummy",
         cache_name="sqlite",
