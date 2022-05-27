@@ -81,6 +81,12 @@ def completions() -> Dict:
     return OpenAIResponse(results).__dict__()
 
 
+@app.route("/params", methods=["POST"])
+def params() -> Dict:
+    """Get model params."""
+    return model.get_init_params()
+
+
 @app.route("/")
 def index() -> str:
     """Get index completion."""

@@ -25,16 +25,30 @@ class HuggingFaceClient(Client):
             client_args: client arguments.
         """
         self.host = connection_str.rstrip("/")
-        self.temperature = client_args.pop("temperature", 1.0)
+        self.temperature = client_args.pop("temperature", 0.00001)
         self.max_tokens = client_args.pop("max_tokens", 10)
-        self.top_p = client_args.pop("top_p", 0)
-        self.top_k = client_args.pop("top_k", 0)
+        self.top_p = client_args.pop("top_p", 1.0)
+        self.top_k = client_args.pop("top_k", 50)
         self.repetition_penalty = client_args.pop("repetition_penalty", 1.0)
         self.n = client_args.pop("n", 1)
+        self.model_params = self.get_model_params()
 
     def close(self) -> None:
         """Close the client."""
         pass
+
+    def get_model_params(self) -> Dict:
+        """
+        Get model params.
+
+        By getting model params from the server, we can add to request
+        and make sure cache keys are unique to model.
+
+        Returns:
+            model params.
+        """
+        res = requests.post(self.host + "/params")
+        return res.json()
 
     def get_request(self, query: str, **kwargs: Any) -> Tuple[Callable[[], Dict], Dict]:
         """
@@ -58,6 +72,7 @@ class HuggingFaceClient(Client):
             ),
             "n": kwargs.get("n", self.n),
         }
+        request_params.update(self.model_params)
 
         def _run_completion() -> Dict:
             post_str = self.host + "/completions"

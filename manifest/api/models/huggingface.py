@@ -1,5 +1,7 @@
 """Huggingface model."""
-from typing import Any, List
+import json
+from pathlib import Path
+from typing import Any, Dict, List
 
 from transformers import (
     AutoModelForSeq2SeqLM,
@@ -19,6 +21,7 @@ MODEL_REGISTRY = {
     "EleutherAI/gpt-neo-2.7B": GPTNeoForCausalLM,
     "gpt2": GPT2LMHeadModel,
     "bigscience/T0pp": AutoModelForSeq2SeqLM,
+    "bigscience/T0_3B": AutoModelForSeq2SeqLM,
 }
 
 MODEL_PIPELINE = {
@@ -28,6 +31,7 @@ MODEL_PIPELINE = {
     "EleutherAI/gpt-neo-2.7B": "text-generation",
     "gpt2": "text-generation",
     "bigscience/T0pp": "text2text-generation",
+    "bigscience/T0_3B": "text2text-generation",
 }
 
 
@@ -43,13 +47,27 @@ class HuggingFaceModel(Model):
         Args:
             model_name: model name string.
         """
+        # Check if providing path
+        self.model_path = model_name
+        if Path(self.model_path).exists() and Path(self.model_path).is_dir():
+            # Try to find config
+            if (Path(self.model_path) / "config.json").exists():
+                config = json.load(open(Path(self.model_path) / "config.json"))
+                model_name = config["_name_or_path"]
+        self.model_name = model_name
+        print("Model Name:", self.model_name, "Model Path:", self.model_path)
         model = MODEL_REGISTRY[model_name].from_pretrained(
-            model_name, cache_dir=cache_dir
+            self.model_path, cache_dir=cache_dir
         )
         tokenizer = AutoTokenizer.from_pretrained(model_name)
         self.pipeline = pipeline(
             MODEL_PIPELINE[model_name], model=model, tokenizer=tokenizer, device=device
         )
+        self.returns_input = MODEL_PIPELINE[model_name] == "text-generation"
+
+    def get_init_params(self) -> Dict:
+        """Return init params to determine what model is being used."""
+        return {"model_name": self.model_name, "model_path": self.model_path}
 
     def generate(self, prompt: str, **kwargs: Any) -> List[str]:
         """
@@ -77,14 +95,12 @@ class HuggingFaceModel(Model):
             top_p=kwargs.get("top_p"),
             num_return_sequences=num_return,
         )
-        # Removes tokens removed from tokenization
-        decoded_prompt = self.pipeline.tokenizer.decode(
-            encoded_prompt, clean_up_tokenization_spaces=True
-        )
-        if num_return == 1:
-            final_results.append(result[0]["generated_text"][len(decoded_prompt) :])
+        if self.returns_input:
+            start_idx = len(prompt)
         else:
-            final_results.append(
-                [r["generated_text"][len(decoded_prompt) :] for r in result]
-            )
+            start_idx = 0
+        if num_return == 1:
+            final_results.append(result[0]["generated_text"][start_idx:])
+        else:
+            final_results.append([r["generated_text"][start_idx:] for r in result])
         return final_results
