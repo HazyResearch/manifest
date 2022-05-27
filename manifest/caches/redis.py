@@ -1,5 +1,5 @@
 """Redis cache."""
-from typing import Any, Union
+from typing import Any, Dict, Union
 
 import redis
 
@@ -9,12 +9,13 @@ from manifest.caches import Cache
 class RedisCache(Cache):
     """A Redis cache for request/response pairs."""
 
-    def connect(self, connection_str: str, **kwargs: Any) -> None:
+    def connect(self, connection_str: str, cache_args: Dict[str, Any]) -> None:
         """
         Connect to client.
 
         Args:
             connection_str: connection string.
+            cache_args: cache arguments.
         """
         host, port = connection_str.split(":")
         self.redis = redis.Redis(host=host, port=int(port), db=0)

@@ -1,6 +1,6 @@
 """SQLite cache."""
 import logging
-from typing import Any, Union
+from typing import Any, Dict, Union
 
 from sqlitedict import SqliteDict
 
@@ -12,12 +12,13 @@ logging.getLogger("sqlitedict").setLevel(logging.WARNING)
 class SQLiteCache(Cache):
     """A SQLite cache for request/response pairs."""
 
-    def connect(self, connection_str: str, **kwargs: Any) -> None:
+    def connect(self, connection_str: str, cache_args: Dict[str, Any]) -> None:
         """
         Connect to client.
 
         Args:
             connection_str: connection string.
+            cache_args: cache arguments.
         """
         self.cache_file = connection_str
         self.cache = SqliteDict(self.cache_file, autocommit=True)
