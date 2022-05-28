@@ -31,6 +31,7 @@ class HuggingFaceClient(Client):
         self.top_k = client_args.pop("top_k", 50)
         self.repetition_penalty = client_args.pop("repetition_penalty", 1.0)
         self.n = client_args.pop("n", 1)
+        self.do_sample = client_args.pop("do_sample", True)
         self.model_params = self.get_model_params()
 
     def close(self) -> None:
@@ -67,6 +68,7 @@ class HuggingFaceClient(Client):
             "max_tokens": kwargs.get("max_tokens", self.max_tokens),
             "top_p": kwargs.get("top_p", self.top_p),
             "top_k": kwargs.get("top_k", self.top_k),
+            "do_sample": kwargs.get("do_sample", self.do_sample),
             "repetition_penalty": kwargs.get(
                 "repetition_penalty", self.repetition_penalty
             ),
