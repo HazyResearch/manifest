@@ -47,6 +47,7 @@ class OPTClient(Client):
         """
         request_params = {
             "prompt": query,
+            "engine": "opt",
             "temperature": kwargs.get("temperature", self.temperature),
             "max_tokens": kwargs.get("max_tokens", self.max_tokens),
             "top_p": kwargs.get("top_p", self.top_p),
