@@ -21,6 +21,8 @@ class SQLiteCache(Cache):
             cache_args: cache arguments.
         """
         self.cache_file = connection_str
+        if not self.cache_file:
+            self.cache_file = ".sqlite.cache"
         self.cache = SqliteDict(self.cache_file, autocommit=True)
         return
 
