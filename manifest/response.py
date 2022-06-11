@@ -16,7 +16,8 @@ class Response:
             not isinstance(self._response["choices"], list)
         ):
             raise ValueError(
-                "Response must be serialized to a dict with a list of choices"
+                "Response must be serialized to a dict with a list of choices. "
+                f"Response is {self._response}."
             )
         if len(self._response["choices"]) > 0:
             if "text" not in self._response["choices"][0]:

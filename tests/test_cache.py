@@ -3,6 +3,7 @@ import pytest
 from redis import Redis
 from sqlitedict import SqliteDict
 
+from manifest.caches.noop import NoopCache
 from manifest.caches.redis import RedisCache
 from manifest.caches.sqlite import SQLiteCache
 
@@ -66,6 +67,36 @@ def test_get(sqlite_cache, redis_cache, cache_type):
     assert response.get_request() == test_request
 
     response = cache.get(test_request, overwrite_cache=True, compute=compute)
+    assert response.get_response() == "hello"
+    assert not response.is_cached()
+    assert response.get_request() == test_request
+
+
+def test_noop_cache():
+    """Test cache that is a no-op cache."""
+    cache = NoopCache(None)
+    cache.set_key("test", "valueA")
+    cache.set_key("testA", "valueB")
+    assert cache.get_key("test") is None
+    assert cache.get_key("testA") is None
+
+    cache.set_key("testA", "valueC")
+    assert cache.get_key("testA") is None
+
+    cache.get_key("test", table="prompt") is None
+    cache.set_key("test", "valueA", table="prompt")
+    cache.get_key("test", table="prompt") is None
+
+    # Assert always not cached
+    test_request = {"test": "hello", "testA": "world"}
+    compute = lambda: {"choices": [{"text": "hello"}]}
+
+    response = cache.get(test_request, overwrite_cache=False, compute=compute)
+    assert response.get_response() == "hello"
+    assert not response.is_cached()
+    assert response.get_request() == test_request
+
+    response = cache.get(test_request, overwrite_cache=False, compute=compute)
     assert response.get_response() == "hello"
     assert not response.is_cached()
     assert response.get_request() == test_request

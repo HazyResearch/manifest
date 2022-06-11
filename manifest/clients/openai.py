@@ -49,6 +49,8 @@ class OpenAIClient(Client):
         self.temperature = client_args.pop("temperature", 0.0)
         self.max_tokens = client_args.pop("max_tokens", 10)
         self.top_p = client_args.pop("top_p", 1.0)
+        self.logprobs = client_args.pop("logprobs", None)
+        self.best_of = client_args.pop("best_of", 1)
         self.frequency_penalty = client_args.pop("frequency_penalty", 0.0)
         self.presence_penalty = client_args.pop("presence_penalty", 0.0)
         self.n = client_args.pop("n", 1)
@@ -56,6 +58,18 @@ class OpenAIClient(Client):
     def close(self) -> None:
         """Close the client."""
         pass
+
+    def get_model_params(self) -> Dict:
+        """
+        Get model params.
+
+        By getting model params from the server, we can add to request
+        and make sure cache keys are unique to model.
+
+        Returns:
+            model params.
+        """
+        return {"model_name": "openai", "engine": self.engine}
 
     def get_request(self, query: str, **kwargs: Any) -> Tuple[Callable[[], Dict], Dict]:
         """
@@ -77,6 +91,8 @@ class OpenAIClient(Client):
             "frequency_penalty": kwargs.get(
                 "frequency_penalty", self.frequency_penalty
             ),
+            "logprobs": kwargs.get("logprobs", self.logprobs),
+            "best_of": kwargs.get("best_of", self.best_of),
             "presence_penalty": kwargs.get("presence_penalty", self.presence_penalty),
             "n": kwargs.get("n", self.n),
         }
