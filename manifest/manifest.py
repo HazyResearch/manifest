@@ -4,8 +4,10 @@ from typing import Any, Iterable, List, Optional, Union
 
 from tqdm.auto import tqdm
 
+from manifest.caches.noop import NoopCache
 from manifest.caches.redis import RedisCache
 from manifest.caches.sqlite import SQLiteCache
+from manifest.clients.ai21 import AI21Client
 from manifest.clients.dummy import DummyClient
 from manifest.clients.huggingface import HuggingFaceClient
 from manifest.clients.openai import OpenAIClient
@@ -18,6 +20,7 @@ logger = logging.getLogger(__name__)
 
 CLIENT_CONSTRUCTORS = {
     "openai": OpenAIClient,
+    "ai21": AI21Client,
     "huggingface": HuggingFaceClient,
     "opt": OPTClient,
     "dummy": DummyClient,
@@ -26,7 +29,16 @@ CLIENT_CONSTRUCTORS = {
 CACHE_CONSTRUCTORS = {
     "redis": RedisCache,
     "sqlite": SQLiteCache,
+    "noop": NoopCache,
 }
+
+try:
+    from manifest.clients.crfm import CRFMClient
+
+    CLIENT_CONSTRUCTORS["crfm"] = CRFMClient
+except ImportError:
+    # TODO: remove this when CRFM is public
+    pass
 
 
 class Manifest:
@@ -36,8 +48,8 @@ class Manifest:
         self,
         client_name: str = "openai",
         client_connection: Optional[str] = None,
-        cache_name: str = "redis",
-        cache_connection: str = "localhost:6379",
+        cache_name: str = "noop",
+        cache_connection: Optional[str] = None,
         stop_token: str = "",
         **kwargs: Any,
     ):
@@ -65,11 +77,13 @@ class Manifest:
                 f"Choices are {list(CACHE_CONSTRUCTORS.keys())}"
             )
         self.client_name = client_name
-        # Must pass kwargs as dict to client "pop" methods removed used arguments
+        # Must pass kwargs as dict for client "pop" methods removed used arguments
         self.client = CLIENT_CONSTRUCTORS[client_name](  # type: ignore
             client_connection, client_args=kwargs
         )
-        self.cache = CACHE_CONSTRUCTORS[cache_name](cache_connection, cache_args=kwargs)
+        self.cache = CACHE_CONSTRUCTORS[cache_name](  # type: ignore
+            cache_connection, cache_args=kwargs
+        )
         if len(kwargs) > 0:
             raise ValueError(f"{list(kwargs.items())} arguments are not recognized.")
 
@@ -82,7 +96,7 @@ class Manifest:
 
     def run(
         self,
-        prompt: Prompt,
+        prompt: Union[Prompt, str],
         input: Optional[Any] = None,
         overwrite_cache: bool = False,
         stop_token: Optional[str] = None,
@@ -93,7 +107,7 @@ class Manifest:
         Run the prompt.
 
         Args:
-            prompt: prompt to run.
+            prompt: prompt to run. If string, will cast to prompt.
             input: input to prompt.
             overwrite_cache: whether to overwrite cache.
             stop_token: stop token for prompt generation.
@@ -103,6 +117,8 @@ class Manifest:
         Returns:
             response from prompt.
         """
+        if isinstance(prompt, str):
+            prompt = Prompt(prompt)
         stop_token = stop_token if stop_token is not None else self.stop_token
         prompt_str = prompt(input)
         possible_request, full_kwargs = self.client.get_request(prompt_str, **kwargs)
@@ -143,6 +159,11 @@ class Manifest:
         Returns:
             batch of responses.
         """
+        if isinstance(prompt, str):
+            raise ValueError(
+                "Prompt must be a Prompt object for batch run on data. "
+                "We only support strings in `manifest.run`."
+            )
         if input is None:
             input = [None]
         return [
