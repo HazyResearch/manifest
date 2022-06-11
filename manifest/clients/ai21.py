@@ -66,7 +66,39 @@ class AI21Client(Client):
         """
         return {"model_name": "ai21", "engine": self.engine}
 
-    def get_request(self, query: str, **kwargs: Any) -> Tuple[Callable[[], Dict], Dict]:
+    def format_response(self, response: Dict) -> Dict[str, Any]:
+        """
+        Format response to dict.
+
+        Args:
+            response: response
+
+        Return:
+            response as dict
+        """
+        return {
+            "object": "text_completion",
+            "model": self.engine,
+            "choices": [
+                {
+                    "text": item["data"]["text"],
+                    "logprobs": [
+                        {
+                            "token": tok["generatedToken"]["token"],
+                            "logprob": tok["generatedToken"]["logprob"],
+                            "start": tok["textRange"]["start"],
+                            "end": tok["textRange"]["end"],
+                        }
+                        for tok in item["data"]["tokens"]
+                    ],
+                }
+                for item in response["completions"]
+            ],
+        }
+
+    def get_request(
+        self, query: str, request_args: Dict[str, Any] = {}
+    ) -> Tuple[Callable[[], Dict], Dict]:
         """
         Get request string function.
 
@@ -78,26 +110,22 @@ class AI21Client(Client):
             request parameters as dict.
         """
         request_params = {
-            "engine": kwargs.get("engine", self.engine),
+            "engine": request_args.pop("engine", self.engine),
             "prompt": query,
-            "temperature": kwargs.get("temperature", self.temperature),
-            "maxTokens": kwargs.get("maxTokens", self.max_tokens),
-            "topKReturn": kwargs.get("topKReturn", self.top_k_return),
-            "numResults": kwargs.get("numResults", self.num_results),
-            "topP": kwargs.get("topP", self.top_p),
+            "temperature": request_args.pop("temperature", self.temperature),
+            "maxTokens": request_args.pop("maxTokens", self.max_tokens),
+            "topKReturn": request_args.pop("topKReturn", self.top_k_return),
+            "numResults": request_args.pop("numResults", self.num_results),
+            "topP": request_args.pop("topP", self.top_p),
         }
 
         def _run_completion() -> Dict:
             post_str = self.host + "/" + self.engine + "/complete"
-            print(self.api_key)
-            print(post_str)
-            print("https://api.ai21.com/studio/v1/j1-large/complete")
-            print(request_params)
             res = requests.post(
                 post_str,
                 headers={"Authorization": f"Bearer {self.api_key}"},
                 json=request_params,
             )
-            return res.json()
+            return self.format_response(res.json())
 
         return _run_completion, request_params

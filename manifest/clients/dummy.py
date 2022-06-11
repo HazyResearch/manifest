@@ -42,7 +42,9 @@ class DummyClient(Client):
         """
         return {"engine": "dummy"}
 
-    def get_request(self, query: str, **kwargs: Any) -> Tuple[Callable[[], Dict], Dict]:
+    def get_request(
+        self, query: str, request_args: Dict[str, Any] = {}
+    ) -> Tuple[Callable[[], Dict], Dict]:
         """
         Get request string function.
 
@@ -55,10 +57,10 @@ class DummyClient(Client):
         """
         request_params = {
             "prompt": query,
-            "num_results": kwargs.get("num_results", self.num_results),
+            "num_results": request_args.pop("num_results", self.num_results),
         }
 
         def _run_completion() -> Dict:
-            return {"choices": [{"text": "hello"}] * self.num_results}
+            return {"choices": [{"text": "hello"}] * request_params["num_results"]}
 
         return _run_completion, request_params

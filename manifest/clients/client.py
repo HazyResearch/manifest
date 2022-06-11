@@ -52,7 +52,9 @@ class Client(ABC):
         raise NotImplementedError()
 
     @abstractmethod
-    def get_request(self, query: str, **kwargs: Any) -> Tuple[Callable[[], Dict], Dict]:
+    def get_request(
+        self, query: str, request_args: Dict[str, Any] = {}
+    ) -> Tuple[Callable[[], Dict], Dict]:
         """
         Get request function.
 
@@ -62,6 +64,7 @@ class Client(ABC):
 
         Args:
             query: query string.
+            request_args: request arguments.
 
         Returns:
             request function that takes no input.
