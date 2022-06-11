@@ -34,6 +34,18 @@ class OPTClient(Client):
         """Close the client."""
         pass
 
+    def get_model_params(self) -> Dict:
+        """
+        Get model params.
+
+        By getting model params from the server, we can add to request
+        and make sure cache keys are unique to model.
+
+        Returns:
+            model params.
+        """
+        return {"model_name": "opt"}
+
     def get_request(self, query: str, **kwargs: Any) -> Tuple[Callable[[], Dict], Dict]:
         """
         Get request string function.
