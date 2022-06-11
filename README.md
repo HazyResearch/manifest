@@ -1,5 +1,5 @@
-# manifest
-Prompt programming with FMs.
+# Manifest
+How to make prompt programming with FMs a little easier.
 
 # Install
 Download the code:
@@ -11,37 +11,69 @@ cd manifest
 Install:
 ```bash
 pip install poetry
-poetry install
-poetry run pre-commit install
+poetry install --no-dev
 ```
-or
+
+Dev Install:
 ```bash
 pip install poetry
 make dev
 ```
-# Run
-Manifest is meant to be a very light weight package to help with prompt iteration. Two key design decisions are
+
+# Getting Started
+Running is simple to get started. If using OpenAI, set `export OPENAI_API_KEY=<OPENAIKEY>` then run
+
+```python
+from manifest import Manifest
+
+# Start a manifest session
+manifest = Manifest(
+    client_name = "openai",
+)
+manifest.run("Why is the grass green?")
+```
+
+We also support AI21, OPT models, and HuggingFace models (see [below](#huggingface-models)).
+
+Caching by default is turned off, but to cache results, run
+
+```python
+from manifest import Manifest
+
+# Start a manifest session
+manifest = Manifest(
+    client_name = "openai",
+    cache_name = "sqlite",
+    cache_connection = "mycache.sqlite",
+)
+manifest.run("Why is the grass green?")
+```
+
+We also support Redis backend.
+
+# Manifest Components
+Manifest is meant to be a very light weight package to help with prompt iteration. Three key design decisions are
 
 * Prompt are functional -- they can take an input example and dynamically change
 * All models are behind API calls (e.g., OpenAI)
-* Everything is cached for reuse to both save credits and to explore past results
+* Everything can cached for reuse to both save credits and to explore past results
 
 ## Prompts
 A Manifest prompt is a function that accepts a single input to generate a string prompt to send to a model.
+
 ```python
 from manifest import Prompt
 prompt = Prompt(lambda x: "Hello, my name is {x}")
 print(prompt("Laurel"))
 >>> "Hello, my name is Laurel"
 ```
+
 We also let you use static strings
 ```python
 prompt = Prompt("Hello, my name is static")
 print(prompt())
 >>> "Hello, my name is static"
 ```
-
-**Chaining prompts coming soon**
 
 ## Sessions
 
@@ -51,7 +83,7 @@ export OPENAI_API_KEY=<OPENAIKEY>
 ```
 so we can access OpenAI.
 
-Then, in a notebook, run:
+Then run:
 ```python
 from manifest import Manifest
 
@@ -104,7 +136,8 @@ If you want to change default parameters to a model, we pass those as `kwargs` t
 ```python
 result = manifest.run(prompt, "Laurel", max_tokens=50)
 ```
-# Huggingface Models
+
+## Huggingface Models
 To use a HuggingFace generative model, in `manifest/api` we have a Falsk application that hosts the models for you.
 
 In a separate terminal or Tmux/Screen session, run
@@ -117,14 +150,10 @@ You will see the Flask session start and output a URL `http://127.0.0.1:5000`. P
 manifest = Manifest(
     client_name = "huggingface",
     client_connection = "http://127.0.0.1:5000",
-    cache_name = "redis",
-    cache_connection = "localhost:6379"
 )
 ```
 
 If you have a custom model you trained, pass the model path to `--model_name`.
-
-**Auto deployment coming soon**
 
 # Development
 Before submitting a PR, run

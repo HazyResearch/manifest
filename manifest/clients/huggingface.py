@@ -51,7 +51,9 @@ class HuggingFaceClient(Client):
         res = requests.post(self.host + "/params")
         return res.json()
 
-    def get_request(self, query: str, **kwargs: Any) -> Tuple[Callable[[], Dict], Dict]:
+    def get_request(
+        self, query: str, request_args: Dict[str, Any] = {}
+    ) -> Tuple[Callable[[], Dict], Dict]:
         """
         Get request string function.
 
@@ -64,15 +66,15 @@ class HuggingFaceClient(Client):
         """
         request_params = {
             "prompt": query,
-            "temperature": kwargs.get("temperature", self.temperature),
-            "max_tokens": kwargs.get("max_tokens", self.max_tokens),
-            "top_p": kwargs.get("top_p", self.top_p),
-            "top_k": kwargs.get("top_k", self.top_k),
-            "do_sample": kwargs.get("do_sample", self.do_sample),
-            "repetition_penalty": kwargs.get(
+            "temperature": request_args.pop("temperature", self.temperature),
+            "max_tokens": request_args.pop("max_tokens", self.max_tokens),
+            "top_p": request_args.pop("top_p", self.top_p),
+            "top_k": request_args.pop("top_k", self.top_k),
+            "do_sample": request_args.pop("do_sample", self.do_sample),
+            "repetition_penalty": request_args.pop(
                 "repetition_penalty", self.repetition_penalty
             ),
-            "n": kwargs.get("n", self.n),
+            "n": request_args.pop("n", self.n),
         }
         request_params.update(self.model_params)
 

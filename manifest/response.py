@@ -25,6 +25,12 @@ class Response:
                     "Response must be serialized to a dict with a "
                     "list of choices with text field"
                 )
+            if "logprobs" in self._response["choices"][0]:
+                if not isinstance(self._response["choices"][0]["logprobs"], list):
+                    raise ValueError(
+                        "Response must be serialized to a dict with a "
+                        "list of choices with logprobs field"
+                    )
         self._cached = cached
         self._request_params = request_params
 
