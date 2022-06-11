@@ -29,6 +29,19 @@ class Client(ABC):
         raise NotImplementedError()
 
     @abstractmethod
+    def get_model_params(self) -> Dict:
+        """
+        Get model params.
+
+        By getting model params from the server, we can add to request
+        and make sure cache keys are unique to model.
+
+        Returns:
+            model params.
+        """
+        raise NotImplementedError()
+
+    @abstractmethod
     def connect(self, connection_str: str, client_args: Dict[str, Any]) -> None:
         """
         Connect to client.

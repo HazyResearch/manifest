@@ -11,9 +11,9 @@ def test_init():
     assert str(exc_info.value) == "Response must be str or dict"
     with pytest.raises(ValueError) as exc_info:
         response = Response({"test": "hello"}, False, {})
-    assert (
-        str(exc_info.value)
-        == "Response must be serialized to a dict with a list of choices"
+    assert str(exc_info.value) == (
+        "Response must be serialized to a dict with a list of choices. "
+        "Response is {'test': 'hello'}."
     )
     with pytest.raises(ValueError) as exc_info:
         response = Response({"choices": [{"blah": "hello"}]}, False, {})
