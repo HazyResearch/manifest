@@ -71,7 +71,9 @@ class OpenAIClient(Client):
         """
         return {"model_name": "openai", "engine": self.engine}
 
-    def get_request(self, query: str, **kwargs: Any) -> Tuple[Callable[[], Dict], Dict]:
+    def get_request(
+        self, query: str, request_args: Dict[str, Any] = {}
+    ) -> Tuple[Callable[[], Dict], Dict]:
         """
         Get request string function.
 
@@ -83,18 +85,20 @@ class OpenAIClient(Client):
             request parameters as dict.
         """
         request_params = {
-            "engine": kwargs.get("engine", self.engine),
+            "engine": request_args.pop("engine", self.engine),
             "prompt": query,
-            "temperature": kwargs.get("temperature", self.temperature),
-            "max_tokens": kwargs.get("max_tokens", self.max_tokens),
-            "top_p": kwargs.get("top_p", self.top_p),
-            "frequency_penalty": kwargs.get(
+            "temperature": request_args.pop("temperature", self.temperature),
+            "max_tokens": request_args.pop("max_tokens", self.max_tokens),
+            "top_p": request_args.pop("top_p", self.top_p),
+            "frequency_penalty": request_args.pop(
                 "frequency_penalty", self.frequency_penalty
             ),
-            "logprobs": kwargs.get("logprobs", self.logprobs),
-            "best_of": kwargs.get("best_of", self.best_of),
-            "presence_penalty": kwargs.get("presence_penalty", self.presence_penalty),
-            "n": kwargs.get("n", self.n),
+            "logprobs": request_args.pop("logprobs", self.logprobs),
+            "best_of": request_args.pop("best_of", self.best_of),
+            "presence_penalty": request_args.pop(
+                "presence_penalty", self.presence_penalty
+            ),
+            "n": request_args.pop("n", self.n),
         }
 
         def _run_completion() -> Dict:

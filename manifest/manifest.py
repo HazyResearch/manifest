@@ -121,7 +121,10 @@ class Manifest:
             prompt = Prompt(prompt)
         stop_token = stop_token if stop_token is not None else self.stop_token
         prompt_str = prompt(input)
-        possible_request, full_kwargs = self.client.get_request(prompt_str, **kwargs)
+        # Must pass kwargs as dict for client "pop" methods removed used arguments
+        possible_request, full_kwargs = self.client.get_request(prompt_str, kwargs)
+        if len(kwargs) > 0:
+            raise ValueError(f"{list(kwargs.items())} arguments are not recognized.")
         # Create cacke key
         cache_key = full_kwargs.copy()
         # Make query model dependent

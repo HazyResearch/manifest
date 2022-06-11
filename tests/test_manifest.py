@@ -55,6 +55,12 @@ def test_run(sqlite_cache, num_results, return_response):
         cache_connection=sqlite_cache,
         num_results=num_results,
     )
+
+    prompt = Prompt("This is a prompt")
+    with pytest.raises(ValueError) as exc_info:
+        result = manifest.run(prompt, return_response=return_response, bad_input=5)
+    assert str(exc_info.value) == "[('bad_input', 5)] arguments are not recognized."
+
     prompt = Prompt("This is a prompt")
     result = manifest.run(prompt, return_response=return_response)
     if return_response:
