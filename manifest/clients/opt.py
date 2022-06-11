@@ -46,7 +46,9 @@ class OPTClient(Client):
         """
         return {"model_name": "opt"}
 
-    def get_request(self, query: str, **kwargs: Any) -> Tuple[Callable[[], Dict], Dict]:
+    def get_request(
+        self, query: str, request_args: Dict[str, Any] = {}
+    ) -> Tuple[Callable[[], Dict], Dict]:
         """
         Get request string function.
 
@@ -60,10 +62,10 @@ class OPTClient(Client):
         request_params = {
             "prompt": query,
             "engine": "opt",
-            "temperature": kwargs.get("temperature", self.temperature),
-            "max_tokens": kwargs.get("max_tokens", self.max_tokens),
-            "top_p": kwargs.get("top_p", self.top_p),
-            "n": kwargs.get("n", self.n),
+            "temperature": request_args.pop("temperature", self.temperature),
+            "max_tokens": request_args.pop("max_tokens", self.max_tokens),
+            "top_p": request_args.pop("top_p", self.top_p),
+            "n": request_args.pop("n", self.n),
         }
 
         def _run_completion() -> Dict:

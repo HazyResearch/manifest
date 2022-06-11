@@ -26,6 +26,7 @@ transformers = "^4.19.2"
 torch = "^1.8"
 requests = "^2.27.1"
 tqdm = "^4.64.0"
+uuid = "^1.30"
 
 [tool.poetry.dev-dependencies]
 black = "^22.3.0"

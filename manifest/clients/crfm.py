@@ -86,6 +86,7 @@ class CRFMClient(Client):
             response as dict
         """
         return {
+            "id": response.id,
             "object": "text_completion",
             "model": self.engine,
             "choices": [
@@ -104,7 +105,9 @@ class CRFMClient(Client):
             ],
         }
 
-    def get_request(self, query: str, **kwargs: Any) -> Tuple[Callable[[], Dict], Dict]:
+    def get_request(
+        self, query: str, request_args: Dict[str, Any] = {}
+    ) -> Tuple[Callable[[], Dict], Dict]:
         """
         Get request string function.
 
@@ -116,16 +119,22 @@ class CRFMClient(Client):
             request parameters as dict.
         """
         request_params = {
-            "model": kwargs.get("engine", self.engine),
+            "model": request_args.pop("engine", self.engine),
             "prompt": query,
-            "temperature": kwargs.get("temperature", self.temperature),
-            "max_tokens": kwargs.get("max_tokens", self.max_tokens),
-            "top_k_per_token": kwargs.get("top_k_per_token", self.top_k_per_token),
-            "num_completions": kwargs.get("num_completions", self.num_completions),
-            "stop_sequences": kwargs.get("stop_sequences", self.stop_sequences),
-            "top_p": kwargs.get("top_p", self.top_p),
-            "presence_penalty": kwargs.get("presence_penalty", self.presence_penalty),
-            "frequency_penalty": kwargs.get(
+            "temperature": request_args.pop("temperature", self.temperature),
+            "max_tokens": request_args.pop("max_tokens", self.max_tokens),
+            "top_k_per_token": request_args.pop(
+                "top_k_per_token", self.top_k_per_token
+            ),
+            "num_completions": request_args.pop(
+                "num_completions", self.num_completions
+            ),
+            "stop_sequences": request_args.pop("stop_sequences", self.stop_sequences),
+            "top_p": request_args.pop("top_p", self.top_p),
+            "presence_penalty": request_args.pop(
+                "presence_penalty", self.presence_penalty
+            ),
+            "frequency_penalty": request_args.pop(
                 "frequency_penalty", self.frequency_penalty
             ),
         }

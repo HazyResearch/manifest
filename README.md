@@ -1,7 +1,7 @@
 # Manifest
 How to make prompt programming with FMs a little easier.
 
-## Install
+# Install
 Download the code:
 ```bash
 git clone git@github.com:HazyResearch/manifest.git
@@ -20,7 +20,7 @@ pip install poetry
 make dev
 ```
 
-## Getting Started
+# Getting Started
 Running is simple to get started. If using OpenAI, set `export OPENAI_API_KEY=<OPENAIKEY>` then run
 
 ```python
@@ -51,14 +51,14 @@ manifest.run("Why is the grass green?")
 
 We also support Redis backend.
 
-## Manifest Components
+# Manifest Components
 Manifest is meant to be a very light weight package to help with prompt iteration. Three key design decisions are
 
 * Prompt are functional -- they can take an input example and dynamically change
 * All models are behind API calls (e.g., OpenAI)
 * Everything can cached for reuse to both save credits and to explore past results
 
-### Prompts
+## Prompts
 A Manifest prompt is a function that accepts a single input to generate a string prompt to send to a model.
 
 ```python
@@ -75,7 +75,7 @@ print(prompt())
 >>> "Hello, my name is static"
 ```
 
-### Sessions
+## Sessions
 
 Each Manifest run is a session that connects to a model endpoint and backend database to record prompt queries. To start a Manifest session for OpenAI, make sure you run
 ```bash
@@ -137,7 +137,7 @@ If you want to change default parameters to a model, we pass those as `kwargs` t
 result = manifest.run(prompt, "Laurel", max_tokens=50)
 ```
 
-### Huggingface Models
+## Huggingface Models
 To use a HuggingFace generative model, in `manifest/api` we have a Falsk application that hosts the models for you.
 
 In a separate terminal or Tmux/Screen session, run
@@ -155,7 +155,7 @@ manifest = Manifest(
 
 If you have a custom model you trained, pass the model path to `--model_name`.
 
-## Development
+# Development
 Before submitting a PR, run
 ```bash
 export REDIS_PORT="6380"  # or whatever PORT local redis is running for those tests
