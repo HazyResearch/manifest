@@ -8,6 +8,7 @@ from manifest.caches.noop import NoopCache
 from manifest.caches.redis import RedisCache
 from manifest.caches.sqlite import SQLiteCache
 from manifest.clients.ai21 import AI21Client
+from manifest.clients.crfm import CRFMClient
 from manifest.clients.dummy import DummyClient
 from manifest.clients.huggingface import HuggingFaceClient
 from manifest.clients.openai import OpenAIClient
@@ -23,6 +24,7 @@ CLIENT_CONSTRUCTORS = {
     "ai21": AI21Client,
     "huggingface": HuggingFaceClient,
     "opt": OPTClient,
+    "crfm": CRFMClient,
     "dummy": DummyClient,
 }
 
@@ -171,7 +173,12 @@ class Manifest:
             input = [None]
         return [
             self.run(
-                prompt, inp, overwrite_cache, stop_token, return_response, **kwargs
+                prompt,
+                inp,
+                overwrite_cache,
+                stop_token,
+                return_response,
+                **kwargs,
             )
             for inp in tqdm(input, desc="Running batch", disable=not verbose)
         ]
