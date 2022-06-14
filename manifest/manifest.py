@@ -1,6 +1,6 @@
 """Manifest class."""
 import logging
-from typing import Any, Iterable, List, Optional, Union
+from typing import Any, Iterable, List, Optional, Tuple, Union
 
 from tqdm.auto import tqdm
 
@@ -14,6 +14,7 @@ from manifest.clients.openai import OpenAIClient
 from manifest.clients.opt import OPTClient
 from manifest.prompt import Prompt
 from manifest.response import Response
+from manifest.session import Session
 
 logging.getLogger("openai").setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
@@ -36,7 +37,8 @@ try:
     from manifest.clients.crfm import CRFMClient
 
     CLIENT_CONSTRUCTORS["crfm"] = CRFMClient
-except ImportError:
+except ImportError as e:
+    logger.debug("CRFM import error", e, "Are you in the import_fix branch?")
     # TODO: remove this when CRFM is public
     pass
 
@@ -50,6 +52,7 @@ class Manifest:
         client_connection: Optional[str] = None,
         cache_name: str = "noop",
         cache_connection: Optional[str] = None,
+        session_id: Optional[str] = None,
         stop_token: str = "",
         **kwargs: Any,
     ):
@@ -61,6 +64,8 @@ class Manifest:
             client_connection: connection string for client.
             cache_name: name of cache.
             cache_connection: connection string for cache.
+            session_id: session id for user session cache.
+                        None (default) means new session.
             stop_token: stop token prompt generation.
                         Can be overridden in run
 
@@ -84,6 +89,7 @@ class Manifest:
         self.cache = CACHE_CONSTRUCTORS[cache_name](  # type: ignore
             cache_connection, cache_args=kwargs
         )
+        self.session = Session(session_id)
         if len(kwargs) > 0:
             raise ValueError(f"{list(kwargs.items())} arguments are not recognized.")
 
@@ -132,6 +138,8 @@ class Manifest:
         # Make query prompt dependent
         cache_key["prompt"] = prompt_str
         response_obj = self.cache.get(cache_key, overwrite_cache, possible_request)
+        # Log session dictionary values
+        self.session.log_query(cache_key, response_obj.to_dict())
         # Extract text results
         if return_response:
             return response_obj
@@ -197,6 +205,38 @@ class Manifest:
             Prompt saved with name.
         """
         return Prompt.deserialize(self.cache.get_key(name, table="prompt"))
+
+    def get_last_queries(
+        self,
+        last_n: int = -1,
+        return_raw_values: bool = False,
+        stop_token: Optional[str] = None,
+    ) -> List[Tuple[Any, Any]]:
+        """
+        Get last n queries from current session.
+
+        If last_n is -1, return all queries. By default will only return the
+        prompt text and result text unles return_raw_values is False.
+
+        Args:
+            last_n: last n queries.
+            return_raw_values: whether to return raw values as dicts.
+            stop_token: stop token for prompt results to be applied to all results.
+
+        Returns:
+            last n list of queries and outputs.
+        """
+        stop_token = stop_token if stop_token is not None else self.stop_token
+        last_queries = self.session.get_last_queries(last_n)
+        if not return_raw_values:
+            last_queries = [
+                (
+                    query["prompt"],
+                    Response.from_dict(response).get_response(stop_token),
+                )  # type: ignore
+                for query, response in last_queries
+            ]
+        return last_queries
 
     def open_explorer(self) -> None:
         """Open the explorer for jupyter widget."""

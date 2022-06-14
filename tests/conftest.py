@@ -1,6 +1,7 @@
 """Setup for all tests."""
 import os
 import shutil
+from pathlib import Path
 
 import pytest
 import redis
@@ -35,3 +36,10 @@ def redis_cache():
     # Clear out the database
     db = redis.Redis(host=host, port=port)
     db.flushdb()
+
+
+@pytest.fixture
+def session_cache(tmpdir):
+    """Session cache dir."""
+    os.environ["MANIFEST_SESSION_HOME"] = str(tmpdir)
+    yield Path(tmpdir)

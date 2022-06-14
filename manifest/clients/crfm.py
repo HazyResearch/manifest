@@ -2,6 +2,7 @@
 import logging
 import os
 import sys
+import uuid
 from typing import Any, Callable, Dict, Optional, Tuple
 
 from manifest.clients.client import Client
@@ -86,7 +87,7 @@ class CRFMClient(Client):
             response as dict
         """
         return {
-            "id": response.id,
+            "id": str(uuid.uuid4()),
             "object": "text_completion",
             "model": self.engine,
             "choices": [
