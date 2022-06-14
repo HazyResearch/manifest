@@ -27,21 +27,20 @@ def test_init(session_cache):
 def test_log_query(session_cache):
     """Test session log_query."""
     session = Session()
-    assert session.get_last_queries(1, return_raw_values=True) == []
+    assert session.get_last_queries(1) == []
 
     query_key = {"query": "What is your name?", "time": "now"}
     response_key = {"response": "I don't have a name", "engine": "nodel"}
     session.log_query(query_key, response_key)
     assert session.query_id == 1
-    assert session.get_last_queries(1, return_raw_values=True) == [
-        (query_key, response_key)
-    ]
+    assert session.get_last_queries(1) == [(query_key, response_key)]
 
     query_key2 = {"query2": "What is your name?", "time": "now"}
     response_key2 = {"response2": "I don't have a name", "engine": "nodel"}
     session.log_query(query_key2, response_key2)
     assert session.query_id == 2
-    assert session.get_last_queries(2, return_raw_values=True) == [
+    assert len(session.get_last_queries(1)) == 1
+    assert session.get_last_queries(2) == [
         (query_key, response_key),
         (query_key2, response_key2),
     ]

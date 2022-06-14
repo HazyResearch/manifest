@@ -129,7 +129,7 @@ class Session:
         Returns:
             last n list of queries and outputs.
         """
-        first_query = self.query_id - last_n - 1 if last_n > 0 else -1
+        first_query = self.query_id - last_n if last_n > 0 else -1
         query = """SELECT query_key, response_key
                     FROM queries
                     WHERE session_id = ? AND query_id >= ?
