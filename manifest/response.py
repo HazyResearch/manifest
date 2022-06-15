@@ -42,7 +42,7 @@ class Response:
         """Get request parameters."""
         return self._request_params
 
-    def get_raw_response(self) -> Dict:
+    def get_json_response(self) -> Dict:
         """Get response dict without parsing."""
         return self._response
 
@@ -69,12 +69,7 @@ class Response:
         Returns:
             serialized response.
         """
-        to_serialize = {
-            "response": self._response,
-            "cached": self._cached,
-            "request_params": self._request_params,
-        }
-        return json.dumps(to_serialize, sort_keys=True)
+        return json.dumps(self.to_dict(), sort_keys=True)
 
     @classmethod
     def deserialize(cls, value: str) -> "Response":
@@ -92,6 +87,36 @@ class Response:
             deserialized["response"],
             deserialized["cached"],
             deserialized["request_params"],
+        )
+
+    def to_dict(self) -> Dict:
+        """
+        Get dictionary representation of response.
+
+        Returns:
+            dictionary representation of response.
+        """
+        return {
+            "response": self._response,
+            "cached": self._cached,
+            "request_params": self._request_params,
+        }
+
+    @classmethod
+    def from_dict(cls, response: Dict) -> "Response":
+        """
+        Create response from dictionary.
+
+        Args:
+            response: dictionary representation of response.
+
+        Returns:
+            response.
+        """
+        return cls(
+            response["response"],
+            response["cached"],
+            response["request_params"],
         )
 
     def __str__(self) -> str:
