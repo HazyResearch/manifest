@@ -36,12 +36,12 @@ def test_init():
 def test_getters():
     """Test response cached."""
     response = Response({"choices": [{"text": "hello"}]}, False, {})
-    assert response.get_raw_response() == {"choices": [{"text": "hello"}]}
+    assert response.get_json_response() == {"choices": [{"text": "hello"}]}
     assert response.is_cached() is False
     assert response.get_request() == {}
 
     response = Response({"choices": [{"text": "hello"}]}, True, {"request": "yoyo"})
-    assert response.get_raw_response() == {"choices": [{"text": "hello"}]}
+    assert response.get_json_response() == {"choices": [{"text": "hello"}]}
     assert response.is_cached() is True
     assert response.get_request() == {"request": "yoyo"}
 

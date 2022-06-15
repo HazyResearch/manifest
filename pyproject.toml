@@ -23,12 +23,12 @@ redis = "^4.3.1"
 dill = "^0.3.5"
 Flask = "^2.1.2"
 transformers = "^4.19.2"
-torch = "^1.8"
 requests = "^2.27.1"
 tqdm = "^4.64.0"
 uuid = "^1.30"
 
 [tool.poetry.dev-dependencies]
+torch = "^1.0"
 black = "^22.3.0"
 flake8 = "^4.0.0"
 flake8-docstrings = "^1.6.0"

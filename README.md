@@ -33,30 +33,14 @@ manifest = Manifest(
 manifest.run("Why is the grass green?")
 ```
 
-We also support AI21, OPT models, and HuggingFace models (see [below](#huggingface-models)).
-
-Caching by default is turned off, but to cache results, run
-
-```python
-from manifest import Manifest
-
-# Start a manifest session
-manifest = Manifest(
-    client_name = "openai",
-    cache_name = "sqlite",
-    cache_connection = "mycache.sqlite",
-)
-manifest.run("Why is the grass green?")
-```
-
-We also support Redis backend.
-
 # Manifest Components
-Manifest is meant to be a very light weight package to help with prompt iteration. Three key design decisions are
+Manifest is meant to be a very light weight package to help with prompt iteration. When a user starts a Manifest session, we start to record user query history for that session. This is saved locally and is user specific. We also optionally cache all model results globally so that queries can be shared across users.
+
+Three key design decisions of Manifest are
 
 * Prompt are functional -- they can take an input example and dynamically change
 * All models are behind API calls (e.g., OpenAI)
-* Everything can cached for reuse to both save credits and to explore past results
+* Model inputs/outputs are locally cached woth the optional ability to globally cache model results
 
 ## Prompts
 A Manifest prompt is a function that accepts a single input to generate a string prompt to send to a model.
@@ -77,25 +61,36 @@ print(prompt())
 
 ## Sessions
 
-Each Manifest run is a session that connects to a model endpoint and backend database to record prompt queries. To start a Manifest session for OpenAI, make sure you run
-```bash
-export OPENAI_API_KEY=<OPENAIKEY>
-```
-so we can access OpenAI.
-
-Then run:
+Each Manifest run is a session that connects to a model endpoint and a local SQLite DB to store user query history.
 ```python
-from manifest import Manifest
 
+# Start a manifest session
 manifest = Manifest(
     client_name = "openai",
-    cache_name = "sqlite",
-    cache_connection = "sqlite.cache"
+    session_id = "grass_color",
 )
 ```
-This will start a session with OpenAI and save all results to a local file called `sqlite.cache`.
+will start a Manifest session with the session name `grass_color`. This can be helpful for a user to logically keep track of sessions and resume them if desired. If no id is provided, we generate a random id for the user.
 
-We also support a Redis backend. If you have a Redis database running on port 6379, run
+After a few queries, the user can explore their history
+```python
+manifest.get_last_queries(4)
+```
+will retrieve the last 4 model queries and responses.
+
+We further support having queries and results stored in a global cache (without any unique session information) that can be shared across users. We treat inputs and outputs as key value pairs and support SQLite or Redis backends. To start a session with additional global caching using SQLite, run
+
+```python
+manifest = Manifest(
+    client_name = "openai",
+    session_id = "grass_color",
+    cache_name = "sqlite",
+    cache_connection = "mycache.sqlite",
+)
+```
+The cache will be saved in mycache.sqlite.
+
+We also support Redis backend.
 ```python
 manifest = Manifest(
     client_name = "openai",
@@ -106,6 +101,8 @@ manifest = Manifest(
 As a hint, if you want to get Redis running, see the `docker run` command below under development.
 
 We will explain [below](#huggingface-models) how to use Manifest for a locally hosted HuggingFace model.
+
+## Running Queries
 
 Once you have a session open, you can write and develop prompts.
 
@@ -124,7 +121,7 @@ If something doesn't go right, you can also ask to get a raw manifest Response.
 result_object = manifest.batch_run(prompt, ["Laurel", "Avanika"], return_response=True)
 print(result_object.get_request())
 print(result_object.is_cached())
-print(result_object.get_response())
+print(result_object.get_json_response())
 ```
 
 By default, we do not truncate results based on a stop token. You can change this by either passing a new stop token to a Manifest session or to a `run` or `batch_run`. If you set the stop token to `""`, we will not truncate the model output.
