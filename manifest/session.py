@@ -31,9 +31,9 @@ class Session:
 
         """
         manifest_home = Path(os.environ.get("MANIFEST_SESSION_HOME", Path.home()))
-        db_file = manifest_home / ".manifest" / "session.db"
-        db_file.parent.mkdir(parents=True, exist_ok=True)
-        self.conn = sqlite3.connect(str(db_file))
+        self.db_file = manifest_home / ".manifest" / "session.db"
+        self.db_file.parent.mkdir(parents=True, exist_ok=True)
+        self.conn = sqlite3.connect(str(self.db_file))
         self._create_table()
         if not session_id:
             self.session_id = str(uuid.uuid4())
@@ -48,6 +48,22 @@ class Session:
     def close(self) -> None:
         """Close the client."""
         self.conn.close()
+
+    @classmethod
+    def get_session_keys(cls, db_file: Path) -> List[str]:
+        """Get available session keys from cached file."""
+        try:
+            conn = sqlite3.connect(str(db_file))
+            query = """SELECT DISTINCT session_id FROM queries"""
+            cur = conn.cursor()
+            res = cur.execute(query)
+            return [x[0] for x in res.fetchall()]
+        except sqlite3.OperationalError:
+            logger.info(
+                "There is no database with the 'queries' table. "
+                "Are you sure you are using the right session file"
+            )
+            return []
 
     def _execute_query(self, query: str, *args: Any) -> Any:
         """

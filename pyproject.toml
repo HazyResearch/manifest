@@ -16,19 +16,21 @@ version = "0.0.1"
 "Bug Tracker" = "https://github.com/HazyResearch/manifest/issues"
 
 [tool.poetry.dependencies]
-python = "^3.8"
+python = "^3.10"
 sqlitedict = "^2.0.0"
 openai = "^0.18.1"
 redis = "^4.3.1"
 dill = "^0.3.5"
 Flask = "^2.1.2"
-transformers = "^4.19.2"
+transformers = "^4.20.0"
 requests = "^2.27.1"
 tqdm = "^4.64.0"
 uuid = "^1.30"
+accelerate = "^0.10.0"
 
 [tool.poetry.dev-dependencies]
-torch = "^1.0"
+# torch = { url = "https://download.pytorch.org/whl/cu113/torch-1.11.0%2Bcu113-cp310-cp310-linux_x86_64.whl" }
+torch = "1.11.0"
 black = "^22.3.0"
 flake8 = "^4.0.0"
 flake8-docstrings = "^1.6.0"
@@ -64,6 +66,7 @@ module = [
   "sqlitedict",
   "dill",
   "tqdm.auto",
+  "accelerate",
 ]
 
 [tool.isort]

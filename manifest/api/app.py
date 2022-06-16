@@ -46,6 +46,17 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--device", type=int, default=-1, help="Model device. -1 for CPU."
     )
+    parser.add_argument(
+        "--fp32", action="store_true", help="Use fp32 for model params."
+    )
+    parser.add_argument(
+        "--use_accelerate_multigpu",
+        action="store_true",
+        help=(
+            "Use accelerate for multi gpu inference. "
+            "This will override --device parameter."
+        ),
+    )
     args = parser.parse_args()
     return args
 
@@ -55,11 +66,18 @@ def main() -> None:
     kwargs = parse_args()
     model_type = kwargs.model_type
     model_name = kwargs.model_name
+    use_accelerate = kwargs.use_accelerate_multigpu
+    if use_accelerate:
+        logger.info("Using accelerate. Overridding --device argument.")
 
     # Global model
     global model
     model = MODEL_CONSTRUCTORS[model_type](
-        model_name, cache_dir=kwargs.cache_dir, device=kwargs.device
+        model_name,
+        cache_dir=kwargs.cache_dir,
+        device=kwargs.device,
+        use_accelerate=use_accelerate,
+        use_fp32=kwargs.fp32,
     )
     app.run(host="0.0.0.0", port=PORT)
 
