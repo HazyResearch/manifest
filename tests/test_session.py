@@ -11,6 +11,7 @@ def test_init(session_cache):
     """Test session initialization."""
     session = Session()
     assert isinstance(session.conn, sqlite3.Connection)
+    assert session.db_file == session_cache / ".manifest" / "session.db"
     assert session.query_id == 0
     assert (session_cache / ".manifest" / "session.db").exists()
     # Remove session cache file.
@@ -18,9 +19,11 @@ def test_init(session_cache):
 
     session = Session("dog_days")
     assert isinstance(session.conn, sqlite3.Connection)
+    assert session.db_file == session_cache / ".manifest" / "session.db"
     assert session.query_id == 0
     assert session.session_id == "dog_days"
     assert (session_cache / ".manifest" / "session.db").exists()
+    session.close()
 
 
 @pytest.mark.usefixtures("session_cache")
@@ -44,6 +47,7 @@ def test_log_query(session_cache):
         (query_key, response_key),
         (query_key2, response_key2),
     ]
+    session.close()
 
 
 @pytest.mark.usefixtures("session_cache")
@@ -57,3 +61,20 @@ def test_resume_query(session_cache):
 
     session = Session(session_id="dog_days")
     assert session.query_id == 1
+
+
+@pytest.mark.usefixtures("session_cache")
+def test_session_keys(session_cache):
+    """Test get session keys."""
+    # Assert empty before queries
+    assert Session.get_session_keys(session_cache / ".manifest" / "session.db") == []
+    # Add queries and make sure session is logged
+    session = Session(session_id="dog_days")
+    query_key = {"query": "What is your name?", "time": "now"}
+    response_key = {"response": "I don't have a name", "engine": "nodel"}
+    session.log_query(query_key, response_key)
+    session.close()
+
+    assert Session.get_session_keys(session_cache / ".manifest" / "session.db") == [
+        "dog_days"
+    ]
