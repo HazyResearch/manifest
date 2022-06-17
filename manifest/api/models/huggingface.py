@@ -110,6 +110,7 @@ class HuggingFaceModel(Model):
         cache_dir: str,
         device: int,
         use_accelerate: bool,
+        perc_max_gpu_mem_red: float,
         use_fp32: bool,
     ):
         """
@@ -122,6 +123,7 @@ class HuggingFaceModel(Model):
             cache_dir: cache directory for model.
             device: device to use for model.
             use_accelerate: whether to use accelerate for multi-gpu inference.
+            perc_max_gpu_mem_red: percent max memory reduction in accelerate
             use_fp32: use fp32 for model weights.
         """
         # Check if providing path
@@ -142,7 +144,7 @@ class HuggingFaceModel(Model):
             self.model_path, cache_dir=cache_dir, torch_dtype=dtype
         )
         if use_accelerate:
-            self._dispatch_accelerate_model(model)
+            self._dispatch_accelerate_model(model, perc_max_gpu_mem_red)
             device = 0
         else:
             if device > -1:
@@ -156,7 +158,9 @@ class HuggingFaceModel(Model):
         """Return init params to determine what model is being used."""
         return {"model_name": self.model_name, "model_path": self.model_path}
 
-    def _dispatch_accelerate_model(self, model: PreTrainedModel) -> None:
+    def _dispatch_accelerate_model(
+        self, model: PreTrainedModel, perc_max_gpu_mem_red: float
+    ) -> None:
         """
         Load model with accelerate.
 
@@ -164,9 +168,8 @@ class HuggingFaceModel(Model):
                      pxn6w2cpXCcb-7#scrollTo=y8Ne7jJdaF9F&uniqifier=1
 
         Args:
-            model_name: name of model.
-            model_path: path to model.
-            cache_dir: cache directory for model.
+            model: loaded hugging face model
+            perc_max_gpu_mem_red: percent memory reduction
         """
         from accelerate import dispatch_model, infer_auto_device_map
         from accelerate.utils.modeling import get_max_memory
@@ -182,7 +185,9 @@ class HuggingFaceModel(Model):
             main_model = model
             model_getter = ""
         # Decrease max mem
-        max_memory = {k: int(0.85 * v) for k, v in get_max_memory().items()}
+        max_memory = {
+            k: int(perc_max_gpu_mem_red * v) for k, v in get_max_memory().items()
+        }
         raw_device_map = infer_auto_device_map(
             main_model,
             max_memory=max_memory,
