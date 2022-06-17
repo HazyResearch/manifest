@@ -25,7 +25,10 @@ class Response:
                     "Response must be serialized to a dict with a "
                     "list of choices with text field"
                 )
-            if "logprobs" in self._response["choices"][0]:
+            if (
+                "logprobs" in self._response["choices"][0]
+                and self._response["choices"][0]["logprobs"]
+            ):
                 if not isinstance(self._response["choices"][0]["logprobs"], list):
                     raise ValueError(
                         "Response must be serialized to a dict with a "
