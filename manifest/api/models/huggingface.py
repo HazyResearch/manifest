@@ -169,6 +169,7 @@ class HuggingFaceModel(Model):
             cache_dir: cache directory for model.
         """
         from accelerate import dispatch_model, infer_auto_device_map
+        from accelerate.utils.modeling import get_max_memory
 
         model.tie_weights()  # type: ignore
         # Get the model where we can infer devices from
@@ -180,8 +181,11 @@ class HuggingFaceModel(Model):
             # Eleuther Neo and J
             main_model = model
             model_getter = ""
+        # Decrease max mem
+        max_memory = {k: int(0.85 * v) for k, v in get_max_memory().items()}
         raw_device_map = infer_auto_device_map(
             main_model,
+            max_memory=max_memory,
             no_split_module_classes=[
                 "OPTDecoderLayer",
                 "GPTNeoBlock",

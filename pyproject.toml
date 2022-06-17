@@ -67,6 +67,7 @@ module = [
   "dill",
   "tqdm.auto",
   "accelerate",
+  "accelerate.utils.modeling",
 ]
 
 [tool.isort]
