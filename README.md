@@ -10,13 +10,11 @@ cd manifest
 
 Install:
 ```bash
-pip install poetry
-poetry install --no-dev
+pip install -e .
 ```
 
 Dev Install:
 ```bash
-pip install poetry
 make dev
 ```
 

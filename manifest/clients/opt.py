@@ -1,12 +1,20 @@
 """OpenAI client."""
 import logging
-from typing import Any, Callable, Dict, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import requests
 
 from manifest.clients.client import Client
 
 logger = logging.getLogger(__name__)
+
+# User param -> (client param, default value)
+OPT_PARAMS = {
+    "temperature": ("temperature", 1.0),
+    "max_tokens": ("max_tokens", 10),
+    "n": ("n", 1),
+    "top_p": ("top_p", 1.0),
+}
 
 
 class OPTClient(Client):
@@ -25,10 +33,8 @@ class OPTClient(Client):
             client_args: client arguments.
         """
         self.host = connection_str.rstrip("/")
-        self.temperature = client_args.pop("temperature", 1.0)
-        self.max_tokens = client_args.pop("max_tokens", 10)
-        self.top_p = client_args.pop("top_p", 0)
-        self.n = client_args.pop("n", 1)
+        for key in OPT_PARAMS:
+            setattr(self, key, client_args.pop(key, OPT_PARAMS[key][1]))
 
     def close(self) -> None:
         """Close the client."""
@@ -46,6 +52,15 @@ class OPTClient(Client):
         """
         return {"model_name": "opt"}
 
+    def get_model_inputs(self) -> List:
+        """
+        Get allowable model inputs.
+
+        Returns:
+            model inputs.
+        """
+        return list(OPT_PARAMS.keys())
+
     def get_request(
         self, query: str, request_args: Dict[str, Any] = {}
     ) -> Tuple[Callable[[], Dict], Dict]:
@@ -59,14 +74,11 @@ class OPTClient(Client):
             request function that takes no input.
             request parameters as dict.
         """
-        request_params = {
-            "prompt": query,
-            "engine": "opt",
-            "temperature": request_args.pop("temperature", self.temperature),
-            "max_tokens": request_args.pop("max_tokens", self.max_tokens),
-            "top_p": request_args.pop("top_p", self.top_p),
-            "n": request_args.pop("n", self.n),
-        }
+        request_params = {"prompt": query}
+        for key in OPT_PARAMS:
+            request_params[OPT_PARAMS[key][0]] = request_args.pop(
+                key, getattr(self, key)
+            )
 
         def _run_completion() -> Dict:
             post_str = self.host + "/completions"
