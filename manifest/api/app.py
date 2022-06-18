@@ -50,6 +50,12 @@ def parse_args() -> argparse.Namespace:
         "--fp32", action="store_true", help="Use fp32 for model params."
     )
     parser.add_argument(
+        "--percent_max_gpu_mem_reduction",
+        type=float,
+        default=0.85,
+        help="Used with accelerate multigpu. Scales down max memory.",
+    )
+    parser.add_argument(
         "--use_accelerate_multigpu",
         action="store_true",
         help=(
@@ -69,7 +75,11 @@ def main() -> None:
     use_accelerate = kwargs.use_accelerate_multigpu
     if use_accelerate:
         logger.info("Using accelerate. Overridding --device argument.")
-
+    if (
+        kwargs.percent_max_gpu_mem_reduction <= 0
+        or kwargs.percent_max_gpu_mem_reduction > 1
+    ):
+        raise ValueError("percent_max_gpu_mem_reduction must be in (0, 1].")
     # Global model
     global model
     model = MODEL_CONSTRUCTORS[model_type](
@@ -77,6 +87,7 @@ def main() -> None:
         cache_dir=kwargs.cache_dir,
         device=kwargs.device,
         use_accelerate=use_accelerate,
+        perc_max_gpu_mem_red=kwargs.percent_max_gpu_mem_reduction,
         use_fp32=kwargs.fp32,
     )
     app.run(host="0.0.0.0", port=PORT)

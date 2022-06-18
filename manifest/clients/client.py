@@ -1,6 +1,6 @@
 """Client class."""
 from abc import ABC, abstractmethod
-from typing import Any, Callable, Dict, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 
 class Client(ABC):
@@ -38,6 +38,16 @@ class Client(ABC):
 
         Returns:
             model params.
+        """
+        raise NotImplementedError()
+
+    @abstractmethod
+    def get_model_inputs(self) -> List:
+        """
+        Get allowable model inputs.
+
+        Returns:
+            model inputs.
         """
         raise NotImplementedError()
 

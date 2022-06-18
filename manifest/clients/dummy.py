@@ -1,10 +1,15 @@
 """Dummy client."""
 import logging
-from typing import Any, Callable, Dict, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from manifest.clients import Client
 
 logger = logging.getLogger(__name__)
+
+# User param -> (client param, default value)
+DUMMY_PARAMS = {
+    "n": ("num_results", 1),
+}
 
 
 class DummyClient(Client):
@@ -24,7 +29,8 @@ class DummyClient(Client):
             connection_str: connection string.
             client_args: client arguments.
         """
-        self.num_results = client_args.pop("num_results", 1)
+        for key in DUMMY_PARAMS:
+            setattr(self, key, client_args.pop(key, DUMMY_PARAMS[key][1]))
 
     def close(self) -> None:
         """Close the client."""
@@ -42,6 +48,15 @@ class DummyClient(Client):
         """
         return {"engine": "dummy"}
 
+    def get_model_inputs(self) -> List:
+        """
+        Get allowable model inputs.
+
+        Returns:
+            model inputs.
+        """
+        return list(DUMMY_PARAMS.keys())
+
     def get_request(
         self, query: str, request_args: Dict[str, Any] = {}
     ) -> Tuple[Callable[[], Dict], Dict]:
@@ -55,12 +70,13 @@ class DummyClient(Client):
             request function that takes no input.
             request parameters as dict.
         """
-        request_params = {
-            "prompt": query,
-            "num_results": request_args.pop("num_results", self.num_results),
-        }
+        request_params = {"prompt": query}
+        for key in DUMMY_PARAMS:
+            request_params[DUMMY_PARAMS[key][0]] = request_args.pop(
+                key, getattr(self, key)
+            )
 
         def _run_completion() -> Dict:
-            return {"choices": [{"text": "hello"}] * request_params["num_results"]}
+            return {"choices": [{"text": "hello"}] * int(request_params["num_results"])}
 
         return _run_completion, request_params

@@ -1,7 +1,7 @@
 """OpenAI client."""
 import logging
 import os
-from typing import Any, Callable, Dict, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import requests
 
@@ -13,6 +13,17 @@ AI21_ENGINES = {
     "j1-jumbo",
     "j1-grande",
     "j1-large",
+}
+
+# User param -> (client param, default value)
+AI21_PARAMS = {
+    "engine": ("engine", "j1-large"),
+    "temperature": ("temperature", 1.0),
+    "max_tokens": ("maxTokens", 10),
+    "top_k_return": ("topKReturn", 0),
+    "n": ("numResults", 1),
+    "top_p": ("topP", 1.0),
+    "stop_sequences": ("stopSequences", []),
 }
 
 
@@ -41,14 +52,13 @@ class AI21Client(Client):
                 "AI21 API key not set. Set AI21_API_KEY environment "
                 "variable or pass through `connection_str`."
             )
-        self.engine = client_args.pop("engine", "j1-large")
-        if self.engine not in AI21_ENGINES:
-            raise ValueError(f"Invalid engine {self.engine}. Must be {AI21_ENGINES}.")
-        self.temperature = client_args.pop("temperature", 0.0)
-        self.max_tokens = client_args.pop("max_tokens", 10)
-        self.top_k_return = client_args.pop("topKReturn", 1.0)
-        self.num_results = client_args.pop("numResults", 1)
-        self.top_p = client_args.pop("topP", 1.0)
+
+        for key in AI21_PARAMS:
+            setattr(self, key, client_args.pop(key, AI21_PARAMS[key][1]))
+        if getattr(self, "engine") not in AI21_ENGINES:
+            raise ValueError(
+                f"Invalid engine {getattr(self, 'engine')}. Must be {AI21_ENGINES}."
+            )
 
     def close(self) -> None:
         """Close the client."""
@@ -64,7 +74,16 @@ class AI21Client(Client):
         Returns:
             model params.
         """
-        return {"model_name": "ai21", "engine": self.engine}
+        return {"model_name": "ai21", "engine": getattr(self, "engine")}
+
+    def get_model_inputs(self) -> List:
+        """
+        Get allowable model inputs.
+
+        Returns:
+            model inputs.
+        """
+        return list(AI21_PARAMS.keys())
 
     def format_response(self, response: Dict) -> Dict[str, Any]:
         """
@@ -78,7 +97,7 @@ class AI21Client(Client):
         """
         return {
             "object": "text_completion",
-            "model": self.engine,
+            "model": getattr(self, "engine"),
             "choices": [
                 {
                     "text": item["data"]["text"],
@@ -109,18 +128,14 @@ class AI21Client(Client):
             request function that takes no input.
             request parameters as dict.
         """
-        request_params = {
-            "engine": request_args.pop("engine", self.engine),
-            "prompt": query,
-            "temperature": request_args.pop("temperature", self.temperature),
-            "maxTokens": request_args.pop("maxTokens", self.max_tokens),
-            "topKReturn": request_args.pop("topKReturn", self.top_k_return),
-            "numResults": request_args.pop("numResults", self.num_results),
-            "topP": request_args.pop("topP", self.top_p),
-        }
+        request_params = {"prompt": query}
+        for key in AI21_PARAMS:
+            request_params[AI21_PARAMS[key][0]] = request_args.pop(
+                key, getattr(self, key)
+            )
 
         def _run_completion() -> Dict:
-            post_str = self.host + "/" + self.engine + "/complete"
+            post_str = self.host + "/" + getattr(self, "engine") + "/complete"
             res = requests.post(
                 post_str,
                 headers={"Authorization": f"Bearer {self.api_key}"},
