@@ -9,21 +9,28 @@ from manifest.clients.dummy import DummyClient
 def test_init():
     """Test client initialization."""
     client = DummyClient(connection_str=None)
-    assert client.num_results == 1
+    assert client.n == 1
 
-    args = {"num_results": 3}
+    args = {"n": 3}
     client = DummyClient(connection_str=None, client_args=args)
-    assert client.num_results == 3
+    assert client.n == 3
+
+
+def test_get_params():
+    """Test get param functions."""
+    client = DummyClient(connection_str=None)
+    assert client.get_model_params() == {"engine": "dummy"}
+    assert client.get_model_inputs() == ["n"]
 
 
 def test_get_request():
     """Test client get request."""
-    args = {"num_results": 3}
+    args = {"n": 3}
     client = DummyClient(connection_str=None, client_args=args)
     request_func, request_params = client.get_request("hello")
     assert request_params == {"prompt": "hello", "num_results": 3}
     assert request_func() == {"choices": [{"text": "hello"}] * 3}
 
-    request_func, request_params = client.get_request("hello", {"num_results": 5})
+    request_func, request_params = client.get_request("hello", {"n": 5})
     assert request_params == {"prompt": "hello", "num_results": 5}
     assert request_func() == {"choices": [{"text": "hello"}] * 5}

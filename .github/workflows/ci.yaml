@@ -38,22 +38,6 @@ jobs:
             - uses: actions/setup-python@v3
               with:
                   python-version: ${{ matrix.python-version }}
-            - name: Install Poetry
-              uses: snok/install-poetry@v1
-              with:
-                  virtualenvs-in-project: true
-                  virtualenvs-create: true
-                  installer-parallel: true
-            - name: Load cached venv if cache exists
-              id: cached-poetry-deps
-              uses: actions/cache@v3
-              with:
-                  path: .venv
-                  key: venv-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('**/poetry.lock') }}
-            - name: Install dependencies
-              if: steps.cached-poetry-deps.outputs.cache-hit != 'true'
-              run: |
-                  poetry install --no-interaction --no-root
             - name: Install Manifest
               run: |
                   make dev
@@ -62,4 +46,4 @@ jobs:
                   make check
             - name: Test with pytest
               run: |
-                  poetry run pytest tests
+                  pytest tests

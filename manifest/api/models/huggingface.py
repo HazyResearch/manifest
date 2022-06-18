@@ -1,6 +1,5 @@
 """Huggingface model."""
 import json
-from functools import partial
 from pathlib import Path
 from typing import Any, Dict, List
 
@@ -15,14 +14,33 @@ from transformers import (
     OPTForCausalLM,
     PreTrainedModel,
     PreTrainedTokenizer,
-    pipeline,
 )
 
 from manifest.api.models.model import Model
 
+MODEL_REGISTRY = {
+    "EleutherAI/gpt-neo-1.3B": GPTNeoForCausalLM,
+    "EleutherAI/gpt-neo-2.7B": GPTNeoForCausalLM,
+    "EleutherAI/gpt-j-6B": GPTJForCausalLM,
+    "EleutherAI/gpt-neox-20b": GPTNeoXForCausalLM,
+    "facebook/opt-1.3b": OPTForCausalLM,
+    "facebook/opt-2.7b": OPTForCausalLM,
+    "facebook/opt-6.7b": OPTForCausalLM,
+    "facebook/opt-13b": OPTForCausalLM,
+    "facebook/opt-30b": OPTForCausalLM,
+    "gpt2": GPT2LMHeadModel,
+    "bigscience/T0pp": AutoModelForSeq2SeqLM,
+    "bigscience/T0_3B": AutoModelForSeq2SeqLM,
+}
 
-class GPTPipeline:
-    """Custom GPT3 Pipeline."""
+
+class Pipeline:
+    """
+    Custom Pipeline.
+
+    HF pipelines do not handle devices well in multi-gpu setting.
+    Create our own generation pipeline.
+    """
 
     def __init__(
         self, model: PreTrainedModel, tokenizer: PreTrainedTokenizer, device: int
@@ -70,37 +88,6 @@ class GPTPipeline:
         return generated_sequences
 
 
-MODEL_REGISTRY = {
-    "EleutherAI/gpt-neo-1.3B": GPTNeoForCausalLM,
-    "EleutherAI/gpt-neo-2.7B": GPTNeoForCausalLM,
-    "EleutherAI/gpt-j-6B": GPTJForCausalLM,
-    "EleutherAI/gpt-neox-20b": GPTNeoXForCausalLM,
-    "facebook/opt-1.3b": OPTForCausalLM,
-    "facebook/opt-2.7b": OPTForCausalLM,
-    "facebook/opt-6.7b": OPTForCausalLM,
-    "facebook/opt-13b": OPTForCausalLM,
-    "facebook/opt-30b": OPTForCausalLM,
-    "gpt2": GPT2LMHeadModel,
-    "bigscience/T0pp": AutoModelForSeq2SeqLM,
-    "bigscience/T0_3B": AutoModelForSeq2SeqLM,
-}
-
-MODEL_PIPELINE = {
-    "EleutherAI/gpt-neo-1.3B": GPTPipeline,
-    "EleutherAI/gpt-neo-2.7B": GPTPipeline,
-    "EleutherAI/gpt-j-6B": GPTPipeline,
-    "EleutherAI/gpt-neox-20b": GPTPipeline,
-    "facebook/opt-1.3b": GPTPipeline,
-    "facebook/opt-2.7b": GPTPipeline,
-    "facebook/opt-6.7b": GPTPipeline,
-    "facebook/opt-13b": GPTPipeline,
-    "facebook/opt-30b": GPTPipeline,
-    "gpt2": GPTPipeline,
-    "bigscience/T0pp": partial(pipeline, "text2text-generation"),
-    "bigscience/T0_3B": partial(pipeline, "text2text-generation"),
-}
-
-
 class HuggingFaceModel(Model):
     """Huggingface model."""
 
@@ -110,6 +97,7 @@ class HuggingFaceModel(Model):
         cache_dir: str,
         device: int,
         use_accelerate: bool,
+        perc_max_gpu_mem_red: float,
         use_fp32: bool,
     ):
         """
@@ -122,6 +110,7 @@ class HuggingFaceModel(Model):
             cache_dir: cache directory for model.
             device: device to use for model.
             use_accelerate: whether to use accelerate for multi-gpu inference.
+            perc_max_gpu_mem_red: percent max memory reduction in accelerate
             use_fp32: use fp32 for model weights.
         """
         # Check if providing path
@@ -132,6 +121,7 @@ class HuggingFaceModel(Model):
                 config = json.load(open(Path(self.model_path) / "config.json"))
                 model_name = config["_name_or_path"]
         self.model_name = model_name
+        self.is_encdec = "T0" in self.model_name
         print("Model Name:", self.model_name, "Model Path:", self.model_path)
         try:
             tokenizer = AutoTokenizer.from_pretrained(model_name)
@@ -142,21 +132,24 @@ class HuggingFaceModel(Model):
             self.model_path, cache_dir=cache_dir, torch_dtype=dtype
         )
         if use_accelerate:
-            self._dispatch_accelerate_model(model)
+            self._dispatch_accelerate_model(model, perc_max_gpu_mem_red)
             device = 0
         else:
             if device > -1:
                 model = model.to(device)  # type: ignore
-        self.pipeline = MODEL_PIPELINE[model_name](  # type: ignore
+        self.pipeline = Pipeline(  # type: ignore
             model=model, tokenizer=tokenizer, device=device
         )
-        self.returns_input = "T0" not in model_name
+        # Autogregressive models generate the input, too
+        self.returns_input = not self.is_encdec
 
     def get_init_params(self) -> Dict:
         """Return init params to determine what model is being used."""
         return {"model_name": self.model_name, "model_path": self.model_path}
 
-    def _dispatch_accelerate_model(self, model: PreTrainedModel) -> None:
+    def _dispatch_accelerate_model(
+        self, model: PreTrainedModel, perc_max_gpu_mem_red: float
+    ) -> None:
         """
         Load model with accelerate.
 
@@ -164,9 +157,8 @@ class HuggingFaceModel(Model):
                      pxn6w2cpXCcb-7#scrollTo=y8Ne7jJdaF9F&uniqifier=1
 
         Args:
-            model_name: name of model.
-            model_path: path to model.
-            cache_dir: cache directory for model.
+            model: loaded hugging face model
+            perc_max_gpu_mem_red: percent memory reduction
         """
         from accelerate import dispatch_model, infer_auto_device_map
         from accelerate.utils.modeling import get_max_memory
@@ -182,7 +174,9 @@ class HuggingFaceModel(Model):
             main_model = model
             model_getter = ""
         # Decrease max mem
-        max_memory = {k: int(0.85 * v) for k, v in get_max_memory().items()}
+        max_memory = {
+            k: int(perc_max_gpu_mem_red * v) for k, v in get_max_memory().items()
+        }
         raw_device_map = infer_auto_device_map(
             main_model,
             max_memory=max_memory,
@@ -191,6 +185,7 @@ class HuggingFaceModel(Model):
                 "GPTNeoBlock",
                 "GPTJBlock",
                 "GPTNeoXLayer",
+                "T5Block",
             ],
             dtype=model.dtype,  # type: ignore
         )
@@ -203,10 +198,10 @@ class HuggingFaceModel(Model):
                 device_map[f"{model_getter}{k}"] = v
         # For OPT models
         if "lm_head" not in device_map:
-            if "disk" in device_map.values():
-                device_map["lm_head"] = "disk"
-            else:
+            try:
                 device_map["lm_head"] = max(device_map.values())
+            except TypeError:
+                device_map["lm_head"] = "cpu"
         print("Device Map", device_map)
         dispatch_model(model, device_map=device_map)
         return
@@ -224,7 +219,6 @@ class HuggingFaceModel(Model):
             list of generated text (list of length 1 for 1 generation).
         """
         num_return = kwargs.get("n")
-        final_results = []
         # Add tokens for length
         encoded_prompt_with_special = self.pipeline.tokenizer.encode(prompt)
         # Remove tokens as the pipeline removes special tokens upon return
@@ -248,7 +242,7 @@ class HuggingFaceModel(Model):
         else:
             start_idx = 0
         if num_return == 1:
-            final_results.append(result[0]["generated_text"][start_idx:])
+            final_results = [result[0]["generated_text"][start_idx:]]
         else:
-            final_results.append([r["generated_text"][start_idx:] for r in result])
+            final_results = [r["generated_text"][start_idx:] for r in result]
         return final_results

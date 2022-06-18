@@ -1,12 +1,23 @@
 """OpenAI client."""
 import logging
-from typing import Any, Callable, Dict, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import requests
 
 from manifest.clients.client import Client
 
 logger = logging.getLogger(__name__)
+
+# User param -> (client param, default value)
+HF_PARAMS = {
+    "temperature": ("temperature", 1.0),
+    "max_tokens": ("max_tokens", 10),
+    "n": ("n", 1),
+    "top_p": ("top_p", 1.0),
+    "top_k": ("top_k", 50),
+    "repetition_penalty": ("repetition_penalty", 1.0),
+    "do_sample": ("do_sample", True),
+}
 
 
 class HuggingFaceClient(Client):
@@ -25,13 +36,8 @@ class HuggingFaceClient(Client):
             client_args: client arguments.
         """
         self.host = connection_str.rstrip("/")
-        self.temperature = client_args.pop("temperature", 0.00001)
-        self.max_tokens = client_args.pop("max_tokens", 10)
-        self.top_p = client_args.pop("top_p", 1.0)
-        self.top_k = client_args.pop("top_k", 50)
-        self.repetition_penalty = client_args.pop("repetition_penalty", 1.0)
-        self.n = client_args.pop("n", 1)
-        self.do_sample = client_args.pop("do_sample", True)
+        for key in HF_PARAMS:
+            setattr(self, key, client_args.pop(key, HF_PARAMS[key][1]))
         self.model_params = self.get_model_params()
 
     def close(self) -> None:
@@ -51,6 +57,15 @@ class HuggingFaceClient(Client):
         res = requests.post(self.host + "/params")
         return res.json()
 
+    def get_model_inputs(self) -> List:
+        """
+        Get allowable model inputs.
+
+        Returns:
+            model inputs.
+        """
+        return list(HF_PARAMS.keys())
+
     def get_request(
         self, query: str, request_args: Dict[str, Any] = {}
     ) -> Tuple[Callable[[], Dict], Dict]:
@@ -64,18 +79,11 @@ class HuggingFaceClient(Client):
             request function that takes no input.
             request parameters as dict.
         """
-        request_params = {
-            "prompt": query,
-            "temperature": request_args.pop("temperature", self.temperature),
-            "max_tokens": request_args.pop("max_tokens", self.max_tokens),
-            "top_p": request_args.pop("top_p", self.top_p),
-            "top_k": request_args.pop("top_k", self.top_k),
-            "do_sample": request_args.pop("do_sample", self.do_sample),
-            "repetition_penalty": request_args.pop(
-                "repetition_penalty", self.repetition_penalty
-            ),
-            "n": request_args.pop("n", self.n),
-        }
+        request_params = {"prompt": query}
+        for key in HF_PARAMS:
+            request_params[HF_PARAMS[key][0]] = request_args.pop(
+                key, getattr(self, key)
+            )
         request_params.update(self.model_params)
 
         def _run_completion() -> Dict:
