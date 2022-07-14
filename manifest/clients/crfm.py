@@ -7,7 +7,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from manifest.clients.client import Client
 
-crfm_code_dir = os.environ.get("CRFM_CODE_DIR", "/home/code/benchmarking")
+crfm_code_dir = os.environ.get("CRFM_CODE_DIR", "/home/benchmarking")
 sys.path.append(crfm_code_dir)
 
 from src.common.authentication import Authentication  # type: ignore
@@ -24,6 +24,7 @@ CRFM_ENGINES = {
 
 # User param -> (client param, default value)
 CRFM_PARAMS = {
+    "model": ("model", "ai21/j1-jumbo"),
     "engine": ("engine", "ai21/j1-jumbo"),
     "temperature": ("temperature", 1.0),
     "max_tokens": ("max_tokens", 10),
