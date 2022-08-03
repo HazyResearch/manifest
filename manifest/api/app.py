@@ -47,7 +47,7 @@ def parse_args() -> argparse.Namespace:
         "--device", type=int, default=-1, help="Model device. -1 for CPU."
     )
     parser.add_argument(
-        "--fp32", action="store_true", help="Use fp32 for model params."
+        "--fp16", action="store_true", help="Force use fp16 for model params."
     )
     parser.add_argument(
         "--percent_max_gpu_mem_reduction",
@@ -88,7 +88,7 @@ def main() -> None:
         device=kwargs.device,
         use_accelerate=use_accelerate,
         perc_max_gpu_mem_red=kwargs.percent_max_gpu_mem_reduction,
-        use_fp32=kwargs.fp32,
+        use_fp16=kwargs.fp16,
     )
     app.run(host="0.0.0.0", port=PORT)
 
