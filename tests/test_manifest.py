@@ -191,6 +191,93 @@ def test_batch_run(sqlite_cache, session_cache, n, return_response):
         assert res == [["he", "he"], ["he", "he"]]
 
 
+@pytest.mark.usefixtures("sqlite_cache")
+@pytest.mark.usefixtures("session_cache")
+@pytest.mark.parametrize("return_response", [True, False])
+def test_choices_run(sqlite_cache, session_cache, return_response):
+    """Test manifest run."""
+    manifest = Manifest(
+        client_name="dummy",
+        cache_name="sqlite",
+        cache_connection=sqlite_cache,
+    )
+
+    prompt = Prompt("This is a prompt")
+    # Dummy client will always return first choice
+    choices = ["cat", "dog"]
+    result = manifest.run(prompt, gold_choices=choices, return_response=return_response)
+    if return_response:
+        assert isinstance(result, Response)
+        res = result.get_response(manifest.stop_token)
+    else:
+        res = result
+    assert (
+        manifest.cache.get_key(
+            request_to_key(
+                {
+                    "prompt": "This is a prompt",
+                    "gold_choices": ["cat", "dog"],
+                    "client_name": "dummy",
+                }
+            )
+        )
+        is not None
+    )
+    assert res == "cat"
+
+    prompt = Prompt(lambda x: f"{x} is a prompt")
+    choices = ["cat", "dog"]
+    result = manifest.run(
+        prompt, "Hello", gold_choices=choices, return_response=return_response
+    )
+    if return_response:
+        assert isinstance(result, Response)
+        res = result.get_response(manifest.stop_token)
+    else:
+        res = result
+    assert (
+        manifest.cache.get_key(
+            request_to_key(
+                {
+                    "prompt": "Hello is a prompt",
+                    "gold_choices": ["cat", "dog"],
+                    "client_name": "dummy",
+                }
+            )
+        )
+        is not None
+    )
+    assert res == "cat"
+
+    prompt = Prompt(lambda x: f"{x} is a prompt")
+    choices = ["callt", "dog"]
+    result = manifest.run(
+        prompt,
+        "Hello",
+        gold_choices=choices,
+        stop_token="ll",
+        return_response=return_response,
+    )
+    if return_response:
+        assert isinstance(result, Response)
+        res = result.get_response(stop_token="ll")
+    else:
+        res = result
+    assert (
+        manifest.cache.get_key(
+            request_to_key(
+                {
+                    "prompt": "Hello is a prompt",
+                    "gold_choices": ["cat", "dog"],
+                    "client_name": "dummy",
+                }
+            )
+        )
+        is not None
+    )
+    assert res == "ca"
+
+
 @pytest.mark.usefixtures("session_cache")
 def test_log_query(session_cache):
     """Test manifest session logging."""

@@ -80,3 +80,24 @@ class DummyClient(Client):
             return {"choices": [{"text": "hello"}] * int(request_params["num_results"])}
 
         return _run_completion, request_params
+
+    def get_choice_logit_request(
+        self, query: str, gold_choices: List[str], request_args: Dict[str, Any] = {}
+    ) -> Tuple[Callable[[], Dict], Dict]:
+        """
+        Get request string function for choosing max choices.
+
+        Args:
+            query: query string.
+            gold_choices: choices for model to choose from via max logits.
+
+        Returns:
+            request function that takes no input.
+            request parameters as dict.
+        """
+        request_params = {"prompt": query, "gold_choices": gold_choices}
+
+        def _run_completion() -> Dict:
+            return {"choices": [{"text": gold_choices[0]}]}
+
+        return _run_completion, request_params
