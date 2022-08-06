@@ -19,6 +19,7 @@ from transformers import (
 from manifest.api.models.model import Model
 
 MODEL_REGISTRY = {
+    "EleutherAI/gpt-neo-125M": GPTNeoForCausalLM,
     "EleutherAI/gpt-neo-1.3B": GPTNeoForCausalLM,
     "EleutherAI/gpt-neo-2.7B": GPTNeoForCausalLM,
     "EleutherAI/gpt-j-6B": GPTJForCausalLM,
@@ -303,44 +304,105 @@ class HuggingFaceModel(Model):
             the returned gold choice
         """
         max_input_len = self.pipeline.max_length
-        # Adapted from https://github.com/bigscience-workshop/t-zero
-        tokenized_inputs = self.pipeline.tokenizer(
-            prompt,
-            padding="longest",
-            max_length=max_input_len,
-            truncation=True,
-            add_special_tokens=False,
-        )
-        # Get max target length
-        max_target_len = max(
-            [
-                len(self.pipeline.tokenizer(ans_choi)["input_ids"])
+        if self.is_encdec:
+            # Adapted from https://github.com/bigscience-workshop/t-zero
+            tokenized_inputs = self.pipeline.tokenizer(
+                prompt,
+                padding="longest",
+                max_length=max_input_len,
+                truncation=True,
+                add_special_tokens=False,
+            )
+            # Get max target length
+            max_target_len = max(
+                [
+                    len(self.pipeline.tokenizer(ans_choi)["input_ids"])
+                    for ans_choi in gold_choices
+                ]
+            )
+            tokenized_targets = [
+                self.pipeline.tokenizer(
+                    ans_choi,
+                    # padding is on the right here.
+                    padding="max_length",
+                    max_length=min(max_target_len, max_input_len),
+                    truncation=True,
+                )
                 for ans_choi in gold_choices
             ]
-        )
-        tokenized_targets = [
-            self.pipeline.tokenizer(
-                ans_choi,
-                # padding is on the right here.
-                padding="max_length",
-                max_length=min(max_target_len, max_input_len),
-                truncation=True,
-            )
-            for ans_choi in gold_choices
-        ]
 
-        # Repeat input ids for each choice to form a batch
-        features = {
-            k: [tokenized_inputs[k] for _ in range(len(gold_choices))]
-            for k in tokenized_inputs.keys()
-        }
-        # Add choice tokens + mask
-        features["labels"] = [
-            tokenized_targets[k]["input_ids"] for k in range(len(gold_choices))
-        ]
-        features["labels_attention_mask"] = [
-            tokenized_targets[k]["attention_mask"] for k in range(len(gold_choices))
-        ]
+            # Repeat input ids for each choice to form a batch
+            features = {
+                k: [tokenized_inputs[k] for _ in range(len(gold_choices))]
+                for k in tokenized_inputs.keys()
+            }
+            # Add choice tokens + mask
+            features["labels"] = [
+                tokenized_targets[k]["input_ids"] for k in range(len(gold_choices))
+            ]
+            features["labels_attention_mask"] = [
+                tokenized_targets[k]["attention_mask"] for k in range(len(gold_choices))
+            ]
+        else:
+            tokenized_inputs = self.pipeline.tokenizer(
+                prompt,
+                max_length=max_input_len,
+                truncation=True,
+                add_special_tokens=False,
+            )
+            tokenized_targets = [
+                self.pipeline.tokenizer(
+                    # Add starting whitespace fo gpt
+                    ans_choi if ans_choi.startswith((" ", "\n")) else f" {ans_choi}",
+                    max_length=max_input_len,
+                    truncation=True,
+                )
+                for ans_choi in gold_choices
+            ]
+            features = {
+                k: [] for k in list(tokenized_inputs.keys()) + ["labels_attention_mask"]
+            }
+            max_effective_input_len = 0
+            for tokenized_targ in tokenized_targets:
+                for k in tokenized_inputs.keys():
+                    # Make sure to leave room for the outputs
+                    features[k].append(
+                        tokenized_inputs[k][
+                            : min(
+                                len(tokenized_inputs[k]),
+                                max_input_len - len(tokenized_targ[k]),
+                            )
+                        ]
+                        + tokenized_targ[k]
+                    )
+                    max_effective_input_len = max(
+                        max_effective_input_len, len(features[k][-1])
+                    )
+                # Manuall add labels_attention_mask
+                features["labels_attention_mask"].append(
+                    [0]
+                    * min(
+                        len(tokenized_inputs["input_ids"]),
+                        max_input_len - len(tokenized_targ["input_ids"]),
+                    )
+                    + [1] * len(tokenized_targ["input_ids"])
+                )
+
+            # Manually pad to max effective length
+            for k in features.keys():
+                for i in range(len(features[k])):
+                    if k == "input_ids":
+                        features[k][i] += [self.pipeline.tokenizer.pad_token_id] * (
+                            max_effective_input_len - len(features[k][i])
+                        )
+                    elif k in ["attention_mask", "labels_attention_mask"]:
+                        features[k][i] += [0] * (
+                            max_effective_input_len - len(features[k][i])
+                        )
+                    else:
+                        raise ValueError(f"Unknown key {k} for decoder only models")
+
+            features["labels"] = features["input_ids"]
         # Convert to tensors
         tensor_features = {}
         for k in features:
@@ -356,6 +418,7 @@ class HuggingFaceModel(Model):
         ]
         stacked_logits = torch.vstack(logits)
         # Compute most likely option
+        # Adapted from https://github.com/bigscience-workshop/t-zero
         masked_log_probs = tensor_features["labels_attention_mask"].unsqueeze(
             -1
         ) * torch.log_softmax(stacked_logits, dim=-1)
