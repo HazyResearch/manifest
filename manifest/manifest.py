@@ -1,6 +1,6 @@
 """Manifest class."""
 import logging
-from typing import Any, Iterable, List, Optional, Tuple, Union
+from typing import Any, Iterable, List, Optional, Tuple, Union, cast
 
 from tqdm.auto import tqdm
 
@@ -134,9 +134,9 @@ class Manifest:
             possible_request, full_kwargs = self.client.get_request(prompt_str, kwargs)
         else:
             try:
-                possible_request, full_kwargs = self.client.get_choice_logit_request(
-                    prompt_str, gold_choices, kwargs
-                )
+                possible_request, full_kwargs = cast(
+                    HuggingFaceClient, self.client
+                ).get_choice_logit_request(prompt_str, gold_choices, kwargs)
             except AttributeError:
                 raise ValueError("`gold_choices` only supported for HF models.")
         if len(kwargs) > 0:
