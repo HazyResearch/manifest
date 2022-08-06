@@ -8,12 +8,12 @@ def test_init():
     """Test response initialization."""
     with pytest.raises(ValueError) as exc_info:
         response = Response(4, False, {})
-    assert str(exc_info.value) == "Response must be str or dict"
+    assert str(exc_info.value) == "Response must be str or dict. Response is\n4."
     with pytest.raises(ValueError) as exc_info:
         response = Response({"test": "hello"}, False, {})
     assert str(exc_info.value) == (
         "Response must be serialized to a dict with a list of choices. "
-        "Response is {'test': 'hello'}."
+        "Response is\n{'test': 'hello'}."
     )
     with pytest.raises(ValueError) as exc_info:
         response = Response({"choices": [{"blah": "hello"}]}, False, {})

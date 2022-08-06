@@ -1,7 +1,6 @@
 """Huggingface model."""
 import json
 from pathlib import Path
-import numpy as np
 from typing import Any, Dict, List
 
 import torch
@@ -108,6 +107,7 @@ class HuggingFaceModel(Model):
         cache_dir: str,
         device: int,
         use_accelerate: bool,
+        use_parallelize: bool,
         perc_max_gpu_mem_red: float,
         use_fp16: bool,
     ):
@@ -121,9 +121,12 @@ class HuggingFaceModel(Model):
             cache_dir: cache directory for model.
             device: device to use for model.
             use_accelerate: whether to use accelerate for multi-gpu inference.
+            use_parallelize: use HF default parallelize
             perc_max_gpu_mem_red: percent max memory reduction in accelerate
             use_fp16: use fp16 for model weights.
         """
+        if use_accelerate and use_parallelize:
+            raise ValueError("Cannot use both accelerate and parallelize")
         # Check if providing path
         self.model_path = model_name
         if Path(self.model_path).exists() and Path(self.model_path).is_dir():
@@ -138,11 +141,18 @@ class HuggingFaceModel(Model):
             tokenizer = AutoTokenizer.from_pretrained(model_name)
         except ValueError:
             tokenizer = AutoTokenizer.from_pretrained(model_name, use_fast=False)
+
+        if not self.is_encdec:
+            tokenizer.pad_token = tokenizer.eos_token
+
         dtype = torch.float16 if use_fp16 else "auto"
         try:
             # Try to explicitely find a fp16 copy (gpt-j-6B for example)
             model = MODEL_REGISTRY[model_name].from_pretrained(  # type: ignore
-                self.model_path, cache_dir=cache_dir, revision="float16", torch_dtype=torch.float16
+                self.model_path,
+                cache_dir=cache_dir,
+                revision="float16",
+                torch_dtype=torch.float16,
             )
         except Exception:
             model = MODEL_REGISTRY[model_name].from_pretrained(  # type: ignore
@@ -152,6 +162,9 @@ class HuggingFaceModel(Model):
         print(f"Loaded Model DType {model.dtype}")
         if use_accelerate:
             self._dispatch_accelerate_model(model, perc_max_gpu_mem_red)
+            device = 0
+        elif use_parallelize:
+            model.parallelize()
             device = 0
         else:
             if device > -1:
@@ -275,7 +288,9 @@ class HuggingFaceModel(Model):
             final_results = [r["generated_text"][start_idx:] for r in result]
         return final_results
 
-    def logits_scoring(self, prompt: str, gold_choices: List[str], **kwargs: Any) -> List[str]:
+    def logits_scoring(
+        self, prompt: str, gold_choices: List[str], **kwargs: Any
+    ) -> str:
         """
         Given the prompt and gold choices, choose the best choice with max logits.
 
@@ -287,30 +302,65 @@ class HuggingFaceModel(Model):
             the returned gold choice
         """
         max_input_len = self.pipeline.max_length
+        # Adapted from https://github.com/bigscience-workshop/t-zero
+        tokenized_inputs = self.pipeline.tokenizer(
+            prompt,
+            padding="longest",
+            max_length=max_input_len,
+            truncation=True,
+            add_special_tokens=False,
+        )
+        # Get max target length
+        max_target_len = max(
+            [
+                len(self.pipeline.tokenizer(ans_choi)["input_ids"])
+                for ans_choi in gold_choices
+            ]
+        )
+        tokenized_targets = [
+            self.pipeline.tokenizer(
+                ans_choi,
+                # padding is on the right here.
+                padding="max_length",
+                max_length=min(max_target_len, max_input_len),
+                truncation=True,
+            )
+            for ans_choi in gold_choices
+        ]
 
-        # Encode prompt and choices
-        encoded_prompt = self.pipeline.tokenizer.encode(
-            prompt, max_length=max_input_len, truncation=True, return_tensors="pt"
-        ).to(self.pipeline.device)
-        encoded_choices = [
-            self.pipeline.tokenizer.encode(
-                choice, max_length=max_input_len, truncation=True, return_tensors="pt", add_special_tokens=False
-            ).to(self.pipeline.device)
-            for choice in gold_choices
+        # Repeat input ids for each choice to form a batch
+        features = {
+            k: [tokenized_inputs[k] for _ in range(len(gold_choices))]
+            for k in tokenized_inputs.keys()
+        }
+        # Add choice tokens + mask
+        features["labels"] = [
+            tokenized_targets[k]["input_ids"] for k in range(len(gold_choices))
         ]
-        # Just feed on choice to model
-        results = [
-            self.pipeline.model(input_ids=encoded_prompt, labels=encoded_choice).logits
-            for encoded_choice in encoded_choices
+        features["labels_attention_mask"] = [
+            tokenized_targets[k]["attention_mask"] for k in range(len(gold_choices))
         ]
-        # Choose choice with max logits sum (sum log prob)
-        logit_sum = []
-        for res, encoded_choice in zip(results, encoded_choices):
-            logits = res.cpu().detach().numpy()[0]
-            choice_index = encoded_choice.cpu().detach().numpy()[0]
-            # print(logits, choice_index)
-            logits_to_sum = [logits[i][choice_index[i]] for i in range(len(choice_index))]
-            # print(logits_to_sum)
-            logit_sum.append(sum(logits_to_sum))
-        # Return choice with max logits
-        return gold_choices[np.argmax(logit_sum)]
+        # Convert to tensors
+        for k in features:
+            features[k] = torch.LongTensor(features[k]).to(self.pipeline.device)
+            print(k, features[k].shape)
+        # Reduce GPU memory by feeding one at a time
+        logits = [
+            self.pipeline.model(
+                input_ids=features["input_ids"][bs].unsqueeze(0),
+                attention_mask=features["attention_mask"][bs].unsqueeze(0),
+                labels=features["labels"][bs].unsqueeze(0),
+            ).logits
+            for bs in range(len(features["input_ids"]))
+        ]
+        logits = torch.vstack(logits)
+        # Compute most likely option
+        masked_log_probs = features["labels_attention_mask"].unsqueeze(
+            -1
+        ) * torch.log_softmax(logits, dim=-1)
+        seq_token_log_probs = torch.gather(
+            masked_log_probs, -1, features["labels"].unsqueeze(-1)
+        )
+        seq_log_prob = seq_token_log_probs.squeeze(dim=-1).sum(dim=-1)
+        prediction = seq_log_prob.argmax(dim=-1).item()
+        return gold_choices[prediction]

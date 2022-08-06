@@ -63,6 +63,14 @@ def parse_args() -> argparse.Namespace:
             "This will override --device parameter."
         ),
     )
+    parser.add_argument(
+        "--use_hf_parallelize",
+        action="store_true",
+        help=(
+            "Use HF parallelize for multi gpu inference. "
+            "This will override --device parameter."
+        ),
+    )
     args = parser.parse_args()
     return args
 
@@ -87,6 +95,7 @@ def main() -> None:
         cache_dir=kwargs.cache_dir,
         device=kwargs.device,
         use_accelerate=use_accelerate,
+        use_parallelize=kwargs.use_hf_parallelize,
         perc_max_gpu_mem_red=kwargs.percent_max_gpu_mem_reduction,
         use_fp16=kwargs.fp16,
     )
@@ -108,6 +117,26 @@ def completions() -> Dict:
         results.append(generations)
     # transform the result into the openai format
     return OpenAIResponse(results).__dict__()
+
+
+@app.route("/choice_logits", methods=["POST"])
+def choice_logits() -> Dict:
+    """Get maximal likely choice via max logits after generation."""
+    prompt = request.json["prompt"]
+    del request.json["prompt"]
+    gold_choices = request.json["gold_choices"]
+    del request.json["gold_choices"]
+    generation_args = request.json
+
+    if not isinstance(prompt, str):
+        raise ValueError("Prompt must be a str")
+
+    if not isinstance(gold_choices, list):
+        raise ValueError("Gold choices must be a list of string choices")
+
+    result = model.logits_scoring(prompt, gold_choices, **generation_args)
+    # transform the result into the openai format
+    return OpenAIResponse([result]).__dict__()
 
 
 @app.route("/params", methods=["POST"])

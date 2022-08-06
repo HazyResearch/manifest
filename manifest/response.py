@@ -11,13 +11,13 @@ class Response:
         if isinstance(response, dict):
             self._response = response
         else:
-            raise ValueError("Response must be str or dict")
+            raise ValueError(f"Response must be str or dict. Response is\n{response}.")
         if ("choices" not in self._response) or (
             not isinstance(self._response["choices"], list)
         ):
             raise ValueError(
                 "Response must be serialized to a dict with a list of choices. "
-                f"Response is {self._response}."
+                f"Response is\n{self._response}."
             )
         if len(self._response["choices"]) > 0:
             if "text" not in self._response["choices"][0]:

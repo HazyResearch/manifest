@@ -104,6 +104,7 @@ class Manifest:
         self,
         prompt: Union[Prompt, str],
         input: Optional[Any] = None,
+        gold_choices: Optional[List[str]] = None,
         overwrite_cache: bool = False,
         stop_token: Optional[str] = None,
         return_response: bool = False,
@@ -115,6 +116,7 @@ class Manifest:
         Args:
             prompt: prompt to run. If string, will cast to prompt.
             input: input to prompt.
+            gold_choices: gold choices for max logit response (only HF models).
             overwrite_cache: whether to overwrite cache.
             stop_token: stop token for prompt generation.
                         Default is self.stop_token.
@@ -128,7 +130,15 @@ class Manifest:
         stop_token = stop_token if stop_token is not None else self.stop_token
         prompt_str = prompt(input)
         # Must pass kwargs as dict for client "pop" methods removed used arguments
-        possible_request, full_kwargs = self.client.get_request(prompt_str, kwargs)
+        if gold_choices is None:
+            possible_request, full_kwargs = self.client.get_request(prompt_str, kwargs)
+        else:
+            try:
+                possible_request, full_kwargs = self.client.get_choice_logit_request(
+                    prompt_str, gold_choices, kwargs
+                )
+            except AttributeError:
+                raise ValueError("`gold_choices` only supported for HF models.")
         if len(kwargs) > 0:
             raise ValueError(f"{list(kwargs.items())} arguments are not recognized.")
         # Create cacke key
@@ -150,6 +160,7 @@ class Manifest:
         self,
         prompt: Prompt,
         input: Optional[Iterable[Any]] = None,
+        gold_choices: Optional[List[str]] = None,
         overwrite_cache: bool = False,
         stop_token: Optional[str] = None,
         return_response: bool = False,
@@ -162,6 +173,7 @@ class Manifest:
         Args:
             prompt: prompt to run.
             input: batch of inputs.
+            gold_choices: gold choices for max logit response (only HF models).
             overwrite_cache: whether to overwrite cache.
             stop_token: stop token for prompt generation.
                         Default is self.stop_token.
@@ -179,7 +191,13 @@ class Manifest:
             input = [None]
         return [
             self.run(
-                prompt, inp, overwrite_cache, stop_token, return_response, **kwargs
+                prompt,
+                inp,
+                gold_choices,
+                overwrite_cache,
+                stop_token,
+                return_response,
+                **kwargs,
             )
             for inp in tqdm(input, desc="Running batch", disable=not verbose)
         ]
