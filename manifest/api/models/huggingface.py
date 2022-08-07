@@ -348,14 +348,17 @@ class HuggingFaceModel(Model):
                 prompt,
                 max_length=max_input_len,
                 truncation=True,
+                padding=False,
                 add_special_tokens=False,
             )
             tokenized_targets = [
                 self.pipeline.tokenizer(
                     # Add starting whitespace fo gpt
-                    ans_choi if ans_choi.startswith((" ", "\n")) else f" {ans_choi}",
+                    ans_choi,
                     max_length=max_input_len,
                     truncation=True,
+                    padding=False,
+                    add_special_tokens=False,
                 )
                 for ans_choi in gold_choices
             ]
@@ -425,6 +428,10 @@ class HuggingFaceModel(Model):
         seq_token_log_probs = torch.gather(
             masked_log_probs, -1, tensor_features["labels"].unsqueeze(-1)
         )
-        seq_log_prob = seq_token_log_probs.squeeze(dim=-1).sum(dim=-1)
+        seq_token_log_probs = seq_token_log_probs.squeeze(dim=-1)
+        seq_log_prob = seq_token_log_probs.sum(dim=-1)
+        # Averaging over output sequence length for GPT
+        if not self.is_encdec:
+            seq_log_prob = seq_log_prob * (1 / (seq_token_log_probs != 0).sum(dim=-1))
         prediction = seq_log_prob.argmax(dim=-1).item()
         return gold_choices[int(prediction)]
