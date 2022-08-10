@@ -7,6 +7,7 @@ import torch
 from transformers import (
     AutoModelForSeq2SeqLM,
     AutoTokenizer,
+    BloomForCausalLM,
     GPT2LMHeadModel,
     GPTJForCausalLM,
     GPTNeoForCausalLM,
@@ -30,8 +31,10 @@ MODEL_REGISTRY = {
     "facebook/opt-13b": OPTForCausalLM,
     "facebook/opt-30b": OPTForCausalLM,
     "gpt2": GPT2LMHeadModel,
+    "bigscience/bloom-7b1": BloomForCausalLM,
     "bigscience/T0pp": AutoModelForSeq2SeqLM,
     "bigscience/T0_3B": AutoModelForSeq2SeqLM,
+    "google/t5-xl-lm-adapt": AutoModelForSeq2SeqLM,
 }
 
 
@@ -52,8 +55,17 @@ class Pipeline:
         # Used for GPT
         self.max_length = getattr(config, "max_position_embeddings", None)
         if self.max_length is None:
-            # Used for T0
-            self.max_length = config.d_model
+            # Used for Bloom
+            self.max_length = getattr(config, "seq_length", None)
+            if self.max_length is None:
+                # Used for T0
+                self.max_length = getattr(config, "d_model", None)
+
+        if self.max_length is None:
+            raise ValueError(
+                "Could not find max sequence length after looking at HF config"
+            )
+
         self.tokenizer = tokenizer
         self.device = (
             torch.device("cpu")
@@ -137,15 +149,11 @@ class HuggingFaceModel(Model):
                 config = json.load(open(Path(self.model_path) / "config.json"))
                 model_name = config["_name_or_path"]
         self.model_name = model_name
-        self.is_encdec = "T0" in self.model_name
         print("Model Name:", self.model_name, "Model Path:", self.model_path)
         try:
             tokenizer = AutoTokenizer.from_pretrained(model_name)
         except ValueError:
             tokenizer = AutoTokenizer.from_pretrained(model_name, use_fast=False)
-
-        if not self.is_encdec:
-            tokenizer.pad_token = tokenizer.eos_token
 
         dtype = torch.float16 if use_fp16 else "auto"
         try:
@@ -162,6 +170,11 @@ class HuggingFaceModel(Model):
             )
         model.eval()
         print(f"Loaded Model DType {model.dtype}")
+
+        self.is_encdec = model.config.is_encoder_decoder
+        if not self.is_encdec:
+            tokenizer.pad_token = tokenizer.eos_token
+
         if use_accelerate:
             self._dispatch_accelerate_model(model, perc_max_gpu_mem_red)
             device = 0
@@ -410,6 +423,7 @@ class HuggingFaceModel(Model):
         tensor_features = {}
         for k in features:
             tensor_features[k] = torch.LongTensor(features[k]).to(self.pipeline.device)
+
         # Reduce GPU memory by feeding one at a time
         logits = [
             self.pipeline.model(  # type: ignore
@@ -420,14 +434,27 @@ class HuggingFaceModel(Model):
             for bs in range(len(tensor_features["input_ids"]))
         ]
         stacked_logits = torch.vstack(logits)
-        # Compute most likely option
-        # Adapted from https://github.com/bigscience-workshop/t-zero
-        masked_log_probs = tensor_features["labels_attention_mask"].unsqueeze(
-            -1
-        ) * torch.log_softmax(stacked_logits, dim=-1)
-        seq_token_log_probs = torch.gather(
-            masked_log_probs, -1, tensor_features["labels"].unsqueeze(-1)
-        )
+        # Choose most likely option
+        if self.is_encdec:
+            # Adapted from https://github.com/bigscience-workshop/t-zero
+            masked_log_probs = tensor_features["labels_attention_mask"].unsqueeze(
+                -1
+            ) * torch.log_softmax(stacked_logits, dim=-1)
+            seq_token_log_probs = torch.gather(
+                masked_log_probs, -1, tensor_features["labels"].unsqueeze(-1)
+            )
+        else:
+            # # For causal decoders, shift logts and labels
+            labels_attention_mask = tensor_features["labels_attention_mask"].unsqueeze(
+                -1
+            )[..., 1:, :]
+            masked_log_probs = (
+                labels_attention_mask
+                * torch.log_softmax(stacked_logits, dim=-1)[..., :-1, :]
+            )
+            seq_token_log_probs = torch.gather(
+                masked_log_probs, -1, tensor_features["labels"][:, 1:].unsqueeze(-1)
+            )
         seq_token_log_probs = seq_token_log_probs.squeeze(dim=-1)
         seq_log_prob = seq_token_log_probs.sum(dim=-1)
         # Averaging over output sequence length for GPT

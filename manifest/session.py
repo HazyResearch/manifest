@@ -83,8 +83,7 @@ class Session:
             query_id integer NOT NULL,
             session_id text NOT NULL,
             query_key text NOT NULL,
-            response_key text NOT NULL,
-            PRIMARY KEY (query_id, session_id)
+            response_key text NOT NULL
         );"""
         self._execute_query(query)
         return
