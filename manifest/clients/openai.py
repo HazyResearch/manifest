@@ -12,6 +12,7 @@ logger = logging.getLogger(__name__)
 
 OPENAI_ENGINES = {
     "text-davinci-002",
+    "text-davinci-001",
     "text-curie-001",
     "text-babbage-001",
     "text-ada-001",
@@ -116,3 +117,19 @@ class OpenAIClient(Client):
                 raise e
 
         return _run_completion, request_params
+
+    def get_choice_logit_request(
+        self, query: str, gold_choices: List[str], request_args: Dict[str, Any] = {}
+    ) -> Tuple[Callable[[], Dict], Dict]:
+        """
+        Get request string function for choosing max choices.
+
+        Args:
+            query: query string.
+            gold_choices: choices for model to choose from via max logits.
+
+        Returns:
+            request function that takes no input.
+            request parameters as dict.
+        """
+        raise NotImplementedError("OpenAI does not support choice logit request.")

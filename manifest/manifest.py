@@ -42,6 +42,14 @@ except ImportError as e:
     # TODO: remove this when CRFM is public
     pass
 
+try:
+    from manifest.clients.zoo import ZooClient
+
+    CLIENT_CONSTRUCTORS["zoo"] = ZooClient
+except ImportError as e:
+    logger.debug("Zoo import error", e, "Have you installed it correctly?")
+    pass
+
 
 class Manifest:
     """Manifest session object."""
@@ -83,11 +91,11 @@ class Manifest:
             )
         self.client_name = client_name
         # Must pass kwargs as dict for client "pop" methods removed used arguments
-        self.client = CLIENT_CONSTRUCTORS[client_name](  # type: ignore
-            client_connection, client_args=kwargs
-        )
         self.cache = CACHE_CONSTRUCTORS[cache_name](  # type: ignore
             cache_connection, cache_args=kwargs
+        )
+        self.client = CLIENT_CONSTRUCTORS[client_name](  # type: ignore
+            client_connection, client_args=kwargs
         )
         self.session = Session(session_id)
         if len(kwargs) > 0:

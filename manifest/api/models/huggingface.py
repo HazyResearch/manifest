@@ -31,6 +31,10 @@ MODEL_REGISTRY = {
     "facebook/opt-13b": OPTForCausalLM,
     "facebook/opt-30b": OPTForCausalLM,
     "gpt2": GPT2LMHeadModel,
+    "bigscience/bloom-350m": BloomForCausalLM,
+    "bigscience/bloom-1b7": BloomForCausalLM,
+    "bigscience/bloom-3b": BloomForCausalLM,
+    "bigscience/bloom-6b3": BloomForCausalLM,
     "bigscience/bloom-7b1": BloomForCausalLM,
     "bigscience/T0pp": AutoModelForSeq2SeqLM,
     "bigscience/T0_3B": AutoModelForSeq2SeqLM,
@@ -117,7 +121,8 @@ class HuggingFaceModel(Model):
 
     def __init__(
         self,
-        model_name: str,
+        model_name_or_path: str,
+        model_config: str,
         cache_dir: str,
         device: int,
         use_accelerate: bool,
@@ -131,7 +136,8 @@ class HuggingFaceModel(Model):
         All arguments will be passed in the request from Manifest.
 
         Args:
-            model_name: model name string.
+            model_name_or_path: model name string.
+            model_config: model config string.
             cache_dir: cache directory for model.
             device: device to use for model.
             use_accelerate: whether to use accelerate for multi-gpu inference.
@@ -142,30 +148,30 @@ class HuggingFaceModel(Model):
         if use_accelerate and use_parallelize:
             raise ValueError("Cannot use both accelerate and parallelize")
         # Check if providing path
-        self.model_path = model_name
+        self.model_path = model_name_or_path
         if Path(self.model_path).exists() and Path(self.model_path).is_dir():
             # Try to find config
             if (Path(self.model_path) / "config.json").exists():
                 config = json.load(open(Path(self.model_path) / "config.json"))
-                model_name = config["_name_or_path"]
-        self.model_name = model_name
+                model_name_or_path = config["_name_or_path"]
+        self.model_name = model_name_or_path
         print("Model Name:", self.model_name, "Model Path:", self.model_path)
         try:
-            tokenizer = AutoTokenizer.from_pretrained(model_name)
+            tokenizer = AutoTokenizer.from_pretrained(self.model_name)
         except ValueError:
-            tokenizer = AutoTokenizer.from_pretrained(model_name, use_fast=False)
+            tokenizer = AutoTokenizer.from_pretrained(self.model_name, use_fast=False)
 
         dtype = torch.float16 if use_fp16 else "auto"
         try:
             # Try to explicitely find a fp16 copy (gpt-j-6B for example)
-            model = MODEL_REGISTRY[model_name].from_pretrained(  # type: ignore
+            model = MODEL_REGISTRY[self.model_name].from_pretrained(  # type: ignore
                 self.model_path,
                 cache_dir=cache_dir,
                 revision="float16",
                 torch_dtype=torch.float16,
             )
         except Exception:
-            model = MODEL_REGISTRY[model_name].from_pretrained(  # type: ignore
+            model = MODEL_REGISTRY[self.model_name].from_pretrained(  # type: ignore
                 self.model_path, cache_dir=cache_dir, torch_dtype=dtype
             )
         model.eval()
