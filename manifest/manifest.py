@@ -12,6 +12,7 @@ from manifest.clients.dummy import DummyClient
 from manifest.clients.huggingface import HuggingFaceClient
 from manifest.clients.openai import OpenAIClient
 from manifest.clients.opt import OPTClient
+from manifest.clients.zoo import ZooClient
 from manifest.prompt import Prompt
 from manifest.response import Response
 from manifest.session import Session
@@ -25,6 +26,7 @@ CLIENT_CONSTRUCTORS = {
     "huggingface": HuggingFaceClient,
     "opt": OPTClient,
     "dummy": DummyClient,
+    "zoo": ZooClient,
 }
 
 CACHE_CONSTRUCTORS = {
@@ -40,14 +42,6 @@ try:
 except ImportError as e:
     logger.debug("CRFM import error", e, "Are you in the import_fix branch?")
     # TODO: remove this when CRFM is public
-    pass
-
-try:
-    from manifest.clients.zoo import ZooClient
-
-    CLIENT_CONSTRUCTORS["zoo"] = ZooClient
-except ImportError as e:
-    logger.debug("Zoo import error", e, "Have you installed it correctly?")
     pass
 
 
