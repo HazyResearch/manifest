@@ -2,13 +2,13 @@
 
 import time
 import uuid
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 
 class OpenAIResponse:
     """OpenAI response."""
 
-    def __init__(self, results: list) -> None:
+    def __init__(self, results: List[Dict[str, Any]]) -> None:
         """Initialize response."""
         self.results = results
         self.response_id = str(uuid.uuid4())
@@ -23,7 +23,8 @@ class OpenAIResponse:
             "model": "flask_model",
             "choices": [
                 {
-                    "text": result,
+                    "text": result["text"],
+                    "text_logprob": result["text_logprob"],
                     # TODO: Add in more metadata for HF models
                     # "logprobs": {
                     #     "tokens": result["tokens"],

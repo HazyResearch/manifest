@@ -1,10 +1,11 @@
 """Huggingface model."""
 import json
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Tuple
 
 import torch
 from transformers import (
+    AutoModelForCausalLM,
     AutoModelForSeq2SeqLM,
     AutoTokenizer,
     BloomForCausalLM,
@@ -25,13 +26,18 @@ MODEL_REGISTRY = {
     "EleutherAI/gpt-neo-2.7B": GPTNeoForCausalLM,
     "EleutherAI/gpt-j-6B": GPTJForCausalLM,
     "EleutherAI/gpt-neox-20b": GPTNeoXForCausalLM,
+    "facebook/opt-125m": OPTForCausalLM,
     "facebook/opt-1.3b": OPTForCausalLM,
     "facebook/opt-2.7b": OPTForCausalLM,
     "facebook/opt-6.7b": OPTForCausalLM,
     "facebook/opt-13b": OPTForCausalLM,
     "facebook/opt-30b": OPTForCausalLM,
     "gpt2": GPT2LMHeadModel,
+    "bigscience/bloom-560m": BloomForCausalLM,
+    "bigscience/bloom-1b7": BloomForCausalLM,
+    "bigscience/bloom-3b": BloomForCausalLM,
     "bigscience/bloom-7b1": BloomForCausalLM,
+    "bigscience/bloom": AutoModelForCausalLM,
     "bigscience/T0pp": AutoModelForSeq2SeqLM,
     "bigscience/T0_3B": AutoModelForSeq2SeqLM,
     "google/t5-xl-lm-adapt": AutoModelForSeq2SeqLM,
@@ -117,7 +123,8 @@ class HuggingFaceModel(Model):
 
     def __init__(
         self,
-        model_name: str,
+        model_name_or_path: str,
+        model_config: str,
         cache_dir: str,
         device: int,
         use_accelerate: bool,
@@ -131,7 +138,8 @@ class HuggingFaceModel(Model):
         All arguments will be passed in the request from Manifest.
 
         Args:
-            model_name: model name string.
+            model_name_or_path: model name string.
+            model_config: model config string.
             cache_dir: cache directory for model.
             device: device to use for model.
             use_accelerate: whether to use accelerate for multi-gpu inference.
@@ -142,32 +150,43 @@ class HuggingFaceModel(Model):
         if use_accelerate and use_parallelize:
             raise ValueError("Cannot use both accelerate and parallelize")
         # Check if providing path
-        self.model_path = model_name
+        self.model_path = model_name_or_path
         if Path(self.model_path).exists() and Path(self.model_path).is_dir():
             # Try to find config
             if (Path(self.model_path) / "config.json").exists():
                 config = json.load(open(Path(self.model_path) / "config.json"))
-                model_name = config["_name_or_path"]
-        self.model_name = model_name
+                model_name_or_path = config["_name_or_path"]
+        self.model_name = model_name_or_path
         print("Model Name:", self.model_name, "Model Path:", self.model_path)
         try:
-            tokenizer = AutoTokenizer.from_pretrained(model_name)
+            tokenizer = AutoTokenizer.from_pretrained(
+                self.model_name, truncation_side="left"
+            )
         except ValueError:
-            tokenizer = AutoTokenizer.from_pretrained(model_name, use_fast=False)
-
+            tokenizer = AutoTokenizer.from_pretrained(
+                self.model_name, truncation_side="left", use_fast=False
+            )
         dtype = torch.float16 if use_fp16 else "auto"
-        try:
-            # Try to explicitely find a fp16 copy (gpt-j-6B for example)
-            model = MODEL_REGISTRY[model_name].from_pretrained(  # type: ignore
+        if self.model_name == "bigscience/bloom":
+            model = MODEL_REGISTRY[self.model_name].from_pretrained(  # type: ignore
                 self.model_path,
                 cache_dir=cache_dir,
-                revision="float16",
-                torch_dtype=torch.float16,
+                load_in_8bit=True,
+                device_map="auto",
             )
-        except Exception:
-            model = MODEL_REGISTRY[model_name].from_pretrained(  # type: ignore
-                self.model_path, cache_dir=cache_dir, torch_dtype=dtype
-            )
+        else:
+            try:
+                # Try to explicitely find a fp16 copy (gpt-j-6B for example)
+                model = MODEL_REGISTRY[self.model_name].from_pretrained(  # type: ignore
+                    self.model_path,
+                    cache_dir=cache_dir,
+                    revision="float16",
+                    torch_dtype=torch.float16,
+                )
+            except Exception:
+                model = MODEL_REGISTRY[self.model_name].from_pretrained(  # type: ignore
+                    self.model_path, cache_dir=cache_dir, torch_dtype=dtype
+                )
         model.eval()
         print(f"Loaded Model DType {model.dtype}")
 
@@ -175,20 +194,21 @@ class HuggingFaceModel(Model):
         if not self.is_encdec:
             tokenizer.pad_token = tokenizer.eos_token
 
-        if use_accelerate:
-            self._dispatch_accelerate_model(model, perc_max_gpu_mem_red)
-            device = 0
-        elif use_parallelize:
-            model.parallelize()
-            device = 0
-        else:
-            if device > -1:
-                torch_device = (
-                    torch.device("cpu")
-                    if (device == -1 or not torch.cuda.is_available())
-                    else torch.device(f"cuda:{device}")
-                )
-                model = model.to(torch_device)  # type: ignore
+        if self.model_name != "bigscience/bloom":
+            if use_accelerate:
+                self._dispatch_accelerate_model(model, perc_max_gpu_mem_red)
+                device = 0
+            elif use_parallelize:
+                model.parallelize()
+                device = 0
+            else:
+                if device > -1:
+                    torch_device = (
+                        torch.device("cpu")
+                        if (device == -1 or not torch.cuda.is_available())
+                        else torch.device(f"cuda:{device}")
+                    )
+                    model = model.to(torch_device)  # type: ignore
         self.pipeline = Pipeline(  # type: ignore
             model=model, tokenizer=tokenizer, device=device
         )
@@ -258,6 +278,7 @@ class HuggingFaceModel(Model):
         dispatch_model(model, device_map=device_map)
         return
 
+    @torch.no_grad()
     def generate(self, prompt: str, **kwargs: Any) -> List[str]:
         """
         Generate the prompt from model.
@@ -303,9 +324,10 @@ class HuggingFaceModel(Model):
             final_results = [r["generated_text"][start_idx:] for r in result]
         return final_results
 
+    @torch.no_grad()
     def logits_scoring(
         self, prompt: str, gold_choices: List[str], **kwargs: Any
-    ) -> str:
+    ) -> Tuple[str, float]:
         """
         Given the prompt and gold choices, choose the best choice with max logits.
 
@@ -461,4 +483,4 @@ class HuggingFaceModel(Model):
         if not self.is_encdec:
             seq_log_prob = seq_log_prob * (1 / (seq_token_log_probs != 0).sum(dim=-1))
         prediction = seq_log_prob.argmax(dim=-1).item()
-        return gold_choices[int(prediction)]
+        return gold_choices[int(prediction)], seq_log_prob[int(prediction)].item()

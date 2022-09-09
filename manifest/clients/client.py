@@ -81,3 +81,20 @@ class Client(ABC):
             request parameters as dict.
         """
         raise NotImplementedError()
+
+    @abstractmethod
+    def get_choice_logit_request(
+        self, query: str, gold_choices: List[str], request_args: Dict[str, Any] = {}
+    ) -> Tuple[Callable[[], Dict], Dict]:
+        """
+        Get request string function for choosing max choices.
+
+        Args:
+            query: query string.
+            gold_choices: choices for model to choose from via max logits.
+
+        Returns:
+            request function that takes no input.
+            request parameters as dict.
+        """
+        raise NotImplementedError()

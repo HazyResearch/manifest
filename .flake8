@@ -7,5 +7,5 @@
 [flake8]
 exclude = .git
 max-line-length = 88
-ignore = E731, E402, W503, E203
+ignore = E731, E402, W503, E203, PAI100, PAI101, PAI201, PAI202, PAI203
 per-file-ignores = __init__.py:F401, version.py:D100
