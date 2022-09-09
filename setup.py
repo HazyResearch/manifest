@@ -44,6 +44,7 @@ REQUIRED = [
 # What packages are optional?
 EXTRAS = {
     "dev": [
+        "autopep8>=1.6.0",
         "black>=22.3.0",
         "isort>=5.9.3",
         "flake8>=4.0.0",

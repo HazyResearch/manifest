@@ -1,4 +1,4 @@
-"""OpenAI client."""
+"""Zoo client."""
 import logging
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
@@ -9,16 +9,11 @@ from manifest.clients.client import Client
 logger = logging.getLogger(__name__)
 
 # User param -> (client param, default value)
-OPT_PARAMS = {
-    "temperature": ("temperature", 1.0),
-    "max_tokens": ("max_tokens", 10),
-    "n": ("n", 1),
-    "top_p": ("top_p", 1.0),
-}
+ZOO_PARAMS: Dict[str, Tuple[str, str]] = {}
 
 
-class OPTClient(Client):
-    """OPT client."""
+class ZooClient(Client):
+    """Zoo client."""
 
     def connect(
         self,
@@ -26,15 +21,16 @@ class OPTClient(Client):
         client_args: Dict[str, Any] = {},
     ) -> None:
         """
-        Connect to the OPT url.
+        Connect to the model.
 
-        Arsg:
+        Args:
             connection_str: connection string.
             client_args: client arguments.
         """
         self.host = connection_str.rstrip("/")
-        for key in OPT_PARAMS:
-            setattr(self, key, client_args.pop(key, OPT_PARAMS[key][1]))
+        for key in ZOO_PARAMS:
+            setattr(self, key, client_args.pop(key, ZOO_PARAMS[key][1]))
+        self.model_params = self.get_model_params()
 
     def close(self) -> None:
         """Close the client."""
@@ -50,7 +46,8 @@ class OPTClient(Client):
         Returns:
             model params.
         """
-        return {"model_name": "opt"}
+        res = requests.post(self.host + "/params")
+        return res.json()
 
     def get_model_inputs(self) -> List:
         """
@@ -59,7 +56,7 @@ class OPTClient(Client):
         Returns:
             model inputs.
         """
-        return list(OPT_PARAMS.keys())
+        return list(ZOO_PARAMS.keys())
 
     def get_request(
         self, query: str, request_args: Dict[str, Any] = {}
@@ -75,10 +72,11 @@ class OPTClient(Client):
             request parameters as dict.
         """
         request_params = {"prompt": query}
-        for key in OPT_PARAMS:
-            request_params[OPT_PARAMS[key][0]] = request_args.pop(
-                key, getattr(self, key)
-            )
+        # Zoo is greedy and takes all params
+        # TODO: Once zoo is finalized, fix this
+        for key in list(request_args.keys()):
+            request_params[key] = request_args.pop(key, None)
+        request_params.update(self.model_params)
 
         def _run_completion() -> Dict:
             post_str = self.host + "/completions"
@@ -101,4 +99,4 @@ class OPTClient(Client):
             request function that takes no input.
             request parameters as dict.
         """
-        raise NotImplementedError("OPT does not support choice logit request.")
+        raise NotImplementedError("Zoo does not support choice logit request.")

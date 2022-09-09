@@ -20,6 +20,12 @@ PORT = int(os.environ.get("FLASK_PORT", 5000))
 MODEL_CONSTRUCTORS = {
     "huggingface": HuggingFaceModel,
 }
+try:
+    from manifest.api.models.zoo import ZooModel
+
+    MODEL_CONSTRUCTORS["zoo"] = ZooModel  # type: ignore
+except ImportError:
+    logger.warning("Zoo model not available.")
 
 
 def parse_args() -> argparse.Namespace:
@@ -31,14 +37,19 @@ def parse_args() -> argparse.Namespace:
         type=str,
         required=True,
         help="Model type used for finding constructor.",
-        choices=["huggingface"],
+        choices=["huggingface", "zoo"],
     )
     parser.add_argument(
-        "--model_name",
+        "--model_name_or_path",
         default=None,
         type=str,
-        required=True,
-        help="Name of model. Used in initialize of model class.",
+        help="Name of model or path to model. Used in initialize of model class.",
+    )
+    parser.add_argument(
+        "--model_config",
+        default=None,
+        type=str,
+        help="Model config. Used in initialize of model class.",
     )
     parser.add_argument(
         "--cache_dir", default=None, type=str, help="Cache directory for models."
@@ -79,7 +90,10 @@ def main() -> None:
     """Run main."""
     kwargs = parse_args()
     model_type = kwargs.model_type
-    model_name = kwargs.model_name
+    model_name_or_path = kwargs.model_name_or_path
+    model_config = kwargs.model_config
+    if not model_name_or_path and not model_config:
+        raise ValueError("Must provide model_name_or_path or model_config.")
     use_accelerate = kwargs.use_accelerate_multigpu
     if use_accelerate:
         logger.info("Using accelerate. Overridding --device argument.")
@@ -91,7 +105,8 @@ def main() -> None:
     # Global model
     global model
     model = MODEL_CONSTRUCTORS[model_type](
-        model_name,
+        model_name_or_path,
+        model_config=model_config,
         cache_dir=kwargs.cache_dir,
         device=kwargs.device,
         use_accelerate=use_accelerate,
@@ -112,9 +127,10 @@ def completions() -> Dict:
     if not isinstance(prompt, str):
         raise ValueError("Prompt must be a str")
 
-    results = []
+    results_text = []
     for generations in model.generate(prompt, **generation_args):
-        results.append(generations)
+        results_text.append(generations)
+    results = [{"text": r, "text_logprob": None} for r in results_text]
     # transform the result into the openai format
     return OpenAIResponse(results).__dict__()
 
@@ -134,9 +150,10 @@ def choice_logits() -> Dict:
     if not isinstance(gold_choices, list):
         raise ValueError("Gold choices must be a list of string choices")
 
-    result = model.logits_scoring(prompt, gold_choices, **generation_args)
+    result, score = model.logits_scoring(prompt, gold_choices, **generation_args)
+    results = [{"text": result, "text_logprob": score}]
     # transform the result into the openai format
-    return OpenAIResponse([result]).__dict__()
+    return OpenAIResponse(results).__dict__()
 
 
 @app.route("/params", methods=["POST"])
