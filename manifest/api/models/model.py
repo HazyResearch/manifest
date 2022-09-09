@@ -1,6 +1,6 @@
 """Model class."""
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Tuple
 
 
 class Model(ABC):
@@ -58,7 +58,7 @@ class Model(ABC):
     @abstractmethod
     def logits_scoring(
         self, prompt: str, gold_choices: List[str], **kwargs: Any
-    ) -> str:
+    ) -> Tuple[str, float]:
         """
         Given the prompt and gold choices, choose the best choice with max logits.
 
@@ -67,6 +67,6 @@ class Model(ABC):
             gold_choices: list of choices to choose from.
 
         Returns:
-            the returned gold choice
+            the returned gold choice and the score.
         """
         raise NotImplementedError()

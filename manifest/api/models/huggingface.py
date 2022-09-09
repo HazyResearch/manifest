@@ -1,7 +1,7 @@
 """Huggingface model."""
 import json
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Tuple
 
 import torch
 from transformers import (
@@ -311,7 +311,7 @@ class HuggingFaceModel(Model):
 
     def logits_scoring(
         self, prompt: str, gold_choices: List[str], **kwargs: Any
-    ) -> str:
+    ) -> Tuple[str, float]:
         """
         Given the prompt and gold choices, choose the best choice with max logits.
 
@@ -467,4 +467,4 @@ class HuggingFaceModel(Model):
         if not self.is_encdec:
             seq_log_prob = seq_log_prob * (1 / (seq_token_log_probs != 0).sum(dim=-1))
         prediction = seq_log_prob.argmax(dim=-1).item()
-        return gold_choices[int(prediction)]
+        return gold_choices[int(prediction)], seq_log_prob[int(prediction)].item()

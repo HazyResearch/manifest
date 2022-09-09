@@ -1,7 +1,7 @@
 """Zoo model."""
 import os
 import sys
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Tuple
 
 from manifest.api.models.model import Model
 
@@ -80,7 +80,7 @@ class ZooModel(Model):
 
     def logits_scoring(
         self, prompt: str, gold_choices: List[str], **kwargs: Any
-    ) -> str:
+    ) -> Tuple[str, float]:
         """
         Given the prompt and gold choices, choose the best choice with max logits.
 
@@ -89,6 +89,6 @@ class ZooModel(Model):
             gold_choices: list of choices to choose from.
 
         Returns:
-            the returned gold choice
+            the returned gold choice and the score
         """
         raise NotImplementedError()

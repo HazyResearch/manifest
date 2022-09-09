@@ -92,7 +92,7 @@ def main() -> None:
     model_type = kwargs.model_type
     model_name_or_path = kwargs.model_name_or_path
     model_config = kwargs.model_config
-    if not model_name_or_path or not model_config:
+    if not model_name_or_path and not model_config:
         raise ValueError("Must provide model_name_or_path or model_config.")
     use_accelerate = kwargs.use_accelerate_multigpu
     if use_accelerate:
@@ -127,9 +127,10 @@ def completions() -> Dict:
     if not isinstance(prompt, str):
         raise ValueError("Prompt must be a str")
 
-    results = []
+    results_text = []
     for generations in model.generate(prompt, **generation_args):
-        results.append(generations)
+        results_text.append(generations)
+    results = [{"text": r, "text_logprob": None} for r in results_text]
     # transform the result into the openai format
     return OpenAIResponse(results).__dict__()
 
@@ -149,9 +150,10 @@ def choice_logits() -> Dict:
     if not isinstance(gold_choices, list):
         raise ValueError("Gold choices must be a list of string choices")
 
-    result = model.logits_scoring(prompt, gold_choices, **generation_args)
+    result, score = model.logits_scoring(prompt, gold_choices, **generation_args)
+    results = [{"text": result, "text_logprob": score}]
     # transform the result into the openai format
-    return OpenAIResponse([result]).__dict__()
+    return OpenAIResponse(results).__dict__()
 
 
 @app.route("/params", methods=["POST"])
