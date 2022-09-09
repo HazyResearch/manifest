@@ -45,14 +45,14 @@ class ZooModel(Model):
         # Check if providing path
         self.model_path = model_name_or_path
         self.model_config = model_config
-        # TODO: Can we read this from the config?
-        self.model_name = "ZooModel"
         if not self.model_config:
             raise ValueError("Must provide model config.")
         self.model = S4LMManifest(
             config_path=self.model_config,
             weights_path=self.model_path,
         )
+        # Can only load this after the model has been initialized
+        self.model_name = self.model.get_model_name()
 
     def get_init_params(self) -> Dict:
         """Return init params to determine what model is being used."""
