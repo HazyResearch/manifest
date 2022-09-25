@@ -15,6 +15,7 @@ class Model(ABC):
         device: int,
         use_accelerate: bool,
         use_parallelize: bool,
+        use_bitsandbytes: bool,
         perc_max_gpu_mem_red: float,
         use_fp16: bool,
     ):
@@ -30,6 +31,7 @@ class Model(ABC):
             device: device to use for model.
             use_accelerate: whether to use accelerate for multi-gpu inference.
             use_parallelize: use HF default parallelize
+            use_bitsandbytes: use HF bits and bytes
             perc_max_gpu_mem_red: percent max memory reduction in accelerate
             use_fp16: use fp16 for model weights.
         """
