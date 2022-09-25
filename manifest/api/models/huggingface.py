@@ -40,8 +40,23 @@ MODEL_REGISTRY = {
     "bigscience/bloom": AutoModelForCausalLM,
     "bigscience/T0pp": AutoModelForSeq2SeqLM,
     "bigscience/T0_3B": AutoModelForSeq2SeqLM,
-    "google/t5-xl-lm-adapt": AutoModelForSeq2SeqLM,
+    "google/t5-l-lm-adapt": AutoModelForSeq2SeqLM,  # 800M
+    "google/t5-xl-lm-adapt": AutoModelForSeq2SeqLM,  # 3B
+    "google/t5-xxl-lm-adapt": AutoModelForSeq2SeqLM,  # 11B
+    "google/t5-v1_1-l": AutoModelForSeq2SeqLM,  # 800M
+    "google/t5-v1_1-xl": AutoModelForSeq2SeqLM,  # 3B
+    "google/t5-v1_1-xxl": AutoModelForSeq2SeqLM,  # 11B
 }
+
+
+def get_max_memory(gpu_reduction: float) -> Dict[int, str]:
+    """Get max memory in GB, subtracting offset."""
+    free_in_gb = int(torch.cuda.mem_get_info()[0] / 1024**3)  # type: ignore
+    max_mem = f"{int(gpu_reduction*free_in_gb)}GB"
+
+    n_gpus = torch.cuda.device_count()
+    max_mem_dict = {i: max_mem for i in range(n_gpus)}
+    return max_mem_dict
 
 
 class Pipeline:
@@ -53,9 +68,16 @@ class Pipeline:
     """
 
     def __init__(
-        self, model: PreTrainedModel, tokenizer: PreTrainedTokenizer, device: int
+        self,
+        model: PreTrainedModel,
+        tokenizer: PreTrainedTokenizer,
+        device: int = None,
+        bitsandbytes: bool = False,
     ):
         """Initialize."""
+        # Use to turn off sampling
+        # https://github.com/TimDettmers/bitsandbytes/issues/42
+        self.bitsandbytes = bitsandbytes
         self.model = model
         config = model.config  # type: ignore
         # Used for GPT
@@ -66,13 +88,16 @@ class Pipeline:
             if self.max_length is None:
                 # Used for T0
                 self.max_length = getattr(config, "d_model", None)
+                if self.max_length is None:
+                    # Default
+                    self.max_length = 2048
 
-        if self.max_length is None:
-            raise ValueError(
-                "Could not find max sequence length after looking at HF config"
-            )
+        print(f"Usings max_length: {self.max_length}")
 
         self.tokenizer = tokenizer
+        # self.device = device
+        # With bits and bytes, do not want to place inputs on any device
+        # if self.device:
         self.device = (
             torch.device("cpu")
             if (device == -1 or not torch.cuda.is_available())
@@ -102,7 +127,7 @@ class Pipeline:
             top_k=kwargs.get("top_k"),
             top_p=kwargs.get("top_p"),
             repetition_penalty=kwargs.get("repetition_penalty"),
-            do_sample=kwargs.get("do_sample"),
+            do_sample=kwargs.get("do_sample") if not self.bitsandbytes else False,
             eos_token_id=self.tokenizer.eos_token_id,
             pad_token_id=self.tokenizer.pad_token_id,
             num_return_sequences=kwargs.get("num_return_sequences"),
@@ -129,6 +154,7 @@ class HuggingFaceModel(Model):
         device: int,
         use_accelerate: bool,
         use_parallelize: bool,
+        use_bitsandbytes: bool,
         perc_max_gpu_mem_red: float,
         use_fp16: bool,
     ):
@@ -144,6 +170,7 @@ class HuggingFaceModel(Model):
             device: device to use for model.
             use_accelerate: whether to use accelerate for multi-gpu inference.
             use_parallelize: use HF default parallelize
+            use_bitsandbytes: use HF bits and bytes
             perc_max_gpu_mem_red: percent max memory reduction in accelerate
             use_fp16: use fp16 for model weights.
         """
@@ -167,12 +194,16 @@ class HuggingFaceModel(Model):
                 self.model_name, truncation_side="left", use_fast=False
             )
         dtype = torch.float16 if use_fp16 else "auto"
-        if self.model_name == "bigscience/bloom":
+        if use_bitsandbytes:
+            print("WARNING!!! Cannot use sampling with bitsandbytes.")
+            max_memory = get_max_memory(perc_max_gpu_mem_red)
+            print(max_memory)
             model = MODEL_REGISTRY[self.model_name].from_pretrained(  # type: ignore
                 self.model_path,
                 cache_dir=cache_dir,
                 load_in_8bit=True,
                 device_map="auto",
+                max_memory=max_memory,
             )
         else:
             try:
@@ -194,7 +225,7 @@ class HuggingFaceModel(Model):
         if not self.is_encdec:
             tokenizer.pad_token = tokenizer.eos_token
 
-        if self.model_name != "bigscience/bloom":
+        if not use_bitsandbytes:
             if use_accelerate:
                 self._dispatch_accelerate_model(model, perc_max_gpu_mem_red)
                 device = 0
@@ -210,7 +241,10 @@ class HuggingFaceModel(Model):
                     )
                     model = model.to(torch_device)  # type: ignore
         self.pipeline = Pipeline(  # type: ignore
-            model=model, tokenizer=tokenizer, device=device
+            model=model,
+            tokenizer=tokenizer,
+            device=device,
+            bitsandbytes=use_bitsandbytes,
         )
         # Autogregressive models generate the input, too
         self.returns_input = not self.is_encdec
@@ -446,18 +480,17 @@ class HuggingFaceModel(Model):
         for k in features:
             tensor_features[k] = torch.LongTensor(features[k]).to(self.pipeline.device)
 
-        # Reduce GPU memory by feeding one at a time
-        logits = [
-            self.pipeline.model(  # type: ignore
-                input_ids=tensor_features["input_ids"][bs].unsqueeze(0),
-                attention_mask=tensor_features["attention_mask"][bs].unsqueeze(0),
-                labels=tensor_features["labels"][bs].unsqueeze(0),
-            ).logits
-            for bs in range(len(tensor_features["input_ids"]))
-        ]
-        stacked_logits = torch.vstack(logits)
-        # Choose most likely option
         if self.is_encdec:
+            # Reduce GPU memory by feeding one at a time
+            logits = [
+                self.pipeline.model(  # type: ignore
+                    input_ids=tensor_features["input_ids"][bs].unsqueeze(0),
+                    attention_mask=tensor_features["attention_mask"][bs].unsqueeze(0),
+                    labels=tensor_features["labels"][bs].unsqueeze(0),
+                ).logits
+                for bs in range(len(tensor_features["input_ids"]))
+            ]
+            stacked_logits = torch.vstack(logits)
             # Adapted from https://github.com/bigscience-workshop/t-zero
             masked_log_probs = tensor_features["labels_attention_mask"].unsqueeze(
                 -1
@@ -466,13 +499,22 @@ class HuggingFaceModel(Model):
                 masked_log_probs, -1, tensor_features["labels"].unsqueeze(-1)
             )
         else:
-            # # For causal decoders, shift logts and labels
+            # Reduce GPU memory by feeding one at a time
+            logits = [
+                self.pipeline.model(  # type: ignore
+                    input_ids=tensor_features["input_ids"][bs].unsqueeze(0),
+                    attention_mask=tensor_features["attention_mask"][bs].unsqueeze(0),
+                ).logits
+                for bs in range(len(tensor_features["input_ids"]))
+            ]
+            stacked_logits = torch.vstack(logits)
+            # For causal decoders, shift logts and labels
             labels_attention_mask = tensor_features["labels_attention_mask"].unsqueeze(
                 -1
             )[..., 1:, :]
             masked_log_probs = (
-                labels_attention_mask
-                * torch.log_softmax(stacked_logits, dim=-1)[..., :-1, :]
+                labels_attention_mask.float()
+                * torch.log_softmax(stacked_logits.float(), dim=-1)[..., :-1, :]
             )
             seq_token_log_probs = torch.gather(
                 masked_log_probs, -1, tensor_features["labels"][:, 1:].unsqueeze(-1)

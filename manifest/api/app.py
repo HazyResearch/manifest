@@ -67,6 +67,11 @@ def parse_args() -> argparse.Namespace:
         help="Used with accelerate multigpu. Scales down max memory.",
     )
     parser.add_argument(
+        "--use_bitsandbytes",
+        action="store_true",
+        help=("Use bits and bytes. " "This will override --device parameter."),
+    )
+    parser.add_argument(
         "--use_accelerate_multigpu",
         action="store_true",
         help=(
@@ -111,6 +116,7 @@ def main() -> None:
         device=kwargs.device,
         use_accelerate=use_accelerate,
         use_parallelize=kwargs.use_hf_parallelize,
+        use_bitsandbytes=kwargs.use_bitsandbytes,
         perc_max_gpu_mem_red=kwargs.percent_max_gpu_mem_reduction,
         use_fp16=kwargs.fp16,
     )
