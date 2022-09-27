@@ -50,7 +50,7 @@ MODEL_REGISTRY = {
 
 
 def get_max_memory(gpu_reduction: float) -> Dict[int, str]:
-    """Get max memory in GB, subtracting offset."""
+    """Get max memory in GB times reduction."""
     free_in_gb = int(torch.cuda.mem_get_info()[0] / 1024**3)  # type: ignore
     max_mem = f"{int(gpu_reduction*free_in_gb)}GB"
 
@@ -481,16 +481,11 @@ class HuggingFaceModel(Model):
             tensor_features[k] = torch.LongTensor(features[k]).to(self.pipeline.device)
 
         if self.is_encdec:
-            # Reduce GPU memory by feeding one at a time
-            logits = [
-                self.pipeline.model(  # type: ignore
-                    input_ids=tensor_features["input_ids"][bs].unsqueeze(0),
-                    attention_mask=tensor_features["attention_mask"][bs].unsqueeze(0),
-                    labels=tensor_features["labels"][bs].unsqueeze(0),
-                ).logits
-                for bs in range(len(tensor_features["input_ids"]))
-            ]
-            stacked_logits = torch.vstack(logits)
+            stacked_logits = self.pipeline.model(  # type: ignore
+                input_ids=tensor_features["input_ids"],
+                attention_mask=tensor_features["attention_mask"],
+                labels=tensor_features["labels"],
+            ).logits
             # Adapted from https://github.com/bigscience-workshop/t-zero
             masked_log_probs = tensor_features["labels_attention_mask"].unsqueeze(
                 -1
@@ -499,15 +494,10 @@ class HuggingFaceModel(Model):
                 masked_log_probs, -1, tensor_features["labels"].unsqueeze(-1)
             )
         else:
-            # Reduce GPU memory by feeding one at a time
-            logits = [
-                self.pipeline.model(  # type: ignore
-                    input_ids=tensor_features["input_ids"][bs].unsqueeze(0),
-                    attention_mask=tensor_features["attention_mask"][bs].unsqueeze(0),
-                ).logits
-                for bs in range(len(tensor_features["input_ids"]))
-            ]
-            stacked_logits = torch.vstack(logits)
+            stacked_logits = self.pipeline.model(  # type: ignore
+                input_ids=tensor_features["input_ids"],
+                attention_mask=tensor_features["attention_mask"],
+            ).logits
             # For causal decoders, shift logts and labels
             labels_attention_mask = tensor_features["labels_attention_mask"].unsqueeze(
                 -1

@@ -13,6 +13,7 @@ module = [
   "tqdm.auto",
   "accelerate",
   "accelerate.utils.modeling",
+  "transformers",
 ]
 
 [tool.isort]
