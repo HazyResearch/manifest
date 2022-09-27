@@ -58,8 +58,7 @@ print(prompt())
 ```
 
 ## Sessions
-
-Each Manifest run is a session that connects to a model endpoint and a local SQLite DB to store user query history.
+Each Manifest run supports a session that connects to a model endpoint and a local SQLite DB to store user query history.
 ```python
 
 # Start a manifest session
@@ -68,7 +67,7 @@ manifest = Manifest(
     session_id = "grass_color",
 )
 ```
-will start a Manifest session with the session name `grass_color`. This can be helpful for a user to logically keep track of sessions and resume them if desired. If no id is provided, we generate a random id for the user.
+will start a Manifest session with the session name `grass_color`. This can be helpful for a user to logically keep track of sessions and resume them if desired. If the session id is `_default`, we generate a random id for the user.
 
 After a few queries, the user can explore their history
 ```python
@@ -76,7 +75,8 @@ manifest.get_last_queries(4)
 ```
 will retrieve the last 4 model queries and responses.
 
-We further support having queries and results stored in a global cache (without any unique session information) that can be shared across users. We treat inputs and outputs as key value pairs and support SQLite or Redis backends. To start a session with additional global caching using SQLite, run
+## Global Cache
+We support having queries and results stored in a global cache (without any unique session information) that can be shared across users. We treat inputs and outputs as key value pairs and support SQLite or Redis backends. To start with global caching using SQLite, run
 
 ```python
 manifest = Manifest(
@@ -132,12 +132,12 @@ If you want to change default parameters to a model, we pass those as `kwargs` t
 result = manifest.run(prompt, "Laurel", max_tokens=50)
 ```
 
-## Huggingface Models
+# Local Huggingface Models
 To use a HuggingFace generative model, in `manifest/api` we have a Falsk application that hosts the models for you.
 
-In a separate terminal or Tmux/Screen session, run
+In a separate terminal or Tmux/Screen session, to load 6B parameters models, run
 ```python
-python3 manifest/api/app.py --model_type huggingface --model_name EleutherAI/gpt-j-6B --device 0
+python3 manifest/api/app.py --model_type huggingface --model_name_or_path EleutherAI/gpt-j-6B --device 0
 ```
 You will see the Flask session start and output a URL `http://127.0.0.1:5000`. Pass this in to Manifest. If you want to use a different port, set the `FLASK_PORT` environment variable.
 
@@ -148,7 +148,22 @@ manifest = Manifest(
 )
 ```
 
-If you have a custom model you trained, pass the model path to `--model_name`.
+If you have a custom model you trained, pass the model path to `--model_name_or_path`.
+
+To help load larger models, we also support using `parallelize()` from HF, [accelerate](https://huggingface.co/docs/accelerate/index), and [bitsandbytes](https://github.com/TimDettmers/bitsandbytes). You will need to install these packages first. We list the commands to load larger models below.
+
+* T0pp
+```
+python3 /home/laurel/manifest/manifest/api/app.py --model_type huggingface --model_name_or_path bigscience/T0pp --use_hf_parallelize
+```
+* NeoX 20B
+```
+python3 /home/laurel/manifest/manifest/api/app.py --model_type huggingface --model_name_or_path EleutherAI/gpt-neox-20b --use_accelerate_multigpu --percent_max_gpu_mem_reduction 0.75
+```
+* Boom 175B
+```
+python3 /home/laurel/manifest/manifest/api/app.py --model_type huggingface --model_name_or_path bigscience/bloom --use_bitsandbytes --percent_max_gpu_mem_reduction 0.85
+```
 
 # Development
 Before submitting a PR, run
@@ -159,7 +174,7 @@ docker run -d -p 127.0.0.1:${REDIS_PORT}:6379 -v `pwd`:`pwd` -w `pwd` --name man
 make test
 ```
 
-To use our development Redis database, email [Laurel](lorr1@cs.stanford.edu). If you have access to our GCP account, in a separate terminal, run
+If you have access to a GCP account with a redis DB, in a separate terminal, run
 ```bash
 gcloud compute ssh "manifest-connect" --zone "europe-west4-a" --project "hai-gcp-head-models" -- -N -L 6379:10.152.93.107:6379
 ```

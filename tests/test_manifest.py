@@ -30,7 +30,7 @@ def test_init(sqlite_cache, session_cache):
     assert manifest.client_name == "dummy"
     assert isinstance(manifest.client, DummyClient)
     assert isinstance(manifest.cache, SQLiteCache)
-    assert isinstance(manifest.session, Session)
+    assert manifest.session is None
     assert manifest.client.n == 1
     assert manifest.stop_token == ""
 
@@ -39,6 +39,7 @@ def test_init(sqlite_cache, session_cache):
         cache_name="noop",
         n=3,
         stop_token="\n",
+        session_id="_default",
     )
     assert manifest.client_name == "dummy"
     assert isinstance(manifest.client, DummyClient)
@@ -281,10 +282,7 @@ def test_choices_run(sqlite_cache, session_cache, return_response):
 @pytest.mark.usefixtures("session_cache")
 def test_log_query(session_cache):
     """Test manifest session logging."""
-    manifest = Manifest(
-        client_name="dummy",
-        cache_name="noop",
-    )
+    manifest = Manifest(client_name="dummy", cache_name="noop", session_id="_default")
     prompt = Prompt("This is a prompt")
     _ = manifest.run(prompt, return_response=False)
     query_key = {
@@ -304,3 +302,17 @@ def test_log_query(session_cache):
     assert manifest.get_last_queries(3, return_raw_values=True) == [
         (query_key, response_key)
     ]
+
+    # Test no session
+    manifest = Manifest(
+        client_name="dummy",
+        cache_name="noop",
+    )
+    prompt = Prompt("This is a prompt")
+    _ = manifest.run(prompt, return_response=False)
+    with pytest.raises(ValueError) as exc_info:
+        manifest.get_last_queries(1)
+    assert (
+        str(exc_info.value)
+        == "Session was not initialized. Set `session_id` when loading Manifest."
+    )

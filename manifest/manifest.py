@@ -67,7 +67,8 @@ class Manifest:
             cache_name: name of cache.
             cache_connection: connection string for cache.
             session_id: session id for user session cache.
-                        None (default) means new session.
+                        None (default) means no session logging.
+                        "_default" means generate new session id.
             stop_token: stop token prompt generation.
                         Can be overridden in run
 
@@ -91,7 +92,12 @@ class Manifest:
         self.client = CLIENT_CONSTRUCTORS[client_name](  # type: ignore
             client_connection, client_args=kwargs
         )
-        self.session = Session(session_id)
+        if session_id is not None:
+            if session_id == "_default":
+                session_id = None
+            self.session = Session(session_id)
+        else:
+            self.session = None
         if len(kwargs) > 0:
             raise ValueError(f"{list(kwargs.items())} arguments are not recognized.")
 
@@ -151,7 +157,8 @@ class Manifest:
         cache_key["prompt"] = prompt_str
         response_obj = self.cache.get(cache_key, overwrite_cache, possible_request)
         # Log session dictionary values
-        self.session.log_query(cache_key, response_obj.to_dict())
+        if self.session:
+            self.session.log_query(cache_key, response_obj.to_dict())
         # Extract text results
         if return_response:
             return response_obj
@@ -246,6 +253,10 @@ class Manifest:
         Returns:
             last n list of queries and outputs.
         """
+        if self.session is None:
+            raise ValueError(
+                "Session was not initialized. Set `session_id` when loading Manifest."
+            )
         stop_token = stop_token if stop_token is not None else self.stop_token
         last_queries = self.session.get_last_queries(last_n)
         if not return_raw_values:
