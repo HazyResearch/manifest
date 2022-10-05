@@ -35,15 +35,6 @@ CACHE_CONSTRUCTORS = {
     "noop": NoopCache,
 }
 
-try:
-    from manifest.clients.crfm import CRFMClient
-
-    CLIENT_CONSTRUCTORS["crfm"] = CRFMClient
-except ImportError as e:
-    logger.debug("CRFM import error", e, "Are you in the import_fix branch?")
-    # TODO: remove this when CRFM is public
-    pass
-
 
 class Manifest:
     """Manifest session object."""
