@@ -1,5 +1,14 @@
 # Manifest
-How to make prompt programming with FMs a little easier.
+How to make prompt programming with Foundation Models a little easier.
+
+
+# Table of Contents
+- [Install](#install)
+- [Getting Started](#getting-started)
+- [Manifest](#manifest-components)
+- [Local HuggingFace Models](#local-huggingface-models)
+- [Development](#development)
+
 
 # Install
 Download the code:
@@ -24,7 +33,7 @@ Running is simple to get started. If using OpenAI, set `export OPENAI_API_KEY=<O
 ```python
 from manifest import Manifest
 
-# Start a manifest session
+# Start a manifest session to OpenAI - default `engine=text-davinci-002`
 manifest = Manifest(
     client_name = "openai",
 )
@@ -32,61 +41,59 @@ manifest.run("Why is the grass green?")
 ```
 
 # Manifest Components
-Manifest is meant to be a very light weight package to help with prompt iteration. When a user starts a Manifest session, we start to record user query history for that session. This is saved locally and is user specific. We also optionally cache all model results globally so that queries can be shared across users.
-
-Three key design decisions of Manifest are
+Manifest is meant to be a very light weight package to help with prompt design and iteration. Three key design decisions of Manifest are
 
 * Prompt are functional -- they can take an input example and dynamically change
-* All models are behind API calls (e.g., OpenAI)
-* Model inputs/outputs are locally cached woth the optional ability to globally cache model results
+* All models are behind APIs
+* Supports caching of model inputs/outputs for iteration, reproducibility, and cost saving
+
+## Models
+Manifest provides model clients for OpenAI, AI21, OPT (assuming model is loaded locally), and HuggingFace (see [below](#huggingface-models) for how to use locally hosted HuggingFace models). You can toggle between the models by changing `client_name` and `client_connection`. For example, if a HuggingFace model is loaded locally, run
+```python
+manifest = Manifest(
+    client_name = "huggingface",
+    client_connection = "http://127.0.0.1:5000",
+)
+```
+
+You can see the model details and possible model inputs to `run()` via
+```python
+print(manifest.client.get_model_params())
+print(manifest.client.get_model_inputs())
+```
 
 ## Prompts
 A Manifest prompt is a function that accepts a single input to generate a string prompt to send to a model.
 
 ```python
 from manifest import Prompt
-prompt = Prompt(lambda x: "Hello, my name is {x}")
+prompt = Prompt(lambda x: f"Hello, my name is {x}")
 print(prompt("Laurel"))
 >>> "Hello, my name is Laurel"
 ```
 
-We also let you use static strings
+Running
 ```python
-prompt = Prompt("Hello, my name is static")
-print(prompt())
->>> "Hello, my name is static"
+result = manifest.run(prompt, "Laurel")
 ```
+will send ``Hello, my name is Laurel'' to the model.
 
-## Sessions
-Each Manifest run supports a session that connects to a model endpoint and a local SQLite DB to store user query history.
+As you saw above, if you don't want your prompt to change, we also support static strings
 ```python
-
-# Start a manifest session
-manifest = Manifest(
-    client_name = "openai",
-    session_id = "grass_color",
-)
+result = manifest.run("Hello, my name is static")
 ```
-will start a Manifest session with the session name `grass_color`. This can be helpful for a user to logically keep track of sessions and resume them if desired. If the session id is `_default`, we generate a random id for the user.
-
-After a few queries, the user can explore their history
-```python
-manifest.get_last_queries(4)
-```
-will retrieve the last 4 model queries and responses.
 
 ## Global Cache
-We support having queries and results stored in a global cache (without any unique session information) that can be shared across users. We treat inputs and outputs as key value pairs and support SQLite or Redis backends. To start with global caching using SQLite, run
+We support having queries and results stored in a global cache that can be shared across users. We treat inputs and outputs as key value pairs and support SQLite or Redis backends. To start with global caching using SQLite, run
 
 ```python
 manifest = Manifest(
     client_name = "openai",
-    session_id = "grass_color",
     cache_name = "sqlite",
     cache_connection = "mycache.sqlite",
 )
 ```
-The cache will be saved in mycache.sqlite.
+The cache will be saved in `mycache.sqlite`.
 
 We also support Redis backend.
 ```python
@@ -98,10 +105,25 @@ manifest = Manifest(
 ```
 As a hint, if you want to get Redis running, see the `docker run` command below under development.
 
-We will explain [below](#huggingface-models) how to use Manifest for a locally hosted HuggingFace model.
+## Sessions
+Each Manifest run supports a session that, in addition to a global cache, connects to a local SQLite DB to store user query history.
+```python
+manifest = Manifest(
+    client_name = "openai",
+    cache_name = "sqlite",
+    cache_connection = "mycache.sqlite",
+    session_id = "grass_color",
+)
+```
+will start a Manifest session with the session name `grass_color`. This can be helpful for a user to logically keep track of sessions, see interaction history, and resume sessions if desired. If the session id provided is `_default`, we generate a random id for the user.
+
+After a few queries, the user can explore their history
+```python
+manifest.get_last_queries(4)
+```
+will retrieve the last 4 model queries and responses.
 
 ## Running Queries
-
 Once you have a session open, you can write and develop prompts.
 
 ```python
@@ -122,7 +144,7 @@ print(result_object.is_cached())
 print(result_object.get_json_response())
 ```
 
-By default, we do not truncate results based on a stop token. You can change this by either passing a new stop token to a Manifest session or to a `run` or `batch_run`. If you set the stop token to `""`, we will not truncate the model output.
+By default, we do not truncate results based on a stop token. You can change this by either passing a new stop token to a Manifest session or to a `run` or `batch_run`.
 ```python
 result = manifest.run(prompt, "Laurel", stop_token="and")
 ```
@@ -136,8 +158,11 @@ result = manifest.run(prompt, "Laurel", max_tokens=50)
 To use a HuggingFace generative model, in `manifest/api` we have a Falsk application that hosts the models for you.
 
 In a separate terminal or Tmux/Screen session, to load 6B parameters models, run
-```python
-python3 manifest/api/app.py --model_type huggingface --model_name_or_path EleutherAI/gpt-j-6B --device 0
+```bash
+python3 manifest/api/app.py \
+    --model_type huggingface \
+    --model_name_or_path EleutherAI/gpt-j-6B \
+    --device 0
 ```
 You will see the Flask session start and output a URL `http://127.0.0.1:5000`. Pass this in to Manifest. If you want to use a different port, set the `FLASK_PORT` environment variable.
 
@@ -153,16 +178,28 @@ If you have a custom model you trained, pass the model path to `--model_name_or_
 To help load larger models, we also support using `parallelize()` from HF, [accelerate](https://huggingface.co/docs/accelerate/index), and [bitsandbytes](https://github.com/TimDettmers/bitsandbytes). You will need to install these packages first. We list the commands to load larger models below.
 
 * T0pp
+```bash
+python3 manifest/api/app.py \
+    --model_type huggingface \
+    --model_name_or_path bigscience/T0pp \
+    --use_hf_parallelize
 ```
-python3 /home/laurel/manifest/manifest/api/app.py --model_type huggingface --model_name_or_path bigscience/T0pp --use_hf_parallelize
+
+* NeoX 20B (requires at least 60GB of GPU memory)
+```bash
+python3 manifest/api/app.py \
+    --model_type huggingface \
+    --model_name_or_path EleutherAI/gpt-neox-20b \
+    --use_accelerate_multigpu \
+    --percent_max_gpu_mem_reduction 0.75
 ```
-* NeoX 20B
-```
-python3 /home/laurel/manifest/manifest/api/app.py --model_type huggingface --model_name_or_path EleutherAI/gpt-neox-20b --use_accelerate_multigpu --percent_max_gpu_mem_reduction 0.75
-```
-* Boom 175B
-```
-python3 /home/laurel/manifest/manifest/api/app.py --model_type huggingface --model_name_or_path bigscience/bloom --use_bitsandbytes --percent_max_gpu_mem_reduction 0.85
+* Boom 175B (requires at least 240GB of GPU memory)
+```bash
+python3 manifest/api/app.py \
+    --model_type huggingface \
+    --model_name_or_path bigscience/bloom \
+    --use_bitsandbytes \
+    --percent_max_gpu_mem_reduction 0.85
 ```
 
 # Development
@@ -173,14 +210,3 @@ cd <REDIS_PATH>
 docker run -d -p 127.0.0.1:${REDIS_PORT}:6379 -v `pwd`:`pwd` -w `pwd` --name manifest_redis_test redis
 make test
 ```
-
-If you have access to a GCP account with a redis DB, in a separate terminal, run
-```bash
-gcloud compute ssh "manifest-connect" --zone "europe-west4-a" --project "hai-gcp-head-models" -- -N -L 6379:10.152.93.107:6379
-```
-
-Then if you issue
-```bash
-redis-cli ping
-```
-You should see a `PONG` response from our database.
