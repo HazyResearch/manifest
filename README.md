@@ -193,7 +193,7 @@ python3 manifest/api/app.py \
     --use_accelerate_multigpu \
     --percent_max_gpu_mem_reduction 0.75
 ```
-* Boom 175B (requires at least 240GB of GPU memory)
+* Bloom 175B (requires at least 240GB of GPU memory)
 ```bash
 python3 manifest/api/app.py \
     --model_type huggingface \
