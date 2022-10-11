@@ -1,4 +1,4 @@
-"""OpenAI client."""
+"""Hugging Face client."""
 import logging
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
