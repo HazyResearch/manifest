@@ -133,18 +133,18 @@ result = manifest.run(prompt, "Laurel")
 
 You can also run over multiple examples.
 ```python
-results = manifest.batch_run(prompt, ["Laurel", "Avanika"])
+results = manifest.run_batch(prompt, ["Laurel", "Avanika"])
 ```
 
 If something doesn't go right, you can also ask to get a raw manifest Response.
 ```python
-result_object = manifest.batch_run(prompt, ["Laurel", "Avanika"], return_response=True)
+result_object = manifest.run_batch(prompt, ["Laurel", "Avanika"], return_response=True)
 print(result_object.get_request())
 print(result_object.is_cached())
 print(result_object.get_json_response())
 ```
 
-By default, we do not truncate results based on a stop token. You can change this by either passing a new stop token to a Manifest session or to a `run` or `batch_run`.
+By default, we do not truncate results based on a stop token. You can change this by either passing a new stop token to a Manifest session or to a `run` or `run_batch`.
 ```python
 result = manifest.run(prompt, "Laurel", stop_token="and")
 ```
