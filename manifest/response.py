@@ -139,3 +139,59 @@ class Response:
             string representation of response.
         """
         return str(self)
+
+
+class CohereResponse(Response):
+    """Response class for Cohere client."""
+
+    def __init__(self, response: Dict, cached: bool, request_params: Dict):
+        """Initialize response."""
+        if isinstance(response, dict):
+            self._response = response
+        else:
+            raise ValueError(f"Response must be str or dict. Response is\n{response}.")
+        if ("generations" not in self._response) or (
+            not isinstance(self._response["generations"], list)
+        ):
+            raise ValueError(
+                "Response must be serialized to a dict with a list of generations. "
+                f"Response is\n{self._response}."
+            )
+        if len(self._response["generations"]) > 0:
+            if "text" not in self._response["generations"][0]:
+                raise ValueError(
+                    "Response must be serialized to a dict with a "
+                    "list of generations with text field"
+                )
+            if (
+                "token_likelihoods" in self._response["generations"][0]
+                and self._response["generations"][0]["token_likelihoods"]
+            ):
+                if not isinstance(
+                    self._response["generations"][0]["token_likelihoods"], list
+                ):
+                    raise ValueError(
+                        "Response must be serialized to a dict with a "
+                        "list of generations with token_likelihoods field"
+                    )
+        self._cached = cached
+        self._request_params = request_params
+
+    def get_response(self, stop_token: str = "") -> Union[str, List[str]]:
+        """
+        Get all text results from response.
+
+        Args:
+            stop_token: stop token for string generation
+        """
+        process_result = (
+            lambda x: x.strip().split(stop_token)[0] if stop_token else x.strip()
+        )
+        if len(self._response["generations"]) == 0:
+            return None
+        if len(self._response["generations"]) == 1:
+            return process_result(self._response["generations"][0]["text"])
+        return [
+            process_result(generation["text"])
+            for generation in self._response["generations"]
+        ]
