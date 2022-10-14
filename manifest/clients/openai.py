@@ -4,6 +4,7 @@ import os
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import openai
+import time
 
 from manifest.clients.client import Client
 
@@ -33,6 +34,8 @@ OPENAI_PARAMS = {
     "stop_sequence": ("stop", None),  # OpenAI doesn't like empty lists
     "presence_penalty": ("presence_penalty", 0.0),
     "frequency_penalty": ("frequency_penalty", 0.0),
+    "rate_limit_retry_timeout": ("rate_limit_retry_timeout", 30),  # seconds
+    "rate_limit_retry_attempts": ("rate_limit_retry_attempts", 3),
 }
 
 
@@ -106,16 +109,30 @@ class OpenAIClient(Client):
         """
         request_params = {"prompt": query}
         for key in OPENAI_PARAMS:
+            if key in ["rate_limit_retry_timeout", "rate_limit_retry_attempts"]:
+                # These are not passed to the OpenAI API
+                continue
             request_params[OPENAI_PARAMS[key][0]] = request_args.pop(
                 key, getattr(self, key)
             )
 
         def _run_completion() -> Dict:
-            try:
-                return openai.Completion.create(**request_params)
-            except openai.error.OpenAIError as e:
-                logger.error(e)
-                raise e
+            num_attempts = getattr(self, "rate_limit_retry_attempts")
+            timeout = getattr(self, "rate_limit_retry_timeout")
+
+            for attempt in range(num_attempts):
+                try:
+                    return openai.Completion.create(**request_params)
+                except openai.error.RateLimitError as e:
+                    if attempt == num_attempts - 1:
+                        raise e
+                    logger.warning(
+                        f"OpenAI rate limit exceeded. Retrying in {timeout} seconds."
+                    )
+                    time.sleep(timeout)
+                except openai.error.OpenAIError as e:
+                    logger.error(e)
+                    raise e
 
         return _run_completion, request_params
 
