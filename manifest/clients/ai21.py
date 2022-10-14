@@ -1,4 +1,4 @@
-"""OpenAI client."""
+"""AI21 client."""
 import logging
 import os
 from typing import Any, Callable, Dict, List, Optional, Tuple
