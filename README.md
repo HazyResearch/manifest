@@ -133,7 +133,7 @@ result = manifest.run(prompt, "Laurel")
 
 You can also run over multiple examples.
 ```python
-results = manifest.batch_run(prompt, ["Laurel", "Avanika"])
+results = manifest.run_batch(prompt, ["Laurel", "Avanika"])
 ```
 
 If something doesn't go right, you can also ask to get a raw manifest Response.
@@ -145,7 +145,7 @@ for result_object in result_objects:
     print(result_object.get_json_response())
 ```
 
-By default, we do not truncate results based on a stop token. You can change this by either passing a new stop token to a Manifest session or to a `run` or `batch_run`.
+By default, we do not truncate results based on a stop token. You can change this by either passing a new stop token to a Manifest session or to a `run` or `run_batch`.
 ```python
 result = manifest.run(prompt, "Laurel", stop_token="and")
 ```
@@ -194,7 +194,7 @@ python3 manifest/api/app.py \
     --use_accelerate_multigpu \
     --percent_max_gpu_mem_reduction 0.75
 ```
-* Boom 175B (requires at least 240GB of GPU memory)
+* Bloom 175B (requires at least 240GB of GPU memory)
 ```bash
 python3 manifest/api/app.py \
     --model_type huggingface \
