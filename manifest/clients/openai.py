@@ -1,10 +1,10 @@
 """OpenAI client."""
 import logging
 import os
+import time
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import openai
-import time
 
 from manifest.clients.client import Client
 
@@ -133,6 +133,7 @@ class OpenAIClient(Client):
                 except openai.error.OpenAIError as e:
                     logger.error(e)
                     raise e
+            return {}
 
         return _run_completion, request_params
 
