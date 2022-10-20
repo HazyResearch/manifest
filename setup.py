@@ -30,6 +30,7 @@ VERSION = main_ns["__version__"]
 REQUIRED = [
     "Flask>=2.1.2",
     "accelerate>=0.10.0",
+    "cohere>=2.5.0",
     "dill>=0.3.5",
     "openai>=0.18.1",
     "redis>=4.3.1",

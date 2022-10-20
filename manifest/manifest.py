@@ -8,6 +8,7 @@ from manifest.caches.noop import NoopCache
 from manifest.caches.redis import RedisCache
 from manifest.caches.sqlite import SQLiteCache
 from manifest.clients.ai21 import AI21Client
+from manifest.clients.cohere import CohereClient
 from manifest.clients.dummy import DummyClient
 from manifest.clients.huggingface import HuggingFaceClient
 from manifest.clients.openai import OpenAIClient
@@ -22,6 +23,7 @@ logger = logging.getLogger(__name__)
 
 CLIENT_CONSTRUCTORS = {
     "openai": OpenAIClient,
+    "cohere": CohereClient,
     "ai21": AI21Client,
     "huggingface": HuggingFaceClient,
     "opt": OPTClient,
