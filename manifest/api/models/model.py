@@ -43,11 +43,11 @@ class Model(ABC):
         raise NotImplementedError()
 
     @abstractmethod
-    def generate(self, prompt: str, **kwargs: Any) -> List[str]:
+    def generate(self, prompt: str, **kwargs: Any) -> List[Tuple[str, float]]:
         """
         Generate the prompt from model.
 
-        Outputs must be generated text, not including prompt.
+        Outputs must be generated text and score, not including prompt.
 
         Args:
             prompt: promt to generate from.
