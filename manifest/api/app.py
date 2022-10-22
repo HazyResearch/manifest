@@ -8,7 +8,7 @@ import pkg_resources
 from flask import Flask, request
 
 from manifest.api.models.huggingface import HuggingFaceModel
-from manifest.api.response import OpenAIResponse
+from manifest.api.response import Response
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
@@ -136,9 +136,9 @@ def completions() -> Dict:
     results_text = []
     for generations in model.generate(prompt, **generation_args):
         results_text.append(generations)
-    results = [{"text": r, "text_logprob": None} for r in results_text]
+    results = [{"text": r[0], "text_logprob": r[1]} for r in results_text]
     # transform the result into the openai format
-    return OpenAIResponse(results).__dict__()
+    return Response(results, response_type="text_completion").__dict__()
 
 
 @app.route("/choice_logits", methods=["POST"])
@@ -159,7 +159,7 @@ def choice_logits() -> Dict:
     result, score = model.logits_scoring(prompt, gold_choices, **generation_args)
     results = [{"text": result, "text_logprob": score}]
     # transform the result into the openai format
-    return OpenAIResponse(results).__dict__()
+    return Response(results, response_type="choice_selection").__dict__()
 
 
 @app.route("/params", methods=["POST"])

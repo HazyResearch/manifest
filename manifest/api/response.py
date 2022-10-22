@@ -1,16 +1,22 @@
-"""OpenAI response."""
+"""Response."""
 
 import time
 import uuid
 from typing import Any, Dict, List
 
 
-class OpenAIResponse:
-    """OpenAI response."""
+class Response:
+    """Response."""
 
-    def __init__(self, results: List[Dict[str, Any]]) -> None:
+    def __init__(self, results: List[Dict[str, Any]], response_type: str) -> None:
         """Initialize response."""
         self.results = results
+        self.response_type = response_type
+        if self.response_type not in {"text_completion", "choice_selection"}:
+            raise ValueError(
+                f"Invalid response type: {self.response_type}. "
+                "Must be one of: text_completion, choice_selection."
+            )
         self.response_id = str(uuid.uuid4())
         self.created = int(time.time())
 
@@ -18,7 +24,7 @@ class OpenAIResponse:
         """Return dictionary representation of response."""
         return {
             "id": self.response_id,
-            "object": "text_completion",
+            "object": self.response_type,
             "created": self.created,
             "model": "flask_model",
             "choices": [

@@ -1,7 +1,7 @@
 """Huggingface model."""
 import json
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Tuple, Union, cast
 
 import torch
 from transformers import (
@@ -107,7 +107,9 @@ class Pipeline:
             else torch.device(f"cuda:{device}")
         )
 
-    def __call__(self, text: str, **kwargs: Any) -> List[Dict[str, str]]:
+    def __call__(
+        self, text: str, **kwargs: Any
+    ) -> List[Dict[str, Union[str, List[float]]]]:
         """Generate from text.
 
         Args:
@@ -119,12 +121,12 @@ class Pipeline:
         # If text is longer than max model length, we reduce max input length to ensure
         # the user indicated generation tokens is preserved.
         max_input_length = kwargs.get("max_input_length")
-        encoded_prompt = self.tokenizer.encode(
+        encoded_prompt = self.tokenizer(
             text, max_length=max_input_length, truncation=True, return_tensors="pt"
         )
         encoded_prompt = encoded_prompt.to(self.device)
-        output_sequences = self.model.generate(  # type: ignore
-            encoded_prompt,
+        output_dict = self.model.generate(  # type: ignore
+            **encoded_prompt,
             max_length=kwargs.get("max_length"),
             temperature=kwargs.get("temperature"),
             top_k=kwargs.get("top_k"),
@@ -134,14 +136,24 @@ class Pipeline:
             eos_token_id=self.tokenizer.eos_token_id,
             pad_token_id=self.tokenizer.pad_token_id,
             num_return_sequences=kwargs.get("num_return_sequences"),
+            output_scores=True,
+            return_dict_in_generate=True,
         )
+        # logits/scores from the output always correspond to the generated tokens.
+        # shape (num_tokens, num_return_sequences, vocab_size)
+        logits = torch.stack(output_dict.scores)
+        logits = torch.nn.functional.log_softmax(logits, dim=-1).cpu()
+        num_generated_tokens = logits.shape[0]
         generated_sequences = [
             {
                 "generated_text": self.tokenizer.decode(
-                    output_seq, skip_special_tokens=True
-                )
+                    output_seq[-num_generated_tokens:], skip_special_tokens=True
+                ),
+                "logprobs": logits[
+                    range(num_generated_tokens), i, output_seq[-num_generated_tokens:]
+                ].tolist(),
             }
-            for output_seq in output_sequences
+            for i, output_seq in enumerate(output_dict.sequences)
         ]
         return generated_sequences
 
@@ -316,11 +328,11 @@ class HuggingFaceModel(Model):
         return
 
     @torch.no_grad()
-    def generate(self, prompt: str, **kwargs: Any) -> List[str]:
+    def generate(self, prompt: str, **kwargs: Any) -> List[Tuple[str, float]]:
         """
         Generate the prompt from model.
 
-        Outputs must be generated text, not including prompt.
+        Outputs must be generated text and score, not including prompt.
 
         Args:
             prompt: promt to generate from.
@@ -334,10 +346,6 @@ class HuggingFaceModel(Model):
         encoded_prompt_with_special = self.pipeline.tokenizer.encode(
             prompt, max_length=max_input_len, truncation=True
         )
-        # Remove tokens as the pipeline removes special tokens upon return
-        encoded_prompt_without_special = self.pipeline.tokenizer.encode(
-            prompt, max_length=max_input_len, truncation=True, add_special_tokens=False
-        )
         result = self.pipeline(
             prompt,
             max_input_length=max_input_len,
@@ -349,16 +357,18 @@ class HuggingFaceModel(Model):
             do_sample=kwargs.get("do_sample"),
             num_return_sequences=num_return,
         )
-        # Correctly returns prompt without extra spaces
-        decoded_prompt = self.pipeline.tokenizer.decode(encoded_prompt_without_special)
-        if self.returns_input:
-            start_idx = len(decoded_prompt)
-        else:
-            start_idx = 0
         if num_return == 1:
-            final_results = [result[0]["generated_text"][start_idx:]]
+            final_results = [
+                (
+                    cast(str, result[0]["generated_text"]),
+                    sum(cast(List[float], result[0]["logprobs"])),
+                )
+            ]
         else:
-            final_results = [r["generated_text"][start_idx:] for r in result]
+            final_results = [
+                (cast(str, r["generated_text"]), sum(cast(List[float], r["logprobs"])))
+                for r in result
+            ]
         return final_results
 
     @torch.no_grad()
