@@ -153,7 +153,6 @@ class Manifest:
         # If force_rerun is set to True, add run_id to cache key
         if force_rerun:
             cache_key["run_id"] = str(uuid4())
-        print(cache_key)
         response_obj = self.cache.get(cache_key, overwrite_cache, possible_request)
         # Log session dictionary values
         if self.session:
@@ -162,7 +161,6 @@ class Manifest:
         if return_response:
             return response_obj
         else:
-            print(response_obj.get_response(stop_token))
             return response_obj.get_response(stop_token)
 
     def run_batch(
