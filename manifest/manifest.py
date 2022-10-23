@@ -1,6 +1,7 @@
 """Manifest class."""
 import logging
 from typing import Any, Iterable, List, Optional, Tuple, Union, cast
+from uuid import uuid4
 
 from tqdm.auto import tqdm
 
@@ -106,6 +107,7 @@ class Manifest:
         prompt: Union[Prompt, str],
         input: Optional[Any] = None,
         gold_choices: Optional[List[str]] = None,
+        force_rerun: bool = False,
         overwrite_cache: bool = False,
         stop_token: Optional[str] = None,
         return_response: bool = False,
@@ -148,6 +150,10 @@ class Manifest:
         cache_key["client_name"] = self.client_name
         # Make query prompt dependent
         cache_key["prompt"] = prompt_str
+        # If force_rerun is set to True, add run_id to cache key
+        if force_rerun:
+            cache_key["run_id"] = str(uuid4())
+        print(cache_key)
         response_obj = self.cache.get(cache_key, overwrite_cache, possible_request)
         # Log session dictionary values
         if self.session:
@@ -156,6 +162,7 @@ class Manifest:
         if return_response:
             return response_obj
         else:
+            print(response_obj.get_response(stop_token))
             return response_obj.get_response(stop_token)
 
     def run_batch(
