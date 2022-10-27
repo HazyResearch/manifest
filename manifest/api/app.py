@@ -2,6 +2,7 @@
 import argparse
 import logging
 import os
+import socket
 from typing import Dict
 
 import pkg_resources
@@ -91,9 +92,17 @@ def parse_args() -> argparse.Namespace:
     return args
 
 
+def is_port_in_use(port: int) -> bool:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        return s.connect_ex(("localhost", port)) == 0
+
+
 def main() -> None:
     """Run main."""
     kwargs = parse_args()
+    if is_port_in_use(PORT):
+        raise ValueError(f"Port {PORT} is already in use.")
+
     model_type = kwargs.model_type
     model_name_or_path = kwargs.model_name_or_path
     model_config = kwargs.model_config
