@@ -145,7 +145,7 @@ class Pipeline:
         # logits/scores from the output always correspond to the generated tokens.
         # shape (num_tokens, num_return_sequences, vocab_size)
         logits = torch.stack(output_dict.scores)
-        logits = torch.nn.functional.log_softmax(logits, dim=-1).cpu()
+        logits = torch.nn.functional.log_softmax(logits, dim=-1)
         num_generated_tokens = logits.shape[0]
         generated_sequences = [
             {
