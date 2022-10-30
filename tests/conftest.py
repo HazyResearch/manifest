@@ -33,5 +33,5 @@ def redis_cache():
 @pytest.fixture
 def session_cache(tmpdir):
     """Session cache dir."""
-    os.environ["MANIFEST_SESSION_HOME"] = str(tmpdir)
+    os.environ["MANIFEST_HOME"] = str(tmpdir)
     yield Path(tmpdir)

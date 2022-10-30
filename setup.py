@@ -28,7 +28,6 @@ VERSION = main_ns["__version__"]
 
 # What packages are required for this module to be executed?
 REQUIRED = [
-    "dill>=0.3.5",
     "redis>=4.3.1",
     "requests>=2.27.1",
     "sqlitedict>=2.0.0",
@@ -37,10 +36,12 @@ REQUIRED = [
 # What packages are optional?
 EXTRAS = {
     "api": [
+        "diffusers>=0.6.0",
         "Flask>=2.1.2",
         "accelerate>=0.10.0",
         "transformers>=4.20.0",
         "torch>=1.8.0",
+        "numpy>=1.20.0",
     ],
     "dev": [
         "autopep8>=1.6.0",

@@ -22,6 +22,7 @@ class Response:
 
     def __dict__(self) -> Dict[str, Any]:  # type: ignore
         """Return dictionary representation of response."""
+        # TODO: support diffusers
         return {
             "id": self.response_id,
             "object": self.response_type,

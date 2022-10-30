@@ -30,7 +30,7 @@ class Session:
             session_id: session id.
 
         """
-        manifest_home = Path(os.environ.get("MANIFEST_SESSION_HOME", Path.home()))
+        manifest_home = Path(os.environ.get("MANIFEST_HOME", Path.home()))
         self.db_file = manifest_home / ".manifest" / "session.db"
         self.db_file.parent.mkdir(parents=True, exist_ok=True)
         self.conn = sqlite3.connect(str(self.db_file))

@@ -10,6 +10,7 @@ from flask import Flask, request
 
 from manifest.api.models.huggingface import HuggingFaceModel
 from manifest.api.response import Response
+from manifest.manifest.api.models.diffuser import DiffuserModel
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
@@ -20,6 +21,7 @@ model = None
 PORT = int(os.environ.get("FLASK_PORT", 5000))
 MODEL_CONSTRUCTORS = {
     "huggingface": HuggingFaceModel,
+    "diffuser": DiffuserModel,
 }
 
 
@@ -160,6 +162,7 @@ def completions() -> Dict:
     results_text = []
     for generations in model.generate(prompt, **generation_args):
         results_text.append(generations)
+    # TODO: Support diffusers here
     results = [{"text": r[0], "text_logprob": r[1]} for r in results_text]
     # transform the result into the openai format
     return Response(results, response_type="text_completion").__dict__()
