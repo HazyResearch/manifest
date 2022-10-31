@@ -225,10 +225,6 @@ class HuggingFaceModel(Model):
         self.model_name = model_name_or_path
         print("Model Name:", self.model_name, "Model Path:", self.model_path)
 
-    def get_init_params(self) -> Dict:
-        """Return init params to determine what model is being used."""
-        return {"model_name": self.model_name, "model_path": self.model_path}
-
     def _dispatch_deepspeed_model(
         self, model: PreTrainedModel
     ) -> deepspeed.InferenceEngine:
@@ -361,7 +357,7 @@ class CrossModalEncoderModel(HuggingFaceModel):
         outputs = self.model(**inputs)
         return outputs
 
-class TextTransformersModel(HuggingFaceModel):
+class TextGenerationModel(HuggingFaceModel):
     """Huggingface model."""
 
     def __init__(

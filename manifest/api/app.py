@@ -9,7 +9,7 @@ import pkg_resources
 from flask import Flask, request
 
 from manifest.api.models.diffuser import DiffuserModel
-from manifest.api.models.huggingface import TextTransformersModel
+from manifest.api.models.huggingface import TextGenerationModel, CrossModalEncoderModel
 from manifest.api.response import Response
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
@@ -21,7 +21,8 @@ model = None
 model_type = None
 PORT = int(os.environ.get("FLASK_PORT", 5000))
 MODEL_CONSTRUCTORS = {
-    "huggingface": TextTransformersModel,
+    "huggingface": TextGenerationModel,
+    "huggingface_crossmodal": CrossModalEncoderModel,
     "diffuser": DiffuserModel,
 }
 
@@ -35,7 +36,7 @@ def parse_args() -> argparse.Namespace:
         type=str,
         required=True,
         help="Model type used for finding constructor.",
-        choices=["huggingface", "zoo", "diffuser"],
+        choices=MODEL_CONSTRUCTORS.keys(),
     )
     parser.add_argument(
         "--model_name_or_path",
@@ -173,22 +174,25 @@ def completions() -> Dict:
     # transform the result into the openai format
     return Response(results, response_type=res_type).__dict__()
 
+
 @app.route("/embed", methods=["POST"])
 def embed() -> Dict:
     """Get embed for generation."""
     prompt = request.json["prompt"]
     del request.json["prompt"]
-    generation_args = request.json
+    args = request.json
 
     if not isinstance(prompt, str):
         raise ValueError("Prompt must be a str")
 
-    results_text = []
-    for generations in model.generate(prompt, **generation_args):
-        results_text.append(generations)
-    results = [{"text": r[0], "text_logprob": r[1]} for r in results_text]
+    results = []
+    embeddings = model.embed(prompt, **args)
+    for embedding in embeddings:
+        results.append(embedding.tolist())
+
     # transform the result into the openai format
-    return Response(results, response_type="text_completion").__dict__()
+    #return Response(results, response_type="text_completion").__dict__()
+    return results
 
 
 @app.route("/choice_logits", methods=["POST"])
