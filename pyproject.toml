@@ -8,8 +8,7 @@ ignore_missing_imports = true
 module = [
   "deepspeed",
   "numpy",
-  "tqdm",
-  "tqdm.auto",
+  "diffusers",
   "sqlitedict",
   "dill",
   "accelerate",

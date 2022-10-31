@@ -1,13 +1,18 @@
+"""Serializer."""
+
 import json
 import os
 from pathlib import Path
 from typing import Dict
 
 import xxhash
-from sqlitedict import SqliteDict
+
+from manifest.caches.array_cache import ArrayCache
 
 
 class Serializer:
+    """Serializer."""
+
     def request_to_key(self, request: Dict) -> str:
         """
         Normalize a request into a key.
@@ -58,7 +63,9 @@ class Serializer:
 
 
 class ArraySerializer(Serializer):
-    def __init__(self):
+    """Serializer for array."""
+
+    def __init__(self) -> None:
         """
         Initialize array serializer.
 
@@ -70,15 +77,14 @@ class ArraySerializer(Serializer):
 
         self.hash = xxhash.xxh64()
         manifest_home = Path(os.environ.get("MANIFEST_HOME", Path.home()))
-        self.cache_folder = manifest_home / ".manifest" / "array_cache"
-        self.cache_folder.mkdir(parents=True, exist_ok=True)
-        self.hash2file = SqliteDict(
-            self.cache_folder / "hash2file.sqlite", autocommit=True
-        )
+        cache_folder = manifest_home / ".manifest" / "array_cache"
+        self.writer = ArrayCache(cache_folder)
 
     def response_to_key(self, response: Dict) -> str:
         """
         Normalize a response into a key.
+
+        Convert arrays to hash string for cache key.
 
         Args:
             response: response to normalize.
@@ -88,23 +94,38 @@ class ArraySerializer(Serializer):
         """
         # Assume response is a dict with keys "choices" -> List dicts
         # with keys "array".
-        for choice in response["choices"]:
+        choices = response["choices"]
+        # We don't want to modify the response in place
+        # but we want to avoid calling deepcopy on an array
+        del response["choices"]
+        response_copy = response.copy()
+        response["choices"] = choices
+        response_copy["choices"] = []
+        for choice in choices:
+            if "array" not in choice:
+                raise ValueError(
+                    f"Choice with keys {choice.keys()} does not have array key."
+                )
             arr = choice["array"]
+            # Avoid copying an array
+            del choice["array"]
+            new_choice = choice.copy()
+            choice["array"] = arr
+
             self.hash.update(arr)
             hash_str = self.hash.hexdigest()
             self.hash.reset()
-            choice["array"] = hash_str
-            # TODO: implement memmap saving here
-            if hash_str not in self.hash2file:
-                file_name = self.cache_folder / hash_str
-                with open(file_name, "wb") as f:
-                    f.write(arr)
-                self.hash2file[hash_str] = file_name
-        return json.dumps(response, sort_keys=True)
+            new_choice["array"] = hash_str
+            response_copy["choices"].append(new_choice)
+            if not self.writer.contains_key(hash_str):
+                self.writer.put(hash_str, arr)
+        return json.dumps(response_copy, sort_keys=True)
 
     def key_to_response(self, key: str) -> Dict:
         """
         Convert the normalized version to the response.
+
+        Convert the hash string keys to the arrays.
 
         Args:
             key: normalized key to convert.
@@ -112,6 +133,8 @@ class ArraySerializer(Serializer):
         Returns:
             unnormalized response dict.
         """
-        # TODO: support diffusers
-        res = json.loads(key)
-        raise NotImplementedError()
+        response = json.loads(key)
+        for choice in response["choices"]:
+            hash_str = choice["array"]
+            choice["array"] = self.writer.get(hash_str)
+        return response

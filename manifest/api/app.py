@@ -8,9 +8,9 @@ from typing import Dict
 import pkg_resources
 from flask import Flask, request
 
+from manifest.api.models.diffuser import DiffuserModel
 from manifest.api.models.huggingface import HuggingFaceModel
 from manifest.api.response import Response
-from manifest.manifest.api.models.diffuser import DiffuserModel
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
@@ -18,6 +18,7 @@ logger = logging.getLogger(__name__)
 app = Flask(__name__)  # define app using Flask
 # Will be global
 model = None
+model_type = None
 PORT = int(os.environ.get("FLASK_PORT", 5000))
 MODEL_CONSTRUCTORS = {
     "huggingface": HuggingFaceModel,
@@ -34,7 +35,7 @@ def parse_args() -> argparse.Namespace:
         type=str,
         required=True,
         help="Model type used for finding constructor.",
-        choices=["huggingface", "zoo"],
+        choices=["huggingface", "zoo", "diffuser"],
     )
     parser.add_argument(
         "--model_name_or_path",
@@ -104,7 +105,7 @@ def main() -> None:
     kwargs = parse_args()
     if is_port_in_use(PORT):
         raise ValueError(f"Port {PORT} is already in use.")
-
+    global model_type
     model_type = kwargs.model_type
     model_name_or_path = kwargs.model_name_or_path
     model_config = kwargs.model_config
@@ -159,13 +160,18 @@ def completions() -> Dict:
     if not isinstance(prompt, (str, list)):
         raise ValueError("Prompt must be a str or list of str")
 
-    results_text = []
+    result_gens = []
     for generations in model.generate(prompt, **generation_args):
-        results_text.append(generations)
-    # TODO: Support diffusers here
-    results = [{"text": r[0], "text_logprob": r[1]} for r in results_text]
+        result_gens.append(generations)
+    if model_type == "diffuser":
+        # Assign None logprob as it's not supported in diffusers
+        results = [{"array": r[0], "logprob": None} for r in result_gens]
+        res_type = "image_generation"
+    else:
+        results = [{"text": r[0], "logprob": r[1]} for r in result_gens]
+        res_type = "text_completion"
     # transform the result into the openai format
-    return Response(results, response_type="text_completion").__dict__()
+    return Response(results, response_type=res_type).__dict__()
 
 
 @app.route("/choice_logits", methods=["POST"])
@@ -184,7 +190,7 @@ def choice_logits() -> Dict:
         raise ValueError("Gold choices must be a list of string choices")
 
     choice_score_list = model.logits_scoring(prompt, gold_choices, **generation_args)
-    results = [{"text": r[0], "text_logprob": r[1]} for r in choice_score_list]
+    results = [{"text": r[0], "logprob": r[1]} for r in choice_score_list]
     # transform the result into the openai format
     return Response(results, response_type="choice_selection").__dict__()
 

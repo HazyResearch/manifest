@@ -12,7 +12,11 @@ class Response:
         """Initialize response."""
         self.results = results
         self.response_type = response_type
-        if self.response_type not in {"text_completion", "choice_selection"}:
+        if self.response_type not in {
+            "text_completion",
+            "choice_selection",
+            "image_generation",
+        }:
             raise ValueError(
                 f"Invalid response type: {self.response_type}. "
                 "Must be one of: text_completion, choice_selection."
@@ -22,7 +26,7 @@ class Response:
 
     def __dict__(self) -> Dict[str, Any]:  # type: ignore
         """Return dictionary representation of response."""
-        # TODO: support diffusers
+        key = "text" if self.response_type != "image_generation" else "array"
         return {
             "id": self.response_id,
             "object": self.response_type,
@@ -30,16 +34,13 @@ class Response:
             "model": "flask_model",
             "choices": [
                 {
-                    "text": result["text"],
-                    "text_logprob": result["text_logprob"],
-                    # TODO: Add in more metadata for HF models
-                    # "logprobs": {
-                    #     "tokens": result["tokens"],
-                    #     "token_logprobs": result["token_scores"],
-                    #     "text_offset": result["text_offset"],
-                    #     "top_logprobs": result["top_logprobs"],
-                    #     "finish_reason": "length",
-                    # },
+                    key: result[key],
+                    "logprob": result["logprob"],
+                }
+                if key == "text"
+                else {
+                    key: result[key].tolist(),
+                    "logprob": result["logprob"],
                 }
                 for result in self.results
             ],

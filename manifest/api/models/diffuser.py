@@ -8,9 +8,8 @@ class Model(ABC):
     """Model class."""
 =======
 """Huggingface model."""
-import json
 from pathlib import Path
-from typing import Any, Dict, List, Tuple, Union, cast
+from typing import Any, Dict, List, Tuple
 
 import torch
 from diffusers import StableDiffusionPipeline
@@ -26,14 +25,14 @@ class DiffuserModel(Model):
     def __init__(
         self,
         model_name_or_path: str,
-        model_config: str,
-        cache_dir: str,
-        device: int,
-        use_accelerate: bool,
-        use_parallelize: bool,
-        use_bitsandbytes: bool,
-        perc_max_gpu_mem_red: float,
-        use_fp16: bool,
+        model_config: str = None,
+        cache_dir: str = None,
+        device: int = 0,
+        use_accelerate: bool = False,
+        use_parallelize: bool = False,
+        use_bitsandbytes: bool = False,
+        perc_max_gpu_mem_red: float = 1.0,
+        use_fp16: bool = True,
     ):
         """
         Initialize model.
@@ -64,7 +63,7 @@ class DiffuserModel(Model):
             model_name_or_path = Path(self.model_path).name
         self.model_name = model_name_or_path
         print("Model Name:", self.model_name, "Model Path:", self.model_path)
-        dtype = torch.float16 if use_fp16 else "auto"
+        dtype = torch.float16 if use_fp16 else None
         torch_device = (
             torch.device("cpu")
             if (device == -1 or not torch.cuda.is_available())
@@ -75,6 +74,7 @@ class DiffuserModel(Model):
             torch_dtype=dtype,
             revision="fp16" if str(dtype) == "float16" else None,
         )
+        self.pipeline.safety_checker = None
         self.pipeline.to(torch_device)
 >>>>>>> Sketch of diffusers added:manifest/api/models/diffuser.py
 
@@ -109,7 +109,7 @@ class DiffuserModel(Model):
 =======
         # TODO: Is this correct for getting arguments in?
         result = self.pipeline(prompt, output_type="np.array", **kwargs)
-        return result
+        return [result["images"]]
 
     @torch.no_grad()
 >>>>>>> Sketch of diffusers added:manifest/api/models/diffuser.py
