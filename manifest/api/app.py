@@ -3,6 +3,7 @@ import argparse
 import logging
 import os
 import socket
+import io
 from typing import Dict
 
 import pkg_resources
@@ -11,6 +12,7 @@ from flask import Flask, request
 from manifest.api.models.diffuser import DiffuserModel
 from manifest.api.models.huggingface import TextGenerationModel, CrossModalEncoderModel
 from manifest.api.response import Response
+from manifest.api.models.diffuser import DiffuserModel
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
@@ -178,15 +180,21 @@ def completions() -> Dict:
 @app.route("/embed", methods=["POST"])
 def embed() -> Dict:
     """Get embed for generation."""
-    prompt = request.json["prompt"]
-    del request.json["prompt"]
-    args = request.json
-
-    if not isinstance(prompt, str):
-        raise ValueError("Prompt must be a str")
+    modality = request.json["modality"]
+    if modality == "text":
+        prompts = request.json["prompts"]
+    elif modality == "image":
+        from PIL import Image
+        import base64
+        prompts = [
+            Image.open(io.BytesIO(base64.b64decode(data)))
+            for data in request.json["prompts"]
+        ]
+    else:
+        raise ValueError("modality must be text or image")
 
     results = []
-    embeddings = model.embed(prompt, **args)
+    embeddings = model.embed(prompts)
     for embedding in embeddings:
         results.append(embedding.tolist())
 
