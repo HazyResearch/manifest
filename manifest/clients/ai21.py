@@ -24,6 +24,7 @@ AI21_PARAMS = {
     "n": ("numResults", 1),
     "top_p": ("topP", 1.0),
     "stop_sequences": ("stopSequences", []),
+    "client_timeout": ("client_timeout", 60),  # seconds
 }
 
 
@@ -101,15 +102,7 @@ class AI21Client(Client):
             "choices": [
                 {
                     "text": item["data"]["text"],
-                    "logprobs": [
-                        {
-                            "token": tok["generatedToken"]["token"],
-                            "logprob": tok["generatedToken"]["logprob"],
-                            "start": tok["textRange"]["start"],
-                            "end": tok["textRange"]["end"],
-                        }
-                        for tok in item["data"]["tokens"]
-                    ],
+                    "logprobs": item["data"]["tokens"],
                 }
                 for item in response["completions"]
             ],
@@ -130,6 +123,9 @@ class AI21Client(Client):
         """
         request_params = {"prompt": query}
         for key in AI21_PARAMS:
+            if key in ["client_timeout"]:
+                # These are not passed to the AI21 API
+                continue
             request_params[AI21_PARAMS[key][0]] = request_args.pop(
                 key, getattr(self, key)
             )
@@ -141,6 +137,19 @@ class AI21Client(Client):
                 headers={"Authorization": f"Bearer {self.api_key}"},
                 json=request_params,
             )
+            try:
+                res = requests.post(
+                    post_str,
+                    headers={"Authorization": f"Bearer {self.api_key}"},
+                    json=request_params,
+                    timeout=getattr(self, "client_timeout"),
+                )
+                res.raise_for_status()
+            except requests.Timeout as e:
+                logger.error("AI21 request timed out. Increase client_timeout.")
+                raise e
+            except requests.exceptions.HTTPError as e:
+                raise e
             return self.format_response(res.json())
 
         return _run_completion, request_params

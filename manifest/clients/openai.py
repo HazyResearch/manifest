@@ -1,14 +1,12 @@
 """OpenAI client."""
 import logging
 import os
-import time
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
-import openai
+import requests
 
 from manifest.clients.client import Client
 
-logging.getLogger("openai").setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
 
 OPENAI_ENGINES = {
@@ -24,7 +22,7 @@ OPENAI_ENGINES = {
 
 # User param -> (client param, default value)
 OPENAI_PARAMS = {
-    "engine": ("engine", "text-davinci-002"),
+    "engine": ("model", "text-davinci-002"),
     "temperature": ("temperature", 1.0),
     "max_tokens": ("max_tokens", 10),
     "n": ("n", 1),
@@ -34,8 +32,7 @@ OPENAI_PARAMS = {
     "stop_sequence": ("stop", None),  # OpenAI doesn't like empty lists
     "presence_penalty": ("presence_penalty", 0.0),
     "frequency_penalty": ("frequency_penalty", 0.0),
-    "rate_limit_retry_timeout": ("rate_limit_retry_timeout", 30),  # seconds
-    "rate_limit_retry_attempts": ("rate_limit_retry_attempts", 3),
+    "client_timeout": ("client_timeout", 60),  # seconds
 }
 
 
@@ -56,12 +53,13 @@ class OpenAIClient(Client):
             connection_str: connection string.
             client_args: client arguments.
         """
-        openai.api_key = os.environ.get("OPENAI_API_KEY", connection_str)
-        if openai.api_key is None:
+        self.api_key = os.environ.get("OPENAI_API_KEY", connection_str)
+        if self.api_key is None:
             raise ValueError(
                 "OpenAI API key not set. Set OPENAI_API_KEY environment "
                 "variable or pass through `connection_str`."
             )
+        self.host = "https://api.openai.com/v1"
         for key in OPENAI_PARAMS:
             setattr(self, key, client_args.pop(key, OPENAI_PARAMS[key][1]))
         if getattr(self, "engine") not in OPENAI_ENGINES:
@@ -94,6 +92,20 @@ class OpenAIClient(Client):
         """
         return list(OPENAI_PARAMS.keys())
 
+    def format_response(self, response: Dict) -> Dict[str, Any]:
+        """
+        Format response to dict.
+
+        Args:
+            response: response
+
+        Return:
+            response as dict
+        """
+        if "choices" not in response:
+            raise ValueError(f"Invalid response: {response}")
+        return response
+
     def get_request(
         self, query: str, request_args: Dict[str, Any] = {}
     ) -> Tuple[Callable[[], Dict], Dict]:
@@ -109,7 +121,7 @@ class OpenAIClient(Client):
         """
         request_params = {"prompt": query}
         for key in OPENAI_PARAMS:
-            if key in ["rate_limit_retry_timeout", "rate_limit_retry_attempts"]:
+            if key in ["client_timeout"]:
                 # These are not passed to the OpenAI API
                 continue
             request_params[OPENAI_PARAMS[key][0]] = request_args.pop(
@@ -117,23 +129,21 @@ class OpenAIClient(Client):
             )
 
         def _run_completion() -> Dict:
-            num_attempts = getattr(self, "rate_limit_retry_attempts")
-            timeout = getattr(self, "rate_limit_retry_timeout")
-
-            for attempt in range(num_attempts):
-                try:
-                    return openai.Completion.create(**request_params)
-                except openai.error.RateLimitError as e:
-                    if attempt == num_attempts - 1:
-                        raise e
-                    logger.warning(
-                        f"OpenAI rate limit exceeded. Retrying in {timeout} seconds."
-                    )
-                    time.sleep(timeout)
-                except openai.error.OpenAIError as e:
-                    logger.error(e)
-                    raise e
-            return {}
+            post_str = self.host + "/completions"
+            try:
+                res = requests.post(
+                    post_str,
+                    headers={"Authorization": f"Bearer {self.api_key}"},
+                    json=request_params,
+                    timeout=getattr(self, "client_timeout"),
+                )
+                res.raise_for_status()
+            except requests.Timeout as e:
+                logger.error("OpenAI request timed out. Increase client_timeout.")
+                raise e
+            except requests.exceptions.HTTPError as e:
+                raise e
+            return self.format_response(res.json())
 
         return _run_completion, request_params
 

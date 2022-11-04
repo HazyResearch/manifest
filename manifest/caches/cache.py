@@ -3,17 +3,7 @@ import json
 from abc import ABC, abstractmethod
 from typing import Any, Callable, Dict, Union
 
-from manifest.response import CohereResponse, Response
-
-RESPONSE_CONSTRUCTORS = {
-    "openai": Response,
-    "cohere": CohereResponse,
-    "ai21": Response,
-    "huggingface": Response,
-    "opt": Response,
-    "dummy": Response,
-    "zoo": Response,
-}
+from manifest.response import Response
 
 
 def request_to_key(request: Dict) -> str:
@@ -147,8 +137,4 @@ class Cache(ABC):
             response = compute()
             self.set_key(key, response_to_key(response))
             cached = False
-        client_name = compute.__module__.split(".")[-1]
-        if client_name in RESPONSE_CONSTRUCTORS:
-            return RESPONSE_CONSTRUCTORS[client_name](response, cached, request)
-        else:
-            return Response(response, cached, request)
+        return Response(response, cached, request)

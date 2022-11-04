@@ -1,4 +1,5 @@
 """TOMA client."""
+import json
 import logging
 import os
 import time
@@ -44,14 +45,12 @@ TOMA_PARAMS = {
     "logprobs": ("logprobs", 0),
     "prompt_embedding": ("prompt_embedding", False),
     "echo": ("echo", False),
-    "rate_limit_retry_timeout": ("rate_limit_retry_timeout", 120),  # seconds
+    "client_timeout": ("client_timeout", 120),  # seconds
 }
 
 
 class TOMAClient(Client):
     """TOMA client."""
-
-    pending_jobs: List = []
 
     def connect(
         self,
@@ -83,7 +82,7 @@ class TOMAClient(Client):
             )
         model_heartbeats = self.get_model_heartbeats()
         model_heartbeat_threshold = 60
-        print("TOMA MODEL HEARTBEATS\n", model_heartbeats)
+        logger.info(f"TOMA model heartbeats\n {json.dumps(model_heartbeats)}")
         if (
             model_heartbeats[getattr(self, "engine")]["last_ping"]
             > model_heartbeat_threshold
@@ -93,15 +92,17 @@ class TOMAClient(Client):
                 f"{model_heartbeats[getattr(self, 'engine')]} seconds."
             )
         if model_heartbeats[getattr(self, "engine")]["expected_runtime"] > getattr(
-            self, "rate_limit_retry_timeout"
+            self, "client_timeout"
         ):
             logger.warning(
                 f"Model {getattr(self, 'engine')} has expected runtime "
                 f"{model_heartbeats[getattr(self, 'engine')]['expected_runtime']} "
-                f"and may take longer than {getattr(self, 'rate_limit_retry_timeout')} "
-                "seconds to respond. Increase rate_limit_retry_timeout "
+                f"and may take longer than {getattr(self, 'client_timeout')} "
+                "seconds to respond. Increase client_timeout "
                 "to avoid timeout."
             )
+        self.pending_jobs: List = []
+        self.completed_jobs: List = []
 
     def close(self) -> None:
         """Close the client."""
@@ -127,6 +128,17 @@ class TOMAClient(Client):
             model inputs.
         """
         return list(TOMA_PARAMS.keys())
+
+    def get_last_job_id(self) -> Optional[str]:
+        """
+        Get last job id.
+
+        Returns:
+            last job id.
+        """
+        if len(self.completed_jobs) > 0:
+            return self.completed_jobs[-1]
+        return None
 
     def get_model_heartbeats(self) -> Dict[str, Dict]:
         """
@@ -173,7 +185,7 @@ class TOMAClient(Client):
         """
         Get response from job id.
 
-        Will try up to `rate_limit_retry_timeout` seconds to get response.
+        Will try up to `client_timeout` seconds to get response.
 
         Args:
             job_id: job id
@@ -222,7 +234,7 @@ class TOMAClient(Client):
             ),
         }
         for key in TOMA_PARAMS:
-            if key in ["rate_limit_retry_timeout"]:
+            if key in ["client_timeout"]:
                 # These are not passed to the TOMA API
                 continue
             request_params[TOMA_PARAMS[key][0]] = request_args.pop(
@@ -230,7 +242,7 @@ class TOMAClient(Client):
             )
 
         retry_timeout = request_args.pop(
-            "rate_limit_retry_timeout", getattr(self, "rate_limit_retry_timeout")
+            "client_timeout", getattr(self, "client_timeout")
         )
 
         # num_returns is for image-model-inference
@@ -251,11 +263,12 @@ class TOMAClient(Client):
                 },
             ).json()
             job_id = res["id"]
-            print(f"job_id: {job_id}")
             # TODO: ideally just submit the jobs and then fetch results in parallel
             self.pending_jobs.append(job_id)
             job_id = self.pending_jobs.pop()
-            return self.get_response(job_id, retry_timeout)
+            final_res = self.get_response(job_id, retry_timeout)
+            self.completed_jobs.append(job_id)
+            return final_res
 
         return _run_completion, request_params
 

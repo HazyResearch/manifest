@@ -52,7 +52,9 @@ class Client(ABC):
         raise NotImplementedError()
 
     @abstractmethod
-    def connect(self, connection_str: str, client_args: Dict[str, Any]) -> None:
+    def connect(
+        self, connection_str: Optional[str], client_args: Dict[str, Any]
+    ) -> None:
         """
         Connect to client.
 
