@@ -3,7 +3,7 @@ from typing import Any, Dict, Union
 
 import redis
 
-from manifest.caches import Cache
+from manifest.caches.cache import Cache
 
 
 class RedisCache(Cache):

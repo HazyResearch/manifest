@@ -45,10 +45,6 @@ TOMA_PARAMS = {
     "prompt_embedding": ("prompt_embedding", False),
     "echo": ("echo", False),
     "rate_limit_retry_timeout": ("rate_limit_retry_timeout", 120),  # seconds
-    "model_heartbeat_threshold": (
-        "model_heartbeat_threshold",
-        60,
-    ),  # seconds since last ping
 }
 
 
@@ -86,9 +82,11 @@ class TOMAClient(Client):
                 f"Invalid engine {getattr(self, 'engine')}. Must be {TOMA_ENGINES}."
             )
         model_heartbeats = self.get_model_heartbeats()
+        model_heartbeat_threshold = 60
         print("TOMA MODEL HEARTBEATS\n", model_heartbeats)
-        if model_heartbeats[getattr(self, "engine")]["last_ping"] > getattr(
-            self, "model_heartbeat_threshold"
+        if (
+            model_heartbeats[getattr(self, "engine")]["last_ping"]
+            > model_heartbeat_threshold
         ):
             raise ValueError(
                 f"Model {getattr(self, 'engine')} has not been pinged in "
@@ -224,7 +222,7 @@ class TOMAClient(Client):
             ),
         }
         for key in TOMA_PARAMS:
-            if key in ["rate_limit_retry_timeout", "model_heartbeat_threshold"]:
+            if key in ["rate_limit_retry_timeout"]:
                 # These are not passed to the TOMA API
                 continue
             request_params[TOMA_PARAMS[key][0]] = request_args.pop(
@@ -234,10 +232,6 @@ class TOMAClient(Client):
         retry_timeout = request_args.pop(
             "rate_limit_retry_timeout", getattr(self, "rate_limit_retry_timeout")
         )
-        # In case user sets this accidentally during run
-        # Param is only used during init
-        # TODO: better way to handle this?
-        request_args.pop("model_heartbeat_threshold", None)
 
         # num_returns is for image-model-inference
         if request_params["request_type"] == "image-model-inference":
