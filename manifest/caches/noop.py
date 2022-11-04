@@ -1,7 +1,7 @@
 """Noop cache."""
 from typing import Any, Dict, Union
 
-from manifest.caches import Cache
+from manifest.caches.cache import Cache
 
 
 class NoopCache(Cache):
