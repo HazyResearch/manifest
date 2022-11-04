@@ -91,6 +91,31 @@ def test_run(sqlite_cache, session_cache, n, return_response):
     else:
         assert res == ["hello", "hello"]
 
+    prompt = Prompt("This is a prompt")
+    result = manifest.run(prompt, run_id="34", return_response=return_response)
+    if return_response:
+        assert isinstance(result, Response)
+        res = result.get_response(manifest.stop_token)
+    else:
+        res = result
+    assert (
+        manifest.cache.get_key(
+            request_to_key(
+                {
+                    "prompt": "This is a prompt",
+                    "client_name": "dummy",
+                    "num_results": n,
+                    "run_id": "34",
+                }
+            )
+        )
+        is not None
+    )
+    if n == 1:
+        assert res == "hello"
+    else:
+        assert res == ["hello", "hello"]
+
     prompt = Prompt(lambda x: f"{x} is a prompt")
     result = manifest.run(prompt, "Hello", return_response=return_response)
     if return_response:
