@@ -19,7 +19,12 @@ cd manifest
 
 Install:
 ```bash
-pip install -e .
+pip install manifest
+```
+
+Install with HuggingFace API Support:
+```bash
+pip install manifest[api]
 ```
 
 Dev Install:
@@ -28,7 +33,7 @@ make dev
 ```
 
 # Getting Started
-Running is simple to get started. If using OpenAI, set `export OPENAI_API_KEY=<OPENAIKEY>` then run
+Running is simple to get started. If using OpenAI, set `export OPENAI_API_KEY=<OPENAIKEY>` (or pass key in through variable `client_connection`) then run
 
 ```python
 from manifest import Manifest
@@ -48,13 +53,22 @@ Manifest is meant to be a very light weight package to help with prompt design a
 * Supports caching of model inputs/outputs for iteration, reproducibility, and cost saving
 
 ## Models
-Manifest provides model clients for OpenAI, AI21, OPT (assuming model is loaded locally), and HuggingFace (see [below](#huggingface-models) for how to use locally hosted HuggingFace models). You can toggle between the models by changing `client_name` and `client_connection`. For example, if a HuggingFace model is loaded locally, run
+Manifest provides model clients for [OpenAI](https://openai.com/), [AI21](https://studio.ai21.com/), [Cohere](https://cohere.ai/), [Together](https://together.xyz/), and HuggingFace (see [below](#huggingface-models) for how to use locally hosted HuggingFace models). You can toggle between the models by changing `client_name` and `client_connection`. For example, if a HuggingFace model is loaded locally, run
 ```python
 manifest = Manifest(
     client_name = "huggingface",
     client_connection = "http://127.0.0.1:5000",
 )
 ```
+If you want to use Cohere, run
+```python
+manifest = Manifest(
+    client_name = "cohere",
+    client_connection = <COHERE_API_KEY>,
+)
+```
+You can also just set `export COHERE_API_KEY=<COHERE_API_KEY>` and not use `client_connection`.
+
 
 You can see the model details and possible model inputs to `run()` via
 ```python
@@ -160,7 +174,7 @@ To use a HuggingFace generative model, in `manifest/api` we have a Falsk applica
 
 In a separate terminal or Tmux/Screen session, to load 6B parameters models, run
 ```bash
-python3 manifest/api/app.py \
+python3 -m manifest.api.app \
     --model_type huggingface \
     --model_name_or_path EleutherAI/gpt-j-6B \
     --device 0
@@ -180,7 +194,7 @@ To help load larger models, we also support using `parallelize()` from HF, [acce
 
 * T0pp
 ```bash
-python3 manifest/api/app.py \
+python3 -m manifest.api.app \
     --model_type huggingface \
     --model_name_or_path bigscience/T0pp \
     --use_hf_parallelize
@@ -188,7 +202,7 @@ python3 manifest/api/app.py \
 
 * NeoX 20B (requires at least 60GB of GPU memory)
 ```bash
-python3 manifest/api/app.py \
+python3 -m manifest.api.app \
     --model_type huggingface \
     --model_name_or_path EleutherAI/gpt-neox-20b \
     --use_accelerate_multigpu \
@@ -196,7 +210,7 @@ python3 manifest/api/app.py \
 ```
 * Bloom 175B (requires at least 240GB of GPU memory)
 ```bash
-python3 manifest/api/app.py \
+python3 -m manifest.api.app \
     --model_type huggingface \
     --model_name_or_path bigscience/bloom \
     --use_bitsandbytes \

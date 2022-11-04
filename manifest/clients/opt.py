@@ -52,7 +52,7 @@ class OPTClient(Client):
         Returns:
             model params.
         """
-        return {"model_name": "opt"}
+        return {"model_name": "opt", "engine": "opt-175b"}
 
     def get_model_inputs(self) -> List:
         """

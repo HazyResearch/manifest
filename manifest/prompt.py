@@ -49,14 +49,14 @@ class Prompt:
         else:
             return self.prompt_func()
 
-    def serialize(self) -> bytes:
+    def serialize(self) -> str:
         """
         Return the prompt as str.
 
         Returns:
             prompt as str.
         """
-        return dill.dumps(self.prompt_func)
+        return dill.dumps(self.prompt_func).decode("latin1")
 
     @classmethod
     def deserialize(cls, obj: str) -> "Prompt":
@@ -69,4 +69,4 @@ class Prompt:
         Return:
             prompt.
         """
-        return Prompt(dill.loads(obj))
+        return Prompt(dill.loads(obj.encode("latin1")))
