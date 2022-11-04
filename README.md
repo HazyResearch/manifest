@@ -11,12 +11,6 @@ How to make prompt programming with Foundation Models a little easier.
 
 
 # Install
-Download the code:
-```bash
-git clone git@github.com:HazyResearch/manifest.git
-cd manifest
-```
-
 Install:
 ```bash
 pip install manifest
@@ -29,6 +23,8 @@ pip install manifest[api]
 
 Dev Install:
 ```bash
+git clone git@github.com:HazyResearch/manifest.git
+cd manifest
 make dev
 ```
 
