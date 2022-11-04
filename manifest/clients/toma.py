@@ -1,4 +1,4 @@
-"""Hugging Face client."""
+"""TOMA client."""
 import logging
 import os
 import time
