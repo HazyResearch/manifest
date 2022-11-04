@@ -4,7 +4,7 @@ from typing import Any, Dict, Union
 
 from sqlitedict import SqliteDict
 
-from manifest.caches import Cache
+from manifest.caches.cache import Cache
 
 logging.getLogger("sqlitedict").setLevel(logging.WARNING)
 

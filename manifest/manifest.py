@@ -13,6 +13,7 @@ from manifest.clients.dummy import DummyClient
 from manifest.clients.huggingface import HuggingFaceClient
 from manifest.clients.openai import OpenAIClient
 from manifest.clients.opt import OPTClient
+from manifest.clients.toma import TOMAClient
 from manifest.clients.zoo import ZooClient
 from manifest.prompt import Prompt
 from manifest.response import Response
@@ -28,6 +29,7 @@ CLIENT_CONSTRUCTORS = {
     "huggingface": HuggingFaceClient,
     "opt": OPTClient,
     "dummy": DummyClient,
+    "toma": TOMAClient,
     "zoo": ZooClient,
 }
 
