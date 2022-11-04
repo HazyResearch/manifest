@@ -4,7 +4,7 @@ import os
 import sqlite3
 import uuid
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from manifest.caches.cache import (
     key_to_request,
@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 class Session:
     """A user session for caching requests."""
 
-    def __init__(self, session_id: str = None) -> None:
+    def __init__(self, session_id: Optional[str] = None) -> None:
         """
         Initialize session.
 

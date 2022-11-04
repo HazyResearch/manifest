@@ -32,6 +32,8 @@ class OPTClient(Client):
             connection_str: connection string.
             client_args: client arguments.
         """
+        if not connection_str:
+            raise ValueError("Must provide connection string")
         self.host = connection_str.rstrip("/")
         for key in OPT_PARAMS:
             setattr(self, key, client_args.pop(key, OPT_PARAMS[key][1]))
@@ -50,7 +52,7 @@ class OPTClient(Client):
         Returns:
             model params.
         """
-        return {"model_name": "opt"}
+        return {"model_name": "opt", "engine": "opt-175b"}
 
     def get_model_inputs(self) -> List:
         """

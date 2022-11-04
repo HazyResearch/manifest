@@ -2,7 +2,7 @@
 import logging
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
-from manifest.clients import Client
+from manifest.clients.client import Client
 
 logger = logging.getLogger(__name__)
 

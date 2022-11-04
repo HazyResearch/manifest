@@ -27,6 +27,8 @@ class ZooClient(Client):
             connection_str: connection string.
             client_args: client arguments.
         """
+        if not connection_str:
+            raise ValueError("Must provide connection string")
         self.host = connection_str.rstrip("/")
         for key in ZOO_PARAMS:
             setattr(self, key, client_args.pop(key, ZOO_PARAMS[key][1]))
