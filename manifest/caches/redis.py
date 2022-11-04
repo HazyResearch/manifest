@@ -41,7 +41,9 @@ class RedisCache(Cache):
         """
         norm_key = self._normalize_table_key(key, table)
         if self.redis.exists(norm_key):
-            return self.redis.get(norm_key).decode("utf-8")
+            k = self.redis.get(norm_key)
+            if k:
+                return k.decode("utf-8")
         else:
             return None
 

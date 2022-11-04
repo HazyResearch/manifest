@@ -49,7 +49,7 @@ class Prompt:
         else:
             return self.prompt_func()
 
-    def serialize(self) -> str:
+    def serialize(self) -> bytes:
         """
         Return the prompt as str.
 

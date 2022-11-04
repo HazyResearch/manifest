@@ -1,14 +1,12 @@
 """OpenAI client."""
 import logging
 import os
-import time
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
-import openai
+import requests
 
 from manifest.clients.client import Client
 
-logging.getLogger("openai").setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
 
 OPENAI_ENGINES = {
@@ -35,7 +33,6 @@ OPENAI_PARAMS = {
     "presence_penalty": ("presence_penalty", 0.0),
     "frequency_penalty": ("frequency_penalty", 0.0),
     "rate_limit_retry_timeout": ("rate_limit_retry_timeout", 30),  # seconds
-    "rate_limit_retry_attempts": ("rate_limit_retry_attempts", 3),
 }
 
 
@@ -56,12 +53,13 @@ class OpenAIClient(Client):
             connection_str: connection string.
             client_args: client arguments.
         """
-        openai.api_key = os.environ.get("OPENAI_API_KEY", connection_str)
-        if openai.api_key is None:
+        self.api_key = os.environ.get("OPENAI_API_KEY", connection_str)
+        if self.api_key is None:
             raise ValueError(
                 "OpenAI API key not set. Set OPENAI_API_KEY environment "
                 "variable or pass through `connection_str`."
             )
+        self.host = "https://api.openai.com/v1"
         for key in OPENAI_PARAMS:
             setattr(self, key, client_args.pop(key, OPENAI_PARAMS[key][1]))
         if getattr(self, "engine") not in OPENAI_ENGINES:
@@ -109,7 +107,7 @@ class OpenAIClient(Client):
         """
         request_params = {"prompt": query}
         for key in OPENAI_PARAMS:
-            if key in ["rate_limit_retry_timeout", "rate_limit_retry_attempts"]:
+            if key in ["rate_limit_retry_timeout"]:
                 # These are not passed to the OpenAI API
                 continue
             request_params[OPENAI_PARAMS[key][0]] = request_args.pop(
@@ -117,23 +115,15 @@ class OpenAIClient(Client):
             )
 
         def _run_completion() -> Dict:
-            num_attempts = getattr(self, "rate_limit_retry_attempts")
-            timeout = getattr(self, "rate_limit_retry_timeout")
+            # timeout = getattr(self, "rate_limit_retry_timeout")
 
-            for attempt in range(num_attempts):
-                try:
-                    return openai.Completion.create(**request_params)
-                except openai.error.RateLimitError as e:
-                    if attempt == num_attempts - 1:
-                        raise e
-                    logger.warning(
-                        f"OpenAI rate limit exceeded. Retrying in {timeout} seconds."
-                    )
-                    time.sleep(timeout)
-                except openai.error.OpenAIError as e:
-                    logger.error(e)
-                    raise e
-            return {}
+            post_str = self.host + "/completions"
+            res = requests.post(
+                post_str,
+                headers={"Authorization": f"Bearer {self.api_key}"},
+                json=request_params,
+            )
+            return res.json()
 
         return _run_completion, request_params
 

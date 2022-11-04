@@ -87,8 +87,9 @@ class Manifest:
         self.client = CLIENT_CONSTRUCTORS[client_name](  # type: ignore
             client_connection, client_args=kwargs
         )
-        if session_id is not None:
+        if session_id:
             if session_id == "_default":
+                # Set session_id to None for Session random id
                 session_id = None
             self.session = Session(session_id)
         else:
@@ -109,6 +110,7 @@ class Manifest:
         input: Optional[Any] = None,
         gold_choices: Optional[List[str]] = None,
         overwrite_cache: bool = False,
+        run_id: Optional[str] = None,
         stop_token: Optional[str] = None,
         return_response: bool = False,
         **kwargs: Any,
@@ -121,6 +123,7 @@ class Manifest:
             input: input to prompt.
             gold_choices: gold choices for max logit response (only HF models).
             overwrite_cache: whether to overwrite cache.
+            run_id: run id for cache to repeat same run.
             stop_token: stop token for prompt generation.
                         Default is self.stop_token.
                         "" for no stop token.
@@ -150,6 +153,8 @@ class Manifest:
         cache_key["client_name"] = self.client_name
         # Make query prompt dependent
         cache_key["prompt"] = prompt_str
+        if run_id:
+            cache_key["run_id"] = run_id
         response_obj = self.cache.get(cache_key, overwrite_cache, possible_request)
         # Log session dictionary values
         if self.session:
@@ -166,6 +171,7 @@ class Manifest:
         input: Optional[Iterable[Any]] = None,
         gold_choices: Optional[List[str]] = None,
         overwrite_cache: bool = False,
+        run_id: Optional[str] = None,
         stop_token: Optional[str] = None,
         return_response: bool = False,
         verbose: bool = False,
@@ -178,6 +184,7 @@ class Manifest:
             prompt: prompt to run.
             input: batch of inputs.
             gold_choices: gold choices for max logit response (only HF models).
+            run_id: run id for cache to repeat same run.
             overwrite_cache: whether to overwrite cache.
             stop_token: stop token for prompt generation.
                         Default is self.stop_token.
@@ -199,6 +206,7 @@ class Manifest:
                 inp,
                 gold_choices,
                 overwrite_cache,
+                run_id,
                 stop_token,
                 return_response,
                 **kwargs,

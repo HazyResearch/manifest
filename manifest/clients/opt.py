@@ -32,6 +32,8 @@ class OPTClient(Client):
             connection_str: connection string.
             client_args: client arguments.
         """
+        if not connection_str:
+            raise ValueError("Must provide connection string")
         self.host = connection_str.rstrip("/")
         for key in OPT_PARAMS:
             setattr(self, key, client_args.pop(key, OPT_PARAMS[key][1]))
