@@ -1,4 +1,5 @@
 """TOMA client."""
+import json
 import logging
 import os
 import time
@@ -81,7 +82,7 @@ class TOMAClient(Client):
             )
         model_heartbeats = self.get_model_heartbeats()
         model_heartbeat_threshold = 60
-        print("TOMA MODEL HEARTBEATS\n", model_heartbeats)
+        logger.info(f"TOMA model heartbeats\n {json.dumps(model_heartbeats)}")
         if (
             model_heartbeats[getattr(self, "engine")]["last_ping"]
             > model_heartbeat_threshold
