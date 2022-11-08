@@ -1,9 +1,11 @@
 """Huggingface model."""
 import json
 from pathlib import Path
-from typing import Any, Dict, List, Tuple, Union, cast
+from typing import Any, Dict, List, Optional, Tuple, Union, cast
 
 import torch
+from accelerate import dispatch_model, infer_auto_device_map
+from accelerate.utils.modeling import get_max_memory as acc_get_max_memory
 from transformers import (
     AutoModelForCausalLM,
     AutoModelForSeq2SeqLM,
@@ -18,6 +20,7 @@ from transformers import (
     PreTrainedTokenizer,
 )
 
+import deepspeed
 from manifest.api.models.model import Model
 
 MODEL_REGISTRY = {
@@ -43,6 +46,7 @@ MODEL_REGISTRY = {
     "bigscience/bloom": AutoModelForCausalLM,
     "bigscience/T0pp": AutoModelForSeq2SeqLM,
     "bigscience/T0_3B": AutoModelForSeq2SeqLM,
+    "google/t5-small-lm-adapt": AutoModelForSeq2SeqLM,  # 220M
     "google/t5-l-lm-adapt": AutoModelForSeq2SeqLM,  # 800M
     "google/t5-xl-lm-adapt": AutoModelForSeq2SeqLM,  # 3B
     "google/t5-xxl-lm-adapt": AutoModelForSeq2SeqLM,  # 11B
@@ -75,16 +79,18 @@ class Pipeline:
 
     def __init__(
         self,
-        model: PreTrainedModel,
+        model: Union[PreTrainedModel, deepspeed.InferenceEngine],
         tokenizer: PreTrainedTokenizer,
         device: int = None,
         bitsandbytes: bool = False,
+        is_encdec: bool = False,
     ):
         """Initialize."""
         # Use to turn off sampling
         # https://github.com/TimDettmers/bitsandbytes/issues/42
         self.bitsandbytes = bitsandbytes
         self.model = model
+        self.is_encdec = is_encdec
         config = model.config  # type: ignore
         # Used for GPT
         self.max_length = getattr(config, "max_position_embeddings", None)
@@ -109,10 +115,9 @@ class Pipeline:
             if (device == -1 or not torch.cuda.is_available())
             else torch.device(f"cuda:{device}")
         )
-        print("HERE", self.device)
 
     def __call__(
-        self, text: str, **kwargs: Any
+        self, text: Union[str, List[str]], **kwargs: Any
     ) -> List[Dict[str, Union[str, List[float]]]]:
         """Generate from text.
 
@@ -124,22 +129,30 @@ class Pipeline:
         """
         # If text is longer than max model length, we reduce max input length to ensure
         # the user indicated generation tokens is preserved.
-        max_input_length = kwargs.get("max_input_length")
+        max_input_len = (
+            self.max_length - kwargs.get("max_new_tokens")
+            if not self.is_encdec
+            else self.max_length
+        )
         encoded_prompt = self.tokenizer(
-            text, max_length=max_input_length, truncation=True, return_tensors="pt"
+            text,
+            max_length=max_input_len,
+            truncation=True,
+            padding=True,
+            return_tensors="pt",
         )
         encoded_prompt = encoded_prompt.to(self.device)
         output_dict = self.model.generate(  # type: ignore
             **encoded_prompt,
-            max_length=kwargs.get("max_length"),
-            temperature=kwargs.get("temperature"),
-            top_k=kwargs.get("top_k"),
-            top_p=kwargs.get("top_p"),
-            repetition_penalty=kwargs.get("repetition_penalty"),
-            do_sample=kwargs.get("do_sample") if not self.bitsandbytes else False,
+            max_new_tokens=kwargs.get("max_new_tokens"),
+            temperature=kwargs.get("temperature", None),
+            top_k=kwargs.get("top_k", None),
+            top_p=kwargs.get("top_p", None),
+            repetition_penalty=kwargs.get("repetition_penalty", None),
+            do_sample=kwargs.get("do_sample", None) if not self.bitsandbytes else False,
             eos_token_id=self.tokenizer.eos_token_id,
             pad_token_id=self.tokenizer.pad_token_id,
-            num_return_sequences=kwargs.get("num_return_sequences"),
+            num_return_sequences=kwargs.get("num_return_sequences", None),
             output_scores=True,
             return_dict_in_generate=True,
         )
@@ -168,14 +181,15 @@ class HuggingFaceModel(Model):
     def __init__(
         self,
         model_name_or_path: str,
-        model_config: str,
-        cache_dir: str,
-        device: int,
-        use_accelerate: bool,
-        use_parallelize: bool,
-        use_bitsandbytes: bool,
-        perc_max_gpu_mem_red: float,
-        use_fp16: bool,
+        model_config: Optional[str] = None,
+        cache_dir: Optional[str] = None,
+        device: int = 0,
+        use_accelerate: bool = False,
+        use_parallelize: bool = False,
+        use_bitsandbytes: bool = False,
+        use_deepspeed: bool = False,
+        perc_max_gpu_mem_red: float = 1.0,
+        use_fp16: bool = False,
     ):
         """
         Initialize model.
@@ -190,11 +204,15 @@ class HuggingFaceModel(Model):
             use_accelerate: whether to use accelerate for multi-gpu inference.
             use_parallelize: use HF default parallelize
             use_bitsandbytes: use HF bits and bytes
+            use_deepspeed: use deepspeed
             perc_max_gpu_mem_red: percent max memory reduction in accelerate
             use_fp16: use fp16 for model weights.
         """
-        if use_accelerate and use_parallelize:
-            raise ValueError("Cannot use both accelerate and parallelize")
+        if sum([use_accelerate, use_parallelize, use_bitsandbytes, use_deepspeed]) > 1:
+            raise ValueError(
+                "Only one of use_accelerate, use_parallelize, "
+                "use_bitsandbytes, use_deepspeed can be set to True"
+            )
         # Check if providing path
         self.model_path = model_name_or_path
         if Path(self.model_path).exists() and Path(self.model_path).is_dir():
@@ -206,17 +224,19 @@ class HuggingFaceModel(Model):
         print("Model Name:", self.model_name, "Model Path:", self.model_path)
         try:
             tokenizer = AutoTokenizer.from_pretrained(
-                self.model_name, truncation_side="left"
+                self.model_name, truncation_side="left", padding_side="left"
             )
         except ValueError:
             tokenizer = AutoTokenizer.from_pretrained(
-                self.model_name, truncation_side="left", use_fast=False
+                self.model_name,
+                truncation_side="left",
+                padding_side="left",
+                use_fast=False,
             )
         dtype = torch.float16 if use_fp16 else "auto"
         if use_bitsandbytes:
             print("WARNING!!! Cannot use sampling with bitsandbytes.")
             max_memory = get_max_memory(perc_max_gpu_mem_red)
-            print(max_memory)
             model = MODEL_REGISTRY[self.model_name].from_pretrained(  # type: ignore
                 self.model_path,
                 cache_dir=cache_dir,
@@ -251,6 +271,9 @@ class HuggingFaceModel(Model):
             elif use_parallelize:
                 model.parallelize()
                 device = 0
+            elif use_deepspeed:
+                self._dispatch_deepspeed_model(model)
+                device = 0
             else:
                 if device > -1:
                     torch_device = (
@@ -258,20 +281,38 @@ class HuggingFaceModel(Model):
                         if (device == -1 or not torch.cuda.is_available())
                         else torch.device(f"cuda:{device}")
                     )
-                    print("T", torch_device)
                     model = model.to(torch_device)  # type: ignore
         self.pipeline = Pipeline(  # type: ignore
             model=model,
             tokenizer=tokenizer,
             device=device,
             bitsandbytes=use_bitsandbytes,
+            is_encdec=self.is_encdec,
         )
-        # Autogregressive models generate the input, too
-        self.returns_input = not self.is_encdec
 
     def get_init_params(self) -> Dict:
         """Return init params to determine what model is being used."""
         return {"model_name": self.model_name, "model_path": self.model_path}
+
+    def _dispatch_deepspeed_model(
+        self, model: PreTrainedModel
+    ) -> deepspeed.InferenceEngine:
+        """
+        Load model with deepspeed.
+
+        Adapted from https://www.deepspeed.ai/tutorials/inference-tutorial/
+
+        Args:
+            model: loaded hugging face model
+        """
+        model = deepspeed.init_inference(
+            model=model,
+            mp_size=1,
+            dtype=model.dtype,
+            replace_method="auto",
+            replace_with_kernel_inject=True,
+        )
+        return model
 
     def _dispatch_accelerate_model(
         self, model: PreTrainedModel, perc_max_gpu_mem_red: float
@@ -286,9 +327,6 @@ class HuggingFaceModel(Model):
             model: loaded hugging face model
             perc_max_gpu_mem_red: percent memory reduction
         """
-        from accelerate import dispatch_model, infer_auto_device_map
-        from accelerate.utils.modeling import get_max_memory
-
         model.tie_weights()  # type: ignore
         # Get the model where we can infer devices from
         if hasattr(model, "model"):
@@ -301,7 +339,7 @@ class HuggingFaceModel(Model):
             model_getter = ""
         # Decrease max mem
         max_memory = {
-            k: int(perc_max_gpu_mem_red * v) for k, v in get_max_memory().items()
+            k: int(perc_max_gpu_mem_red * v) for k, v in acc_get_max_memory().items()
         }
         raw_device_map = infer_auto_device_map(
             main_model,
@@ -333,7 +371,9 @@ class HuggingFaceModel(Model):
         return
 
     @torch.no_grad()
-    def generate(self, prompt: str, **kwargs: Any) -> List[Tuple[str, float]]:
+    def generate(
+        self, prompt: Union[str, List[str]], **kwargs: Any
+    ) -> List[Tuple[str, float]]:
         """
         Generate the prompt from model.
 
@@ -345,16 +385,12 @@ class HuggingFaceModel(Model):
         Returns:
             list of generated text (list of length 1 for 1 generation).
         """
-        num_return = kwargs.get("n")
-        max_input_len = self.pipeline.max_length - kwargs.get("max_tokens")
-        # Add tokens for length
-        encoded_prompt_with_special = self.pipeline.tokenizer.encode(
-            prompt, max_length=max_input_len, truncation=True
-        )
+        num_return = kwargs.get("n", 1)
+        if isinstance(prompt, list) and num_return > 1:
+            raise ValueError("In batch generate, n must be 1.")
         result = self.pipeline(
             prompt,
-            max_input_length=max_input_len,
-            max_length=kwargs.get("max_tokens") + len(encoded_prompt_with_special),
+            max_new_tokens=kwargs.get("max_tokens"),
             temperature=kwargs.get("temperature"),
             repetition_penalty=kwargs.get("repetition_penalty"),
             top_k=kwargs.get("top_k"),
@@ -362,24 +398,16 @@ class HuggingFaceModel(Model):
             do_sample=kwargs.get("do_sample"),
             num_return_sequences=num_return,
         )
-        if num_return == 1:
-            final_results = [
-                (
-                    cast(str, result[0]["generated_text"]),
-                    sum(cast(List[float], result[0]["logprobs"])),
-                )
-            ]
-        else:
-            final_results = [
-                (cast(str, r["generated_text"]), sum(cast(List[float], r["logprobs"])))
-                for r in result
-            ]
+        final_results = [
+            (cast(str, r["generated_text"]), sum(cast(List[float], r["logprobs"])))
+            for r in result
+        ]
         return final_results
 
     @torch.no_grad()
     def logits_scoring(
-        self, prompt: str, gold_choices: List[str], **kwargs: Any
-    ) -> Tuple[str, float]:
+        self, prompt: Union[str, List[str]], gold_choices: List[str], **kwargs: Any
+    ) -> List[Tuple[str, float]]:
         """
         Given the prompt and gold choices, choose the best choice with max logits.
 
@@ -390,6 +418,8 @@ class HuggingFaceModel(Model):
         Returns:
             the returned gold choice
         """
+        if isinstance(prompt, str):
+            prompt = [prompt]
         max_input_len = self.pipeline.max_length
         if self.is_encdec:
             # Adapted from https://github.com/bigscience-workshop/t-zero
@@ -425,10 +455,13 @@ class HuggingFaceModel(Model):
             }
             # Add choice tokens + mask
             features["labels"] = [
-                tokenized_targets[k]["input_ids"] for k in range(len(gold_choices))
+                [tokenized_targets[k]["input_ids"]] * len(tokenized_inputs["input_ids"])
+                for k in range(len(gold_choices))
             ]
             features["labels_attention_mask"] = [
-                tokenized_targets[k]["attention_mask"] for k in range(len(gold_choices))
+                [tokenized_targets[k]["attention_mask"]]
+                * len(tokenized_inputs["input_ids"])
+                for k in range(len(gold_choices))
             ]
         else:
             tokenized_inputs = self.pipeline.tokenizer(
@@ -455,55 +488,70 @@ class HuggingFaceModel(Model):
             max_effective_input_len = 0
             for tokenized_targ in tokenized_targets:
                 for k in tokenized_inputs.keys():
-                    # Make sure to leave room for the outputs
-                    features[k].append(
-                        tokenized_inputs[k][
-                            : min(
-                                len(tokenized_inputs[k]),
-                                max_input_len - len(tokenized_targ[k]),
-                            )
-                        ]
-                        + tokenized_targ[k]
-                    )
-                    max_effective_input_len = max(
-                        max_effective_input_len, len(features[k][-1])
-                    )
+                    batched_features = []
+                    for prompt_i in range(len(tokenized_inputs[k])):
+                        # Make sure to leave room for the outputs
+                        batched_features.append(
+                            tokenized_inputs[k][prompt_i][
+                                : min(
+                                    len(tokenized_inputs[k][prompt_i]),
+                                    max_input_len - len(tokenized_targ[k]),
+                                )
+                            ]
+                            + tokenized_targ[k]
+                        )
+                        max_effective_input_len = max(
+                            max_effective_input_len, len(batched_features[-1])
+                        )
+                    features[k].append(batched_features)
                 # Manuall add labels_attention_mask
-                features["labels_attention_mask"].append(
-                    [0]
-                    * min(
-                        len(tokenized_inputs["input_ids"]),
-                        max_input_len - len(tokenized_targ["input_ids"]),
+                batched_features = []
+                for prompt_i in range(len(tokenized_inputs["input_ids"])):
+                    batched_features.append(
+                        [0]
+                        * min(
+                            len(tokenized_inputs["input_ids"][prompt_i]),
+                            max_input_len - len(tokenized_targ["input_ids"]),
+                        )
+                        + [1] * len(tokenized_targ["input_ids"])
                     )
-                    + [1] * len(tokenized_targ["input_ids"])
-                )
-
+                features["labels_attention_mask"].append(batched_features)
             # Manually pad to max effective length
             for k in features.keys():
-                for i in range(len(features[k])):
-                    if k == "input_ids":
-                        features[k][i] += [self.pipeline.tokenizer.pad_token_id] * (
-                            max_effective_input_len - len(features[k][i])
-                        )
-                    elif k in ["attention_mask", "labels_attention_mask"]:
-                        features[k][i] += [0] * (
-                            max_effective_input_len - len(features[k][i])
-                        )
-                    else:
-                        raise ValueError(f"Unknown key {k} for decoder only models")
+                for targ_i in range(len(features[k])):
+                    for prompt_i in range(len(features[k][targ_i])):
+                        if k == "input_ids":
+                            features[k][targ_i][prompt_i] += [
+                                self.pipeline.tokenizer.pad_token_id
+                            ] * (
+                                max_effective_input_len
+                                - len(features[k][targ_i][prompt_i])
+                            )
+                        elif k in ["attention_mask", "labels_attention_mask"]:
+                            features[k][targ_i][prompt_i] += [0] * (
+                                max_effective_input_len
+                                - len(features[k][targ_i][prompt_i])
+                            )
+                        else:
+                            raise ValueError(f"Unknown key {k} for decoder only models")
 
             features["labels"] = features["input_ids"]
+
         # Convert to tensors
         tensor_features = {}
         for k in features:
             tensor_features[k] = torch.LongTensor(features[k]).to(self.pipeline.device)
 
         if self.is_encdec:
+            gold_l, bsz, seq_len = tensor_features["labels"].shape
             stacked_logits = self.pipeline.model(  # type: ignore
-                input_ids=tensor_features["input_ids"],
-                attention_mask=tensor_features["attention_mask"],
-                labels=tensor_features["labels"],
+                input_ids=tensor_features["input_ids"].reshape(gold_l * bsz, -1),
+                attention_mask=tensor_features["attention_mask"].reshape(
+                    gold_l * bsz, -1
+                ),
+                labels=tensor_features["labels"].reshape(gold_l * bsz, -1),
             ).logits
+            stacked_logits = stacked_logits.reshape(gold_l, bsz, seq_len, -1)
             # Adapted from https://github.com/bigscience-workshop/t-zero
             masked_log_probs = tensor_features["labels_attention_mask"].unsqueeze(
                 -1
@@ -525,12 +573,57 @@ class HuggingFaceModel(Model):
                 * torch.log_softmax(stacked_logits.float(), dim=-1)[..., :-1, :]
             )
             seq_token_log_probs = torch.gather(
-                masked_log_probs, -1, tensor_features["labels"][:, 1:].unsqueeze(-1)
+                masked_log_probs, -1, tensor_features["labels"][..., 1:].unsqueeze(-1)
             )
         seq_token_log_probs = seq_token_log_probs.squeeze(dim=-1)
         seq_log_prob = seq_token_log_probs.sum(dim=-1)
         # Averaging over output sequence length for GPT
         if not self.is_encdec:
             seq_log_prob = seq_log_prob * (1 / (seq_token_log_probs != 0).sum(dim=-1))
-        prediction = seq_log_prob.argmax(dim=-1).item()
-        return gold_choices[int(prediction)], seq_log_prob[int(prediction)].item()
+        prediction = seq_log_prob.argmax(dim=0)
+        return [
+            (gold_choices[int(p)], seq_log_prob[int(p), i].item())
+            for i, p in enumerate(prediction)
+        ]
+
+    @torch.no_grad()
+    def score_sequence(
+        self, prompt: Union[str, List[str]], **kwargs: Any
+    ) -> List[float]:
+        """
+        Score a sequence of choices.
+
+        Args:
+            prompt (:obj:`str` or :obj:`List[str]`):
+                The prompt to score the choices against.
+            **kwargs:
+                Additional keyword arguments passed along to the :obj:`__call__` method.
+        """
+        if isinstance(prompt, str):
+            prompt = [prompt]
+        encoded_prompt = self.pipeline.tokenizer(
+            prompt,
+            max_length=self.pipeline.max_length,
+            truncation=True,
+            padding=True,
+            return_tensors="pt",
+        )
+        encoded_prompt["labels"] = encoded_prompt["input_ids"].clone()
+        encoded_prompt = encoded_prompt.to(self.pipeline.device)
+        logits = self.pipeline.model(  # type: ignore
+            **encoded_prompt,
+        ).logits
+        # For causal decoders, shift logts and labels
+        labels_attention_mask = encoded_prompt["attention_mask"].unsqueeze(-1)[
+            ..., 1:, :
+        ]
+        masked_log_probs = (
+            labels_attention_mask.float()
+            * torch.log_softmax(logits.float(), dim=-1)[..., :-1, :]
+        )
+        seq_token_log_probs = torch.gather(
+            masked_log_probs, -1, encoded_prompt["labels"][..., 1:].unsqueeze(-1)
+        )
+        seq_token_log_probs = seq_token_log_probs.squeeze(dim=-1)
+        seq_log_prob = seq_token_log_probs.sum(dim=-1)
+        return seq_log_prob.tolist()
