@@ -16,6 +16,7 @@ class Model(ABC):
         use_accelerate: bool,
         use_parallelize: bool,
         use_bitsandbytes: bool,
+        use_deepspeed: bool,
         perc_max_gpu_mem_red: float,
         use_fp16: bool,
     ):
@@ -32,6 +33,7 @@ class Model(ABC):
             use_accelerate: whether to use accelerate for multi-gpu inference.
             use_parallelize: use HF default parallelize
             use_bitsandbytes: use HF bits and bytes
+            use_deepspeed: use deepspeed
             perc_max_gpu_mem_red: percent max memory reduction in accelerate
             use_fp16: use fp16 for model weights.
         """
@@ -60,7 +62,7 @@ class Model(ABC):
     @abstractmethod
     def logits_scoring(
         self, prompt: str, gold_choices: List[str], **kwargs: Any
-    ) -> Tuple[str, float]:
+    ) -> List[Tuple[str, float]]:
         """
         Given the prompt and gold choices, choose the best choice with max logits.
 

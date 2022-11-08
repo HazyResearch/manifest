@@ -1,9 +1,12 @@
-dev:
+dev: deepspeed
 	pip install -e .[all]
 	pre-commit install
 
 test: dev check
 	pytest tests
+
+deepspeed:
+	pip install -e git+https://github.com/microsoft/DeepSpeed.git#egg=deepspeed
 
 format:
 	isort --atomic manifest/ tests/
