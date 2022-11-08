@@ -166,7 +166,7 @@ result = manifest.run(prompt, "Laurel", max_tokens=50)
 ```
 
 # Local Huggingface Models
-To use a HuggingFace generative model, in `manifest/api` we have a Falsk application that hosts the models for you.
+To use a HuggingFace generative model, in `manifest/api` we have a Flask application that hosts the models for you.
 
 In a separate terminal or Tmux/Screen session, to load 6B parameters models, run
 ```bash
@@ -186,7 +186,7 @@ manifest = Manifest(
 
 If you have a custom model you trained, pass the model path to `--model_name_or_path`.
 
-To help load larger models, we also support using `parallelize()` from HF, [accelerate](https://huggingface.co/docs/accelerate/index), and [bitsandbytes](https://github.com/TimDettmers/bitsandbytes). You will need to install these packages first. We list the commands to load larger models below.
+To help load larger models, we also support using `parallelize()` from HF, [accelerate](https://huggingface.co/docs/accelerate/index), [bitsandbytes](https://github.com/TimDettmers/bitsandbytes), and [deepspeed](https://github.com/microsoft/DeepSpeed). You will need to install these packages first via `pip install manifest-ml[api]`. We list the commands to load larger models below.
 
 * T0pp
 ```bash
