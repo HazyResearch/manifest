@@ -13,12 +13,12 @@ How to make prompt programming with Foundation Models a little easier.
 # Install
 Install:
 ```bash
-pip install manifest
+pip install manifest-ml
 ```
 
 Install with HuggingFace API Support:
 ```bash
-pip install manifest[api]
+pip install manifest-ml[api]
 ```
 
 Dev Install:

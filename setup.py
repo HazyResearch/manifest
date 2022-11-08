@@ -18,7 +18,7 @@ with open(ver_path) as ver_file:
     exec(ver_file.read(), main_ns)
 
 # Package meta-data.
-NAME = "manifest"
+NAME = "manifest-ml"
 DESCRIPTION = "Manifest for Prompt Programming Foundation Models."
 URL = "https://github.com/HazyResearch/manifest"
 EMAIL = "lorr1@cs.stanford.edu"
