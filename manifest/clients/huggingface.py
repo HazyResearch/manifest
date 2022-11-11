@@ -5,23 +5,25 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 import requests
 
 from manifest.clients.client import Client
+from manifest.request import Request
 
 logger = logging.getLogger(__name__)
-
-# User param -> (client param, default value)
-HF_PARAMS = {
-    "temperature": ("temperature", 1.0),
-    "max_tokens": ("max_tokens", 10),
-    "n": ("n", 1),
-    "top_p": ("top_p", 1.0),
-    "top_k": ("top_k", 50),
-    "repetition_penalty": ("repetition_penalty", 1.0),
-    "do_sample": ("do_sample", True),
-}
 
 
 class HuggingFaceClient(Client):
     """HuggingFace client."""
+
+    # User param -> (client param, default value)
+    PARAMS = {
+        "temperature": ("temperature", 1.0),
+        "max_tokens": ("max_tokens", 10),
+        "n": ("n", 1),
+        "top_p": ("top_p", 1.0),
+        "top_k": ("top_k", 50),
+        "repetition_penalty": ("repetition_penalty", 1.0),
+        "do_sample": ("do_sample", True),
+        "client_timeout": ("client_timeout", 120),  # seconds
+    }
 
     def connect(
         self,
@@ -38,13 +40,29 @@ class HuggingFaceClient(Client):
         if not connection_str:
             raise ValueError("Must provide connection string")
         self.host = connection_str.rstrip("/")
-        for key in HF_PARAMS:
-            setattr(self, key, client_args.pop(key, HF_PARAMS[key][1]))
-        self.model_params = self.get_model_params()
+        for key in self.PARAMS:
+            setattr(self, key, client_args.pop(key, self.PARAMS[key][1]))
 
     def close(self) -> None:
         """Close the client."""
         pass
+
+    def get_generation_url(self) -> str:
+        """Get generation URL."""
+        return self.host + "/completions"
+
+    def get_generation_header(self) -> Dict[str, str]:
+        """
+        Get generation header.
+
+        Returns:
+            header.
+        """
+        return {}
+
+    def supports_batch_inference(self) -> bool:
+        """Return whether the client supports batch inference."""
+        return True
 
     def get_model_params(self) -> Dict:
         """
@@ -59,63 +77,41 @@ class HuggingFaceClient(Client):
         res = requests.post(self.host + "/params")
         return res.json()
 
-    def get_model_inputs(self) -> List:
-        """
-        Get allowable model inputs.
-
-        Returns:
-            model inputs.
-        """
-        return list(HF_PARAMS.keys())
-
-    def get_request(
-        self, query: str, request_args: Dict[str, Any] = {}
-    ) -> Tuple[Callable[[], Dict], Dict]:
-        """
-        Get request string function.
-
-        Args:
-            query: query string.
-
-        Returns:
-            request function that takes no input.
-            request parameters as dict.
-        """
-        request_params = {"prompt": query}
-        for key in HF_PARAMS:
-            request_params[HF_PARAMS[key][0]] = request_args.pop(
-                key, getattr(self, key)
-            )
-        request_params.update(self.model_params)
-
-        def _run_completion() -> Dict:
-            post_str = self.host + "/completions"
-            res = requests.post(post_str, json=request_params)
-            return res.json()
-
-        return _run_completion, request_params
-
     def get_choice_logit_request(
-        self, query: str, gold_choices: List[str], request_args: Dict[str, Any] = {}
+        self,
+        gold_choices: List[str],
+        request: Request,
     ) -> Tuple[Callable[[], Dict], Dict]:
         """
         Get request string function for choosing max choices.
 
         Args:
-            query: query string.
             gold_choices: choices for model to choose from via max logits.
+            request: request.
 
         Returns:
             request function that takes no input.
             request parameters as dict.
         """
-        request_params = {"prompt": query, "gold_choices": gold_choices}
+        request_params = request.to_dict(self.PARAMS)
+        retry_timeout = request_params.pop("client_timeout")
         # Do not add params like we do with request as the model isn't sampling
-        request_params.update(self.model_params)
+        request_params = {"prompt": request.prompt, "gold_choices": gold_choices}
 
         def _run_completion() -> Dict:
             post_str = self.host + "/choice_logits"
-            res = requests.post(post_str, json=request_params)
+            try:
+                res = requests.post(
+                    post_str,
+                    json=request_params,
+                    timeout=retry_timeout,
+                )
+                res.raise_for_status()
+            except requests.Timeout as e:
+                logger.error("HF request timed out. Increase client_timeout.")
+                raise e
+            except requests.exceptions.HTTPError as e:
+                raise e
             return res.json()
 
         return _run_completion, request_params

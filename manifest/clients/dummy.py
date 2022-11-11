@@ -3,17 +3,18 @@ import logging
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from manifest.clients.client import Client
+from manifest.request import Request
 
 logger = logging.getLogger(__name__)
-
-# User param -> (client param, default value)
-DUMMY_PARAMS = {
-    "n": ("num_results", 1),
-}
 
 
 class DummyClient(Client):
     """Dummy client."""
+
+    # User param -> (client param, default value)
+    PARAMS = {
+        "n": ("num_results", 1),
+    }
 
     def connect(
         self,
@@ -29,12 +30,29 @@ class DummyClient(Client):
             connection_str: connection string.
             client_args: client arguments.
         """
-        for key in DUMMY_PARAMS:
-            setattr(self, key, client_args.pop(key, DUMMY_PARAMS[key][1]))
+        for key in self.PARAMS:
+            setattr(self, key, client_args.pop(key, self.PARAMS[key][1]))
 
     def close(self) -> None:
         """Close the client."""
         pass
+
+    def get_generation_url(self) -> str:
+        """Get generation URL."""
+        return "dummy"
+
+    def supports_batch_inference(self) -> bool:
+        """Return whether the client supports batch inference."""
+        return True
+
+    def get_generation_header(self) -> Dict[str, str]:
+        """
+        Get generation header.
+
+        Returns:
+            header.
+        """
+        return {}
 
     def get_model_params(self) -> Dict:
         """
@@ -48,56 +66,55 @@ class DummyClient(Client):
         """
         return {"engine": "dummy"}
 
-    def get_model_inputs(self) -> List:
-        """
-        Get allowable model inputs.
-
-        Returns:
-            model inputs.
-        """
-        return list(DUMMY_PARAMS.keys())
-
-    def get_request(
-        self, query: str, request_args: Dict[str, Any] = {}
-    ) -> Tuple[Callable[[], Dict], Dict]:
+    def get_request(self, request: Request) -> Tuple[Callable[[], Dict], Dict]:
         """
         Get request string function.
 
         Args:
-            query: query string.
+            request: request.
 
         Returns:
             request function that takes no input.
             request parameters as dict.
         """
-        request_params = {"prompt": query}
-        for key in DUMMY_PARAMS:
-            request_params[DUMMY_PARAMS[key][0]] = request_args.pop(
-                key, getattr(self, key)
-            )
+        if isinstance(request.prompt, list):
+            num_results = len(request.prompt)
+        else:
+            num_results = 1
+        request_params = request.to_dict(self.PARAMS)
 
         def _run_completion() -> Dict:
-            return {"choices": [{"text": "hello"}] * int(request_params["num_results"])}
+            return {
+                "choices": [{"text": "hello"}]
+                * int(request_params["num_results"])
+                * num_results
+            }
 
         return _run_completion, request_params
 
     def get_choice_logit_request(
-        self, query: str, gold_choices: List[str], request_args: Dict[str, Any] = {}
+        self,
+        gold_choices: List[str],
+        request: Request,
     ) -> Tuple[Callable[[], Dict], Dict]:
         """
         Get request string function for choosing max choices.
 
         Args:
-            query: query string.
             gold_choices: choices for model to choose from via max logits.
+            request: request.
 
         Returns:
             request function that takes no input.
             request parameters as dict.
         """
-        request_params = {"prompt": query, "gold_choices": gold_choices}
+        if isinstance(request.prompt, list):
+            num_results = len(request.prompt)
+        else:
+            num_results = 1
+        request_params = {"prompt": request.prompt, "gold_choices": gold_choices}
 
         def _run_completion() -> Dict:
-            return {"choices": [{"text": gold_choices[0]}]}
+            return {"choices": [{"text": gold_choices[0]}] * num_results}
 
         return _run_completion, request_params

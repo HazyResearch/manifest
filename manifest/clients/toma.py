@@ -9,23 +9,26 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 import requests
 
 from manifest.clients.client import Client
+from manifest.request import Request
 
 logger = logging.getLogger(__name__)
 
-TOMA_ENGINES = {
-    "bloom",
-    "glm-int8",
-    "gpt-neox-20b",
-    "opt-66b",
-    "opt-175b",
-    "glm",
-    "stable_diffusion",
-    "t0pp",
-    "gpt-j-6b",
-    "t5-11b",
-    "glm-int4",
-    "ul2",
-}
+# Engines are dynamically instantiated from API
+# but a few example engines are listed below.
+# TOMA_ENGINES = {
+#     "bloom",
+#     "glm-int8",
+#     "gpt-neox-20b",
+#     "opt-66b",
+#     "opt-175b",
+#     "glm",
+#     "stable_diffusion",
+#     "t0pp",
+#     "gpt-j-6b",
+#     "t5-11b",
+#     "glm-int4",
+#     "ul2",
+# }
 
 # Engine -> request type
 # Default is language-model-inference
@@ -33,24 +36,21 @@ TOMA_ENGINE_REQUEST_TYPE = {
     "stable_diffusion": "image-model-inference",
 }
 
-# User param -> (client param, default value)
-TOMA_PARAMS = {
-    "engine": ("model", "gpt-j-6b"),
-    "temperature": ("temperature", 1.0),
-    "max_tokens": ("max_tokens", 10),
-    "n": ("n", 1),
-    "p": ("top_p", 1.0),
-    "stop_sequences": ("stop", []),
-    "best_of": ("best_of", 1),
-    "logprobs": ("logprobs", 0),
-    "prompt_embedding": ("prompt_embedding", False),
-    "echo": ("echo", False),
-    "client_timeout": ("client_timeout", 120),  # seconds
-}
-
 
 class TOMAClient(Client):
     """TOMA client."""
+
+    # User param -> (client param, default value)
+    PARAMS = {
+        "engine": ("model", "gpt-j-6b"),
+        "temperature": ("temperature", 1.0),
+        "max_tokens": ("max_tokens", 10),
+        "n": ("n", 1),
+        "top_p": ("top_p", 1.0),
+        "top_k": ("best_of", 1),
+        "stop_sequences": ("stop", []),
+        "client_timeout": ("client_timeout", 120),  # seconds
+    }
 
     def connect(
         self,
@@ -74,20 +74,21 @@ class TOMAClient(Client):
         #         "variable or pass through `connection_str`."
         #     )
 
-        for key in TOMA_PARAMS:
-            setattr(self, key, client_args.pop(key, TOMA_PARAMS[key][1]))
-        if getattr(self, "engine") not in TOMA_ENGINES:
-            raise ValueError(
-                f"Invalid engine {getattr(self, 'engine')}. Must be {TOMA_ENGINES}."
-            )
+        for key in self.PARAMS:
+            setattr(self, key, client_args.pop(key, self.PARAMS[key][1]))
         model_heartbeats = self.get_model_heartbeats()
-        model_heartbeat_threshold = 60
+        if getattr(self, "engine") not in model_heartbeats.keys():
+            raise ValueError(
+                f"Invalid engine {getattr(self, 'engine')}. "
+                f"Must be {model_heartbeats.keys()}."
+            )
+        model_heartbeat_threshold = 120
         logger.info(f"TOMA model heartbeats\n {json.dumps(model_heartbeats)}")
         if (
             model_heartbeats[getattr(self, "engine")]["last_ping"]
             > model_heartbeat_threshold
         ):
-            raise ValueError(
+            logger.warning(
                 f"Model {getattr(self, 'engine')} has not been pinged in "
                 f"{model_heartbeats[getattr(self, 'engine')]} seconds."
             )
@@ -108,6 +109,23 @@ class TOMAClient(Client):
         """Close the client."""
         pass
 
+    def get_generation_url(self) -> str:
+        """Get generation URL."""
+        return self.host + "/jobs"
+
+    def get_generation_header(self) -> Dict[str, str]:
+        """
+        Get generation header.
+
+        Returns:
+            header.
+        """
+        return {}
+
+    def supports_batch_inference(self) -> bool:
+        """Return whether the client supports batch inference."""
+        return False
+
     def get_model_params(self) -> Dict:
         """
         Get model params.
@@ -119,15 +137,6 @@ class TOMAClient(Client):
             model params.
         """
         return {"model_name": "toma", "engine": getattr(self, "engine")}
-
-    def get_model_inputs(self) -> List:
-        """
-        Get allowable model inputs.
-
-        Returns:
-            model inputs.
-        """
-        return list(TOMA_PARAMS.keys())
 
     def get_last_job_id(self) -> Optional[str]:
         """
@@ -214,36 +223,24 @@ class TOMAClient(Client):
         else:
             raise RuntimeError(f"TOMA request failed with {final_res['message']}.")
 
-    def get_request(
-        self, query: str, request_args: Dict[str, Any] = {}
-    ) -> Tuple[Callable[[], Dict], Dict]:
+    def get_request(self, request: Request) -> Tuple[Callable[[], Dict], Dict]:
         """
         Get request string function.
 
         Args:
-            query: query string.
+            request: request.
 
         Returns:
             request function that takes no input.
             request parameters as dict.
         """
-        request_params = {
-            "prompt": [query],
-            "request_type": TOMA_ENGINE_REQUEST_TYPE.get(
-                getattr(self, "engine"), "language-model-inference"
-            ),
-        }
-        for key in TOMA_PARAMS:
-            if key in ["client_timeout"]:
-                # These are not passed to the TOMA API
-                continue
-            request_params[TOMA_PARAMS[key][0]] = request_args.pop(
-                key, getattr(self, key)
-            )
-
-        retry_timeout = request_args.pop(
-            "client_timeout", getattr(self, "client_timeout")
+        if isinstance(request.prompt, list):
+            raise ValueError("TOMA does not support batch requests.")
+        request_params = request.to_dict(self.PARAMS)
+        request_params["request_type"] = TOMA_ENGINE_REQUEST_TYPE.get(
+            getattr(self, "engine"), "language-model-inference"
         )
+        retry_timeout = request_params.pop("client_timeout")
 
         # num_returns is for image-model-inference
         if request_params["request_type"] == "image-model-inference":
@@ -271,19 +268,3 @@ class TOMAClient(Client):
             return final_res
 
         return _run_completion, request_params
-
-    def get_choice_logit_request(
-        self, query: str, gold_choices: List[str], request_args: Dict[str, Any] = {}
-    ) -> Tuple[Callable[[], Dict], Dict]:
-        """
-        Get request string function for choosing max choices.
-
-        Args:
-            query: query string.
-            gold_choices: choices for model to choose from via max logits.
-
-        Returns:
-            request function that takes no input.
-            request parameters as dict.
-        """
-        raise NotImplementedError("TOMA does not support choice logit request.")

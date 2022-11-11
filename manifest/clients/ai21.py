@@ -1,9 +1,7 @@
 """AI21 client."""
 import logging
 import os
-from typing import Any, Callable, Dict, List, Optional, Tuple
-
-import requests
+from typing import Any, Dict, Optional
 
 from manifest.clients.client import Client
 
@@ -15,21 +13,21 @@ AI21_ENGINES = {
     "j1-large",
 }
 
-# User param -> (client param, default value)
-AI21_PARAMS = {
-    "engine": ("engine", "j1-large"),
-    "temperature": ("temperature", 1.0),
-    "max_tokens": ("maxTokens", 10),
-    "top_k_return": ("topKReturn", 0),
-    "n": ("numResults", 1),
-    "top_p": ("topP", 1.0),
-    "stop_sequences": ("stopSequences", []),
-    "client_timeout": ("client_timeout", 60),  # seconds
-}
-
 
 class AI21Client(Client):
     """AI21Client client."""
+
+    # User param -> (client param, default value)
+    PARAMS = {
+        "engine": ("engine", "j1-large"),
+        "temperature": ("temperature", 1.0),
+        "max_tokens": ("maxTokens", 10),
+        "top_k": ("topKReturn", 0),
+        "n": ("numResults", 1),
+        "top_p": ("topP", 1.0),
+        "stop_sequences": ("stopSequences", []),
+        "client_timeout": ("client_timeout", 60),  # seconds
+    }
 
     def connect(
         self,
@@ -54,8 +52,8 @@ class AI21Client(Client):
                 "variable or pass through `connection_str`."
             )
 
-        for key in AI21_PARAMS:
-            setattr(self, key, client_args.pop(key, AI21_PARAMS[key][1]))
+        for key in self.PARAMS:
+            setattr(self, key, client_args.pop(key, self.PARAMS[key][1]))
         if getattr(self, "engine") not in AI21_ENGINES:
             raise ValueError(
                 f"Invalid engine {getattr(self, 'engine')}. Must be {AI21_ENGINES}."
@@ -64,6 +62,23 @@ class AI21Client(Client):
     def close(self) -> None:
         """Close the client."""
         pass
+
+    def get_generation_url(self) -> str:
+        """Get generation URL."""
+        return self.host + "/" + getattr(self, "engine") + "/complete"
+
+    def get_generation_header(self) -> Dict[str, str]:
+        """
+        Get generation header.
+
+        Returns:
+            header.
+        """
+        return {"Authorization": f"Bearer {self.api_key}"}
+
+    def supports_batch_inference(self) -> bool:
+        """Return whether the client supports batch inference."""
+        return False
 
     def get_model_params(self) -> Dict:
         """
@@ -76,15 +91,6 @@ class AI21Client(Client):
             model params.
         """
         return {"model_name": "ai21", "engine": getattr(self, "engine")}
-
-    def get_model_inputs(self) -> List:
-        """
-        Get allowable model inputs.
-
-        Returns:
-            model inputs.
-        """
-        return list(AI21_PARAMS.keys())
 
     def format_response(self, response: Dict) -> Dict[str, Any]:
         """
@@ -107,65 +113,3 @@ class AI21Client(Client):
                 for item in response["completions"]
             ],
         }
-
-    def get_request(
-        self, query: str, request_args: Dict[str, Any] = {}
-    ) -> Tuple[Callable[[], Dict], Dict]:
-        """
-        Get request string function.
-
-        Args:
-            query: query string.
-
-        Returns:
-            request function that takes no input.
-            request parameters as dict.
-        """
-        request_params = {"prompt": query}
-        for key in AI21_PARAMS:
-            if key in ["client_timeout"]:
-                # These are not passed to the AI21 API
-                continue
-            request_params[AI21_PARAMS[key][0]] = request_args.pop(
-                key, getattr(self, key)
-            )
-
-        def _run_completion() -> Dict:
-            post_str = self.host + "/" + getattr(self, "engine") + "/complete"
-            res = requests.post(
-                post_str,
-                headers={"Authorization": f"Bearer {self.api_key}"},
-                json=request_params,
-            )
-            try:
-                res = requests.post(
-                    post_str,
-                    headers={"Authorization": f"Bearer {self.api_key}"},
-                    json=request_params,
-                    timeout=getattr(self, "client_timeout"),
-                )
-                res.raise_for_status()
-            except requests.Timeout as e:
-                logger.error("AI21 request timed out. Increase client_timeout.")
-                raise e
-            except requests.exceptions.HTTPError as e:
-                raise e
-            return self.format_response(res.json())
-
-        return _run_completion, request_params
-
-    def get_choice_logit_request(
-        self, query: str, gold_choices: List[str], request_args: Dict[str, Any] = {}
-    ) -> Tuple[Callable[[], Dict], Dict]:
-        """
-        Get request string function for choosing max choices.
-
-        Args:
-            query: query string.
-            gold_choices: choices for model to choose from via max logits.
-
-        Returns:
-            request function that takes no input.
-            request parameters as dict.
-        """
-        raise NotImplementedError("AI21 does not support choice logit request.")

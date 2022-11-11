@@ -21,12 +21,6 @@ PORT = int(os.environ.get("FLASK_PORT", 5000))
 MODEL_CONSTRUCTORS = {
     "huggingface": HuggingFaceModel,
 }
-try:
-    from manifest.api.models.zoo import ZooModel
-
-    MODEL_CONSTRUCTORS["zoo"] = ZooModel  # type: ignore
-except ImportError:
-    logger.warning("Zoo model not available.")
 
 
 def parse_args() -> argparse.Namespace:
@@ -160,8 +154,8 @@ def completions() -> Dict:
     del request.json["prompt"]
     generation_args = request.json
 
-    if not isinstance(prompt, str):
-        raise ValueError("Prompt must be a str")
+    if not isinstance(prompt, (str, list)):
+        raise ValueError("Prompt must be a str or list of str")
 
     results_text = []
     for generations in model.generate(prompt, **generation_args):
@@ -180,8 +174,8 @@ def choice_logits() -> Dict:
     del request.json["gold_choices"]
     generation_args = request.json
 
-    if not isinstance(prompt, str):
-        raise ValueError("Prompt must be a str")
+    if not isinstance(prompt, (str, list)):
+        raise ValueError("Prompt must be a str or list of str")
 
     if not isinstance(gold_choices, list):
         raise ValueError("Gold choices must be a list of string choices")

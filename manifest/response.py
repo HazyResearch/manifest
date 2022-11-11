@@ -40,21 +40,27 @@ class Response:
         """Get response dict without parsing."""
         return self._response
 
-    def get_response(self, stop_token: str = "") -> Union[str, List[str], None]:
+    def get_response(
+        self, stop_token: str = "", is_batch: bool = False
+    ) -> Union[str, List[str], None]:
         """
         Get all text results from response.
 
         Args:
             stop_token: stop token for string generation
+            is_batch: whether response is batched
         """
         process_result = (
             lambda x: x.strip().split(stop_token)[0] if stop_token else x.strip()
         )
         if len(self._response["choices"]) == 0:
             return None
-        if len(self._response["choices"]) == 1:
-            return process_result(self._response["choices"][0]["text"])
-        return [process_result(choice["text"]) for choice in self._response["choices"]]
+        results = [
+            process_result(choice["text"]) for choice in self._response["choices"]
+        ]
+        if len(results) == 1 and not is_batch:
+            return results[0]
+        return results
 
     def serialize(self) -> str:
         """
