@@ -60,10 +60,12 @@ def test_get_results():
     response = Response({"choices": []}, True, {"request": "yoyo"})
     assert response.get_response() is None
     assert response.get_response(stop_token="ll") is None
+    assert response.get_response(stop_token="ll", is_batch=True) is None
 
     response = Response({"choices": [{"text": "hello"}]}, True, {"request": "yoyo"})
     assert response.get_response() == "hello"
     assert response.get_response(stop_token="ll") == "he"
+    assert response.get_response(stop_token="ll", is_batch=True) == ["he"]
 
     response = Response(
         {"choices": [{"text": "hello"}, {"text": "my"}, {"text": "name"}]},
@@ -72,3 +74,4 @@ def test_get_results():
     )
     assert response.get_response() == ["hello", "my", "name"]
     assert response.get_response(stop_token="m") == ["hello", "", "na"]
+    assert response.get_response(stop_token="m", is_batch=True) == ["hello", "", "na"]

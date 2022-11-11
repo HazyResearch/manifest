@@ -56,6 +56,7 @@ MODEL_REGISTRY = {
     "google/flan-t5-l": AutoModelForSeq2SeqLM,  # 800M
     "google/flan-t5-xl": AutoModelForSeq2SeqLM,  # 3B
     "google/flan-t5-xxl": AutoModelForSeq2SeqLM,  # 11B
+    "allenai/tk-instruct-3b-def": AutoModelForSeq2SeqLM,
 }
 
 

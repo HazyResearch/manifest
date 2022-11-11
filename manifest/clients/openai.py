@@ -1,9 +1,7 @@
 """OpenAI client."""
 import logging
 import os
-from typing import Any, Callable, Dict, List, Optional, Tuple
-
-import requests
+from typing import Any, Dict, Optional
 
 from manifest.clients.client import Client
 
@@ -13,6 +11,9 @@ OPENAI_ENGINES = {
     "text-davinci-002",
     "text-davinci-001",
     "davinci",
+    "curie",
+    "ada",
+    "babbage",
     "text-curie-001",
     "text-babbage-001",
     "text-ada-001",
@@ -20,24 +21,23 @@ OPENAI_ENGINES = {
     "code-cushman-001",
 }
 
-# User param -> (client param, default value)
-OPENAI_PARAMS = {
-    "engine": ("model", "text-davinci-002"),
-    "temperature": ("temperature", 1.0),
-    "max_tokens": ("max_tokens", 10),
-    "n": ("n", 1),
-    "top_p": ("top_p", 1.0),
-    "logprobs": ("logprobs", None),
-    "top_k_return": ("best_of", 1),
-    "stop_sequence": ("stop", None),  # OpenAI doesn't like empty lists
-    "presence_penalty": ("presence_penalty", 0.0),
-    "frequency_penalty": ("frequency_penalty", 0.0),
-    "client_timeout": ("client_timeout", 60),  # seconds
-}
-
 
 class OpenAIClient(Client):
     """OpenAI client."""
+
+    # User param -> (client param, default value)
+    PARAMS = {
+        "engine": ("model", "text-davinci-002"),
+        "temperature": ("temperature", 1.0),
+        "max_tokens": ("max_tokens", 10),
+        "n": ("n", 1),
+        "top_p": ("top_p", 1.0),
+        "top_k": ("best_of", 1),
+        "stop_sequences": ("stop", None),  # OpenAI doesn't like empty lists
+        "presence_penalty": ("presence_penalty", 0.0),
+        "frequency_penalty": ("frequency_penalty", 0.0),
+        "client_timeout": ("client_timeout", 60),  # seconds
+    }
 
     def connect(
         self,
@@ -60,8 +60,8 @@ class OpenAIClient(Client):
                 "variable or pass through `connection_str`."
             )
         self.host = "https://api.openai.com/v1"
-        for key in OPENAI_PARAMS:
-            setattr(self, key, client_args.pop(key, OPENAI_PARAMS[key][1]))
+        for key in self.PARAMS:
+            setattr(self, key, client_args.pop(key, self.PARAMS[key][1]))
         if getattr(self, "engine") not in OPENAI_ENGINES:
             raise ValueError(
                 f"Invalid engine {getattr(self, 'engine')}. Must be {OPENAI_ENGINES}."
@@ -70,6 +70,23 @@ class OpenAIClient(Client):
     def close(self) -> None:
         """Close the client."""
         pass
+
+    def get_generation_url(self) -> str:
+        """Get generation URL."""
+        return self.host + "/completions"
+
+    def get_generation_header(self) -> Dict[str, str]:
+        """
+        Get generation header.
+
+        Returns:
+            header.
+        """
+        return {"Authorization": f"Bearer {self.api_key}"}
+
+    def supports_batch_inference(self) -> bool:
+        """Return whether the client supports batch inference."""
+        return True
 
     def get_model_params(self) -> Dict:
         """
@@ -82,83 +99,3 @@ class OpenAIClient(Client):
             model params.
         """
         return {"model_name": "openai", "engine": getattr(self, "engine")}
-
-    def get_model_inputs(self) -> List:
-        """
-        Get allowable model inputs.
-
-        Returns:
-            model inputs.
-        """
-        return list(OPENAI_PARAMS.keys())
-
-    def format_response(self, response: Dict) -> Dict[str, Any]:
-        """
-        Format response to dict.
-
-        Args:
-            response: response
-
-        Return:
-            response as dict
-        """
-        if "choices" not in response:
-            raise ValueError(f"Invalid response: {response}")
-        return response
-
-    def get_request(
-        self, query: str, request_args: Dict[str, Any] = {}
-    ) -> Tuple[Callable[[], Dict], Dict]:
-        """
-        Get request string function.
-
-        Args:
-            query: query string.
-
-        Returns:
-            request function that takes no input.
-            request parameters as dict.
-        """
-        request_params = {"prompt": query}
-        for key in OPENAI_PARAMS:
-            if key in ["client_timeout"]:
-                # These are not passed to the OpenAI API
-                continue
-            request_params[OPENAI_PARAMS[key][0]] = request_args.pop(
-                key, getattr(self, key)
-            )
-
-        def _run_completion() -> Dict:
-            post_str = self.host + "/completions"
-            try:
-                res = requests.post(
-                    post_str,
-                    headers={"Authorization": f"Bearer {self.api_key}"},
-                    json=request_params,
-                    timeout=getattr(self, "client_timeout"),
-                )
-                res.raise_for_status()
-            except requests.Timeout as e:
-                logger.error("OpenAI request timed out. Increase client_timeout.")
-                raise e
-            except requests.exceptions.HTTPError as e:
-                raise e
-            return self.format_response(res.json())
-
-        return _run_completion, request_params
-
-    def get_choice_logit_request(
-        self, query: str, gold_choices: List[str], request_args: Dict[str, Any] = {}
-    ) -> Tuple[Callable[[], Dict], Dict]:
-        """
-        Get request string function for choosing max choices.
-
-        Args:
-            query: query string.
-            gold_choices: choices for model to choose from via max logits.
-
-        Returns:
-            request function that takes no input.
-            request parameters as dict.
-        """
-        raise NotImplementedError("OpenAI does not support choice logit request.")

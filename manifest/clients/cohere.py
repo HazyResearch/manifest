@@ -2,9 +2,7 @@
 
 import logging
 import os
-from typing import Any, Callable, Dict, List, Optional, Tuple
-
-import requests
+from typing import Any, Dict, Optional
 
 from manifest.clients.client import Client
 
@@ -12,25 +10,23 @@ logger = logging.getLogger(__name__)
 
 COHERE_MODELS = {"small", "medium", "large", "xlarge"}
 
-# Params are defined in https://docs.cohere.ai/generate-reference
-COHERE_PARAMS = {
-    "engine": ("model", "xlarge"),
-    "max_tokens": ("max_tokens", 20),
-    "temperature": ("temperature", 0.75),
-    "num_generations": ("num_generations", 1),
-    "k": ("k", 0),
-    "p": ("p", 0.75),
-    "frequency_penalty": ("frequency_penalty", 0.0),
-    "presence_penalty": ("presence_penalty", 0.0),
-    "stop_sequences": ("stop_sequences", []),
-    "return_likelihoods": ("return_likelihoods", ""),
-    "logit_bias": ("logit_bias", {}),
-    "client_timeout": ("client_timeout", 60),  # seconds
-}
-
 
 class CohereClient(Client):
     """Cohere client."""
+
+    # Params are defined in https://docs.cohere.ai/generate-reference
+    PARAMS = {
+        "engine": ("model", "xlarge"),
+        "max_tokens": ("max_tokens", 20),
+        "temperature": ("temperature", 0.75),
+        "n": ("num_generations", 1),
+        "top_k": ("k", 0),
+        "top_p": ("p", 0.75),
+        "frequency_penalty": ("frequency_penalty", 0.0),
+        "presence_penalty": ("presence_penalty", 0.0),
+        "stop_sequences": ("stop_sequences", None),
+        "client_timeout": ("client_timeout", 60),  # seconds
+    }
 
     def connect(
         self,
@@ -53,8 +49,8 @@ class CohereClient(Client):
                 "variable or pass through `connection_str`."
             )
         self.host = "https://api.cohere.ai"
-        for key in COHERE_PARAMS:
-            setattr(self, key, client_args.pop(key, COHERE_PARAMS[key][1]))
+        for key in self.PARAMS:
+            setattr(self, key, client_args.pop(key, self.PARAMS[key][1]))
         if getattr(self, "engine") not in COHERE_MODELS:
             raise ValueError(
                 f"Invalid engine {getattr(self, 'engine')}. Must be {COHERE_MODELS}."
@@ -62,6 +58,26 @@ class CohereClient(Client):
 
     def close(self) -> None:
         """Close the client."""
+
+    def get_generation_url(self) -> str:
+        """Get generation URL."""
+        return self.host + "/generate"
+
+    def get_generation_header(self) -> Dict[str, str]:
+        """
+        Get generation header.
+
+        Returns:
+            header.
+        """
+        return {
+            "Cohere-Version": "2021-11-08",
+            "Authorization": f"Bearer {self.api_key}",
+        }
+
+    def supports_batch_inference(self) -> bool:
+        """Return whether the client supports batch inference."""
+        return False
 
     def get_model_params(self) -> Dict:
         """
@@ -74,15 +90,6 @@ class CohereClient(Client):
             model params.
         """
         return {"model_name": "cohere", "engine": getattr(self, "engine")}
-
-    def get_model_inputs(self) -> List:
-        """
-        Get allowable model inputs.
-
-        Returns:
-            model inputs.
-        """
-        return list(COHERE_PARAMS.keys())
 
     def format_response(self, response: Dict) -> Dict[str, Any]:
         """
@@ -106,62 +113,3 @@ class CohereClient(Client):
                 for item in response["generations"]
             ],
         }
-
-    def get_request(
-        self, query: str, request_args: Dict[str, Any] = {}
-    ) -> Tuple[Callable[[], Dict], Dict]:
-        """
-        Get request string function.
-
-        Args:
-            query: query string.
-
-        Returns:
-            request function that takes no input.
-            request parameters as dict.
-        """
-        request_params = {"prompt": query}
-        for key in COHERE_PARAMS:
-            if key in ["client_timeout"]:
-                continue
-            request_params[COHERE_PARAMS[key][0]] = request_args.pop(
-                key, getattr(self, key)
-            )
-
-        def _run_completion() -> Dict:
-            post_str = self.host + "/generate"
-            try:
-                res = requests.post(
-                    post_str,
-                    headers={
-                        "Authorization": f"Bearer {self.api_key}",
-                        "Cohere-Version": "2021-11-08",
-                    },
-                    json=request_params,
-                    timeout=getattr(self, "client_timeout"),
-                )
-                res.raise_for_status()
-            except requests.Timeout as e:
-                logger.error("Cohere request timed out. Increase client_timeout.")
-                raise e
-            except requests.exceptions.HTTPError as e:
-                raise e
-            return self.format_response(res.json())
-
-        return _run_completion, request_params
-
-    def get_choice_logit_request(
-        self, query: str, gold_choices: List[str], request_args: Dict[str, Any] = {}
-    ) -> Tuple[Callable[[], Dict], Dict]:
-        """
-        Get request string function for choosing max choices.
-
-        Args:
-            query: query string.
-            gold_choices: choices for model to choose from via max logits.
-
-        Returns:
-            request function that takes no input.
-            request parameters as dict.
-        """
-        raise NotImplementedError("Cohere does not support choice logit request.")
