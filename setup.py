@@ -32,7 +32,6 @@ REQUIRED = [
     "redis>=4.3.1",
     "requests>=2.27.1",
     "sqlitedict>=2.0.0",
-    "tqdm>=4.64.0",
 ]
 
 # What packages are optional?

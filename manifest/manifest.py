@@ -1,8 +1,6 @@
 """Manifest class."""
 import logging
-from typing import Any, Iterable, List, Optional, Tuple, Union, cast
-
-from tqdm.auto import tqdm
+from typing import Any, List, Optional, Tuple, Union, cast
 
 from manifest.caches.noop import NoopCache
 from manifest.caches.redis import RedisCache
@@ -12,10 +10,7 @@ from manifest.clients.cohere import CohereClient
 from manifest.clients.dummy import DummyClient
 from manifest.clients.huggingface import HuggingFaceClient
 from manifest.clients.openai import OpenAIClient
-from manifest.clients.opt import OPTClient
 from manifest.clients.toma import TOMAClient
-from manifest.clients.zoo import ZooClient
-from manifest.prompt import Prompt
 from manifest.response import Response
 from manifest.session import Session
 
@@ -27,10 +22,8 @@ CLIENT_CONSTRUCTORS = {
     "cohere": CohereClient,
     "ai21": AI21Client,
     "huggingface": HuggingFaceClient,
-    "opt": OPTClient,
     "dummy": DummyClient,
     "toma": TOMAClient,
-    "zoo": ZooClient,
 }
 
 CACHE_CONSTRUCTORS = {
@@ -106,8 +99,7 @@ class Manifest:
 
     def run(
         self,
-        prompt: Union[Prompt, str],
-        input: Optional[Any] = None,
+        prompt: Union[str, List[str]],
         gold_choices: Optional[List[str]] = None,
         overwrite_cache: bool = False,
         run_id: Optional[str] = None,
@@ -119,40 +111,56 @@ class Manifest:
         Run the prompt.
 
         Args:
-            prompt: prompt to run. If string, will cast to prompt.
-            input: input to prompt.
+            prompt: prompt(s) to run.
             gold_choices: gold choices for max logit response (only HF models).
             overwrite_cache: whether to overwrite cache.
             run_id: run id for cache to repeat same run.
             stop_token: stop token for prompt generation.
                         Default is self.stop_token.
                         "" for no stop token.
+            return_response: whether to return Response object.
 
         Returns:
             response from prompt.
         """
-        if isinstance(prompt, str):
-            prompt = Prompt(prompt)
+        is_batch = isinstance(prompt, list)
+
         stop_token = stop_token if stop_token is not None else self.stop_token
-        prompt_str = prompt(input)
         # Must pass kwargs as dict for client "pop" methods removed used arguments
+        request_params = self.client.get_request_params(prompt, kwargs)
+        # Avoid nested list of results - enforce n = 1 for batch
+        if is_batch and request_params.n > 1:
+            raise ValueError("Batch mode does not support n > 1.")
         if gold_choices is None:
-            possible_request, full_kwargs = self.client.get_request(prompt_str, kwargs)
+            possible_request, full_kwargs = self.client.get_request(request_params)
         else:
             try:
                 possible_request, full_kwargs = cast(
                     HuggingFaceClient, self.client
-                ).get_choice_logit_request(prompt_str, gold_choices, kwargs)
+                ).get_choice_logit_request(gold_choices, request_params)
             except AttributeError:
                 raise ValueError("`gold_choices` only supported for HF models.")
-        if len(kwargs) > 0:
-            raise ValueError(f"{list(kwargs.items())} arguments are not recognized.")
+
+        # Check for invalid kwargs
+        non_request_kwargs = [
+            (k, v) for k, v in kwargs.items() if k not in request_params.__dict__
+        ]
+        if len(non_request_kwargs) > 0:
+            raise ValueError(
+                f"{list(non_request_kwargs)} arguments are not recognized."
+            )
+
+        # Warn for valid but unused kwargs
+        request_unused_kwargs = [
+            (k, v) for k, v in kwargs.items() if k not in non_request_kwargs
+        ]
+        if len(request_unused_kwargs) > 0:
+            logger.warning(f"{list(request_unused_kwargs)} arguments are unused.")
+
         # Create cacke key
         cache_key = full_kwargs.copy()
         # Make query model dependent
-        cache_key["client_name"] = self.client_name
-        # Make query prompt dependent
-        cache_key["prompt"] = prompt_str
+        cache_key.update(self.client.get_model_params())
         if run_id:
             cache_key["run_id"] = run_id
         response_obj = self.cache.get(cache_key, overwrite_cache, possible_request)
@@ -163,78 +171,7 @@ class Manifest:
         if return_response:
             return response_obj
         else:
-            return response_obj.get_response(stop_token)
-
-    def run_batch(
-        self,
-        prompt: Prompt,
-        input: Optional[Iterable[Any]] = None,
-        gold_choices: Optional[List[str]] = None,
-        overwrite_cache: bool = False,
-        run_id: Optional[str] = None,
-        stop_token: Optional[str] = None,
-        return_response: bool = False,
-        verbose: bool = False,
-        **kwargs: Any,
-    ) -> Iterable[Union[str, List[str], Response]]:
-        """
-        Run the prompt on a batch of inputs.
-
-        Args:
-            prompt: prompt to run.
-            input: batch of inputs.
-            gold_choices: gold choices for max logit response (only HF models).
-            run_id: run id for cache to repeat same run.
-            overwrite_cache: whether to overwrite cache.
-            stop_token: stop token for prompt generation.
-                        Default is self.stop_token.
-                        "" for no stop token.
-
-        Returns:
-            batch of responses.
-        """
-        if isinstance(prompt, str):
-            raise ValueError(
-                "Prompt must be a Prompt object for batch run on data. "
-                "We only support strings in `manifest.run`."
-            )
-        if input is None:
-            input = [None]
-        return [
-            self.run(
-                prompt,
-                inp,
-                gold_choices,
-                overwrite_cache,
-                run_id,
-                stop_token,
-                return_response,
-                **kwargs,
-            )
-            for inp in tqdm(input, desc="Running batch", disable=not verbose)
-        ]
-
-    def save_prompt(self, name: str, prompt: Prompt) -> None:
-        """
-        Save the prompt to the cache for long term storage.
-
-        Args:
-            name: name of prompt.
-            prompt: prompt to save.
-        """
-        self.cache.set_key(name, prompt.serialize(), table="prompt")
-
-    def load_prompt(self, name: str) -> Prompt:
-        """
-        Load the prompt from the cache.
-
-        Args:
-            name: name of prompt.
-
-        Returns:
-            Prompt saved with name.
-        """
-        return Prompt.deserialize(self.cache.get_key(name, table="prompt"))
+            return response_obj.get_response(stop_token, is_batch)
 
     def get_last_queries(
         self,
@@ -266,7 +203,9 @@ class Manifest:
             last_queries = [
                 (
                     query["prompt"],
-                    Response.from_dict(response).get_response(stop_token),
+                    Response.from_dict(response).get_response(
+                        stop_token, is_batch=isinstance(query["prompt"], list)
+                    ),
                 )  # type: ignore
                 for query, response in last_queries
             ]
