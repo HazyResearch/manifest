@@ -2,7 +2,8 @@ Unreleased 0.0.2
 ---------------------
 Added
 ^^^^^
-* Batched inferencec support in `manifest.run`. No more separate `manifest.run_batch` method.
+* Batched inference support in `manifest.run`. No more separate `manifest.run_batch` method.
+* Standard request base model for all language inputs.
 
 Fixed
 ^^^^^^^^
