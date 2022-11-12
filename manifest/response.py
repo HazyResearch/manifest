@@ -52,8 +52,8 @@ class Response:
             or (len(self._response[self.generation_key]) <= 0)
         ):
             raise ValueError(
-                "Response must be serialized to a dict with a list of choices. "
-                f"Response is\n{self._response}."
+                "Response must be serialized to a dict with a nonempty"
+                f" list of choices. Response is\n{self._response}."
             )
         if self.item_key not in self._response[self.generation_key][0]:
             raise ValueError(

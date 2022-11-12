@@ -3,6 +3,7 @@ import json
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union, cast
 
+import numpy as np
 import PIL
 import torch
 from accelerate import dispatch_model, infer_auto_device_map
@@ -12,6 +13,8 @@ from transformers import (
     AutoModelForSeq2SeqLM,
     AutoTokenizer,
     BloomForCausalLM,
+    CLIPModel,
+    CLIPProcessor,
     GPT2LMHeadModel,
     GPTJForCausalLM,
     GPTNeoForCausalLM,
@@ -19,8 +22,6 @@ from transformers import (
     OPTForCausalLM,
     PreTrainedModel,
     PreTrainedTokenizer,
-    CLIPModel,
-    CLIPProcessor,
 )
 
 import deepspeed
@@ -62,6 +63,7 @@ MODEL_REGISTRY = {
     "google/flan-t5-xxl": AutoModelForSeq2SeqLM,  # 11B
     "allenai/tk-instruct-3b-def": AutoModelForSeq2SeqLM,
 }
+
 
 def get_max_memory(gpu_reduction: float) -> Dict[int, str]:
     """Get max memory in GB times reduction."""
@@ -180,6 +182,8 @@ class GenerationPipeline:
 
 
 class HuggingFaceModel(Model):
+    """HuggingFace Model."""
+
     def __init__(
         self,
         model_name_or_path: str,
@@ -224,6 +228,10 @@ class HuggingFaceModel(Model):
                 model_name_or_path = config["_name_or_path"]
         self.model_name = model_name_or_path
         print("Model Name:", self.model_name, "Model Path:", self.model_path)
+
+    def get_init_params(self) -> Dict:
+        """Return init params to determine what model is being used."""
+        return {"model_name": self.model_name, "model_path": self.model_path}
 
     def _dispatch_deepspeed_model(
         self, model: PreTrainedModel
@@ -303,6 +311,8 @@ class HuggingFaceModel(Model):
 
 
 class CrossModalEncoderModel(HuggingFaceModel):
+    """CrossModalEncoderModel."""
+
     def __init__(
         self,
         model_name_or_path: str,
@@ -316,6 +326,23 @@ class CrossModalEncoderModel(HuggingFaceModel):
         perc_max_gpu_mem_red: float = 1.0,
         use_fp16: bool = False,
     ):
+        """
+        Initialize model.
+
+        All arguments will be passed in the request from Manifest.
+
+        Args:
+            model_name_or_path: model name string.
+            model_config: model config string.
+            cache_dir: cache directory for model.
+            device: device to use for model.
+            use_accelerate: whether to use accelerate for multi-gpu inference.
+            use_parallelize: use HF default parallelize
+            use_bitsandbytes: use HF bits and bytes
+            use_deepspeed: use deepspeed
+            perc_max_gpu_mem_red: percent max memory reduction in accelerate
+            use_fp16: use fp16 for model weights.
+        """
         super().__init__(
             model_name_or_path,
             model_config,
@@ -346,7 +373,17 @@ class CrossModalEncoderModel(HuggingFaceModel):
         print("T", torch_device)
         self.model = model.to(torch_device)  # type: ignore
 
-    def embed(self, prompt: Union[str, PIL.Image.Image]):
+    @torch.no_grad()
+    def embed(self, prompt: Union[str, List[str]], **kwargs: Any) -> np.ndarray:
+        """
+        Compute embedding for prompts.
+
+        Args:
+            prompt: promt to generate from.
+
+        Returns:
+            embedding
+        """
         if isinstance(prompt, str):
             inputs = self.processor(text=prompt, return_tensors="pt", padding=True)
         elif isinstance(prompt, PIL.Image.Image):
@@ -356,6 +393,7 @@ class CrossModalEncoderModel(HuggingFaceModel):
 
         outputs = self.model(**inputs)
         return outputs
+
 
 class TextGenerationModel(HuggingFaceModel):
     """Huggingface model."""
@@ -471,9 +509,22 @@ class TextGenerationModel(HuggingFaceModel):
         )
 
     @torch.no_grad()
+    def embed(self, prompt: Union[str, List[str]], **kwargs: Any) -> np.ndarray:
+        """
+        Compute embedding for prompts.
+
+        Args:
+            prompt: promt to generate from.
+
+        Returns:
+            embedding
+        """
+        pass
+
+    @torch.no_grad()
     def generate(
         self, prompt: Union[str, List[str]], **kwargs: Any
-    ) -> List[Tuple[str, float]]:
+    ) -> List[Tuple[Any, float]]:
         """
         Generate the prompt from model.
 
@@ -507,7 +558,7 @@ class TextGenerationModel(HuggingFaceModel):
     @torch.no_grad()
     def logits_scoring(
         self, prompt: Union[str, List[str]], gold_choices: List[str], **kwargs: Any
-    ) -> List[Tuple[str, float]]:
+    ) -> List[Tuple[Any, float]]:
         """
         Given the prompt and gold choices, choose the best choice with max logits.
 

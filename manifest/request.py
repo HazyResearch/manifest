@@ -13,6 +13,9 @@ class Request(BaseModel):
     # Engine
     engine: str = "text-ada-001"
 
+    # Number completions
+    n: int = 1
+
     # Timeout
     client_timeout: int = 60
 
@@ -42,20 +45,11 @@ class Request(BaseModel):
 class LMRequest(Request):
     """Language Model Request object."""
 
-    # Prompt
-    prompt: Union[str, List[str]] = ""
-
-    # Engine
-    engine: str = "text-ada-001"
-
     # Temperature for generation
     temperature: float = 0.7
 
     # Max tokens for generation
     max_tokens: int = 100
-
-    # Number completions
-    n: int = 1
 
     # Nucleus sampling taking top_p probability mass tokens
     top_p: float = 1.0
@@ -85,47 +79,20 @@ class LMRequest(Request):
     frequency_penalty: float = 0
 
 
-class DiffuserRequest(Request):
+class DiffusionRequest(Request):
     """Diffusion Model Request object."""
 
-    # Prompt
-    prompt: Union[str, List[str]] = ""
+    # Number of steps
+    num_inference_steps: int = 50
 
-    # Engine
-    engine: str = "text-ada-001"
+    # Height of image
+    height: int = 512
 
-    # Temperature for generation
-    temperature: float = 0.7
+    # Width of image
+    width: int = 512
 
-    # Max tokens for generation
-    max_tokens: int = 100
+    # Guidance scale
+    guidance_scale: float = 7.5
 
-    # Number completions
-    n: int = 1
-
-    # Nucleus sampling taking top_p probability mass tokens
-    top_p: float = 1.0
-
-    # Top k sampling taking top_k highest probability tokens
-    top_k: int = 50
-
-    # Stop sequences
-    stop_sequences: Optional[List[str]] = None
-
-    # Number beams beam search (HF)
-    num_beams: int = 1
-
-    # Whether to sample or do greedy (HF)
-    do_sample: bool = False
-
-    # Penalize repetition (HF)
-    repetition_penalty: float = 1.0
-
-    # Length penalty (HF)
-    length_penalty: float = 1.0
-
-    # Penalize resence
-    presence_penalty: float = 0
-
-    # Penalize frequency
-    frequency_penalty: float = 0
+    # Eta
+    eta: float = 0.0

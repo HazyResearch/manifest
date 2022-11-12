@@ -1,11 +1,12 @@
 """Hugging Face client."""
 import logging
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Dict, Optional
 
 import numpy as np
 import requests
 
 from manifest.clients.client import Client
+from manifest.request import DiffusionRequest
 
 logger = logging.getLogger(__name__)
 
@@ -18,10 +19,11 @@ class DiffuserClient(Client):
         "num_inference_steps": ("num_inference_steps", 50),
         "height": ("height", 512),
         "width": ("width", 512),
-        "num_images_per_prompt": ("num_images_per_prompt", 1),
+        "n": ("num_images_per_prompt", 1),
         "guidance_scale": ("guidance_scale", 7.5),
         "eta": ("eta", 0.0),
     }
+    REQUEST_CLS = DiffusionRequest
 
     def connect(
         self,

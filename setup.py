@@ -65,6 +65,7 @@ EXTRAS = {
         "types-protobuf>=3.19.21",
         "types-python-dateutil>=2.8.16",
         "types-setuptools>=57.4.17",
+        "types-pillow>=9.0.0",
         "sphinx-autobuild",
         "twine",
     ],

@@ -4,7 +4,6 @@ import json
 import pytest
 
 from manifest import Manifest, Response
-from manifest.caches.cache import request_to_key
 from manifest.caches.noop import NoopCache
 from manifest.caches.sqlite import SQLiteCache
 from manifest.clients.dummy import DummyClient
@@ -134,12 +133,13 @@ def test_run(sqlite_cache, session_cache, n, return_response):
         res = result
     assert (
         manifest.cache.get_key(
-            request_to_key(
+            json.dumps(
                 {
                     "prompt": "Hello is a prompt",
                     "engine": "dummy",
                     "num_results": n,
-                }
+                },
+                sort_keys=True,
             )
         )
         is not None
@@ -318,12 +318,13 @@ def test_choices_run(sqlite_cache, session_cache, return_response):
         res = result
     assert (
         manifest.cache.get_key(
-            request_to_key(
+            json.dumps(
                 {
                     "prompt": ["Hello is a prompt", "Hello is a prompt"],
                     "gold_choices": ["callt", "dog"],
                     "engine": "dummy",
-                }
+                },
+                sort_keys=True,
             )
         )
         is not None
@@ -369,6 +370,10 @@ def test_log_query(session_cache):
     }
     response_key = {
         "cached": False,
+        "generation_key": "choices",
+        "item_dtype": None,
+        "item_key": "text",
+        "logits_key": "logprobs",
         "request_params": query_key,
         "response": {"choices": [{"text": "hello"}, {"text": "hello"}]},
     }

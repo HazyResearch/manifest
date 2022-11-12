@@ -5,6 +5,7 @@ import os
 from typing import Any, Dict, Optional
 
 from manifest.clients.client import Client
+from manifest.request import LMRequest
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +28,7 @@ class CohereClient(Client):
         "stop_sequences": ("stop_sequences", None),
         "client_timeout": ("client_timeout", 60),  # seconds
     }
+    REQUEST_CLS = LMRequest
 
     def connect(
         self,

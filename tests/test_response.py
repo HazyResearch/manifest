@@ -13,7 +13,7 @@ def test_init():
     with pytest.raises(ValueError) as exc_info:
         response = Response({"test": "hello"}, False, {})
     assert str(exc_info.value) == (
-        "Response must be serialized to a dict with a list of choices. "
+        "Response must be serialized to a dict with a nonempty list of choices. "
         "Response is\n{'test': 'hello'}."
     )
     with pytest.raises(ValueError) as exc_info:
@@ -25,7 +25,7 @@ def test_init():
     with pytest.raises(ValueError) as exc_info:
         response = Response({"choices": []}, False, {})
     assert str(exc_info.value) == (
-        "Response must be serialized to a dict with a list of choices. "
+        "Response must be serialized to a dict with a nonempty list of choices. "
         "Response is\n{'choices': []}."
     )
 
@@ -118,11 +118,6 @@ def test_serialize():
 
 def test_get_results():
     """Test response get results."""
-    response = Response({"choices": []}, True, {"request": "yoyo"})
-    assert response.get_response() is None
-    assert response.get_response(stop_token="ll") is None
-    assert response.get_response(stop_token="ll", is_batch=True) is None
-
     response = Response({"choices": [{"text": "hello"}]}, True, {"request": "yoyo"})
     assert response.get_response() == "hello"
     assert response.get_response(stop_token="ll") == "he"

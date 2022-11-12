@@ -1,18 +1,17 @@
 """Flask app."""
 import argparse
+import io
 import logging
 import os
 import socket
-import io
 from typing import Dict
 
 import pkg_resources
 from flask import Flask, request
 
 from manifest.api.models.diffuser import DiffuserModel
-from manifest.api.models.huggingface import TextGenerationModel, CrossModalEncoderModel
+from manifest.api.models.huggingface import CrossModalEncoderModel, TextGenerationModel
 from manifest.api.response import Response
-from manifest.api.models.diffuser import DiffuserModel
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
@@ -184,8 +183,10 @@ def embed() -> Dict:
     if modality == "text":
         prompts = request.json["prompts"]
     elif modality == "image":
-        from PIL import Image
         import base64
+
+        from PIL import Image
+
         prompts = [
             Image.open(io.BytesIO(base64.b64decode(data)))
             for data in request.json["prompts"]
@@ -199,8 +200,8 @@ def embed() -> Dict:
         results.append(embedding.tolist())
 
     # transform the result into the openai format
-    #return Response(results, response_type="text_completion").__dict__()
-    return results
+    # return Response(results, response_type="text_completion").__dict__()
+    return {"result": results}
 
 
 @app.route("/choice_logits", methods=["POST"])

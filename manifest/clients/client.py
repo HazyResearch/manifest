@@ -15,6 +15,7 @@ class Client(ABC):
 
     # Must be overridden by child class
     PARAMS: Dict[str, Tuple[str, Any]] = {}
+    REQUEST_CLS = Request
 
     def __init__(
         self, connection_str: Optional[str] = None, client_args: Dict[str, Any] = {}
@@ -108,7 +109,7 @@ class Client(ABC):
         params = {"prompt": prompt}
         for key in self.PARAMS:
             params[key] = request_args.pop(key, getattr(self, key))
-        return Request(**params)
+        return self.REQUEST_CLS(**params)
 
     def format_response(self, response: Dict) -> Dict[str, Any]:
         """

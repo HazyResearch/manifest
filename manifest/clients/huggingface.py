@@ -5,7 +5,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 import requests
 
 from manifest.clients.client import Client
-from manifest.request import Request
+from manifest.request import LMRequest, Request
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +24,7 @@ class HuggingFaceClient(Client):
         "do_sample": ("do_sample", True),
         "client_timeout": ("client_timeout", 120),  # seconds
     }
+    REQUEST_CLS = LMRequest
 
     def connect(
         self,
