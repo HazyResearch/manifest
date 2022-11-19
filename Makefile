@@ -1,5 +1,6 @@
-dev: deepspeed
+dev:
 	pip install -e .[all]
+	pip install -e git+https://github.com/microsoft/DeepSpeed.git#egg=deepspeed
 	pre-commit install
 
 test: dev check

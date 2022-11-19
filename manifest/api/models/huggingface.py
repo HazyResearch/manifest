@@ -29,15 +29,20 @@ MODEL_REGISTRY = {
     "EleutherAI/gpt-neo-2.7B": GPTNeoForCausalLM,
     "EleutherAI/gpt-j-6B": GPTJForCausalLM,
     "EleutherAI/gpt-neox-20b": GPTNeoXForCausalLM,
-    "facebook/opt-125m": OPTForCausalLM,
-    "facebook/opt-350m": OPTForCausalLM,
     "Salesforce/codegen-2B-mono": AutoModelForCausalLM,
     "Salesforce/codegen-6B-mono": AutoModelForCausalLM,
+    "facebook/opt-125m": OPTForCausalLM,
+    "facebook/opt-350m": OPTForCausalLM,
     "facebook/opt-1.3b": OPTForCausalLM,
     "facebook/opt-2.7b": OPTForCausalLM,
     "facebook/opt-6.7b": OPTForCausalLM,
     "facebook/opt-13b": OPTForCausalLM,
     "facebook/opt-30b": OPTForCausalLM,
+    "facebook/galactica-125m": OPTForCausalLM,
+    "facebook/galactica-1.3b": OPTForCausalLM,
+    "facebook/galactica-6.7b": OPTForCausalLM,
+    "facebook/galactica-30b": OPTForCausalLM,
+    "facebook/galactica-120b": OPTForCausalLM,
     "gpt2": GPT2LMHeadModel,
     "bigscience/bloom-560m": BloomForCausalLM,
     "bigscience/bloom-1b7": BloomForCausalLM,
@@ -108,9 +113,7 @@ class Pipeline:
         print(f"Usings max_length: {self.max_length}")
 
         self.tokenizer = tokenizer
-        # self.device = device
         # With bits and bytes, do not want to place inputs on any device
-        # if self.device:
         self.device = (
             torch.device("cpu")
             if (device == -1 or not torch.cuda.is_available())
@@ -144,7 +147,8 @@ class Pipeline:
         )
         encoded_prompt = encoded_prompt.to(self.device)
         output_dict = self.model.generate(  # type: ignore
-            **encoded_prompt,
+            input_ids=encoded_prompt.input_ids,
+            attention_mask=encoded_prompt.attention_mask,
             max_new_tokens=kwargs.get("max_new_tokens"),
             temperature=kwargs.get("temperature", None),
             top_k=kwargs.get("top_k", None),
@@ -182,7 +186,6 @@ class HuggingFaceModel(Model):
     def __init__(
         self,
         model_name_or_path: str,
-        model_config: Optional[str] = None,
         cache_dir: Optional[str] = None,
         device: int = 0,
         use_accelerate: bool = False,
@@ -199,7 +202,6 @@ class HuggingFaceModel(Model):
 
         Args:
             model_name_or_path: model name string.
-            model_config: model config string.
             cache_dir: cache directory for model.
             device: device to use for model.
             use_accelerate: whether to use accelerate for multi-gpu inference.
@@ -262,7 +264,13 @@ class HuggingFaceModel(Model):
         print(f"Loaded Model DType {model.dtype}")
 
         self.is_encdec = model.config.is_encoder_decoder
-        if not self.is_encdec:
+        # Set pad tokens for galactic
+        if self.model_name.startswith("facebook/galactic"):
+            # https://github.com/paperswithcode/galai/blob/main/galai/model.py
+            tokenizer.pad_token = "[PAD]"
+            # tokenizer.add_special_tokens({'pad_token': '[PAD]'})
+            tokenizer.pad_token_id = 1
+        elif not self.is_encdec:
             tokenizer.pad_token = tokenizer.eos_token
 
         if not use_bitsandbytes:
