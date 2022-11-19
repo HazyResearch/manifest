@@ -160,6 +160,7 @@ class Client(ABC):
                 )
                 raise e
             except requests.exceptions.HTTPError as e:
+                logger.error(res.text)
                 raise e
             return self.format_response(res.json())
 
