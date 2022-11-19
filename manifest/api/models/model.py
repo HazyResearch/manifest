@@ -10,7 +10,6 @@ class Model(ABC):
     def __init__(
         self,
         model_name_or_path: str,
-        model_config: str,
         cache_dir: str,
         device: int,
         use_accelerate: bool,
@@ -27,7 +26,6 @@ class Model(ABC):
 
         Args:
             model_name_or_path: model name string.
-            model_config: model config string.
             cache_dir: cache directory for model.
             device: device to use for model.
             use_accelerate: whether to use accelerate for multi-gpu inference.

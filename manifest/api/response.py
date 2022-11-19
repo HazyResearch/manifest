@@ -5,8 +5,8 @@ import uuid
 from typing import Any, Dict, List
 
 
-class Response:
-    """Response."""
+class ModelResponse:
+    """ModelResponse."""
 
     def __init__(self, results: List[Dict[str, Any]], response_type: str) -> None:
         """Initialize response."""
