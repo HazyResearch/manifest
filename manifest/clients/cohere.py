@@ -46,7 +46,7 @@ class CohereClient(Client):
         if self.api_key is None:
             raise ValueError(
                 "Cohere API key not set. Set COHERE_API_KEY environment "
-                "variable or pass through `connection_str`."
+                "variable or pass through `client_connection`."
             )
         self.host = "https://api.cohere.ai"
         for key in self.PARAMS:

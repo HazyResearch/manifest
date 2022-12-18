@@ -8,6 +8,7 @@ from manifest.clients.client import Client
 logger = logging.getLogger(__name__)
 
 OPENAI_ENGINES = {
+    "text-davinci-003",
     "text-davinci-002",
     "text-davinci-001",
     "davinci",
@@ -27,7 +28,7 @@ class OpenAIClient(Client):
 
     # User param -> (client param, default value)
     PARAMS = {
-        "engine": ("model", "text-davinci-002"),
+        "engine": ("model", "text-davinci-003"),
         "temperature": ("temperature", 1.0),
         "max_tokens": ("max_tokens", 10),
         "n": ("n", 1),
@@ -57,7 +58,7 @@ class OpenAIClient(Client):
         if self.api_key is None:
             raise ValueError(
                 "OpenAI API key not set. Set OPENAI_API_KEY environment "
-                "variable or pass through `connection_str`."
+                "variable or pass through `client_connection`."
             )
         self.host = "https://api.openai.com/v1"
         for key in self.PARAMS:

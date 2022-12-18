@@ -3,6 +3,7 @@ import json
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union, cast
 
+import deepspeed
 import torch
 from accelerate import dispatch_model, infer_auto_device_map
 from accelerate.utils.modeling import get_max_memory as acc_get_max_memory
@@ -20,7 +21,6 @@ from transformers import (
     PreTrainedTokenizer,
 )
 
-import deepspeed
 from manifest.api.models.model import Model
 
 MODEL_REGISTRY = {
