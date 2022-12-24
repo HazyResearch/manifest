@@ -18,7 +18,7 @@ class SQLiteCache(Cache):
 
         Args:
             connection_str: connection string.
-            cache_args: cache arguments.
+            cache_args: arguments for cache.
         """
         self.cache_file = connection_str
         if not self.cache_file:

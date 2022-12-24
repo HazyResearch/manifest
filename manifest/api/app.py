@@ -1,5 +1,6 @@
 """Flask app."""
 import argparse
+import io
 import json
 import logging
 import os
@@ -9,7 +10,8 @@ from typing import Dict
 import pkg_resources
 from flask import Flask, Response, request
 
-from manifest.api.models.huggingface import HuggingFaceModel
+from manifest.api.models.diffuser import DiffuserModel
+from manifest.api.models.huggingface import CrossModalEncoderModel, TextGenerationModel
 from manifest.api.response import ModelResponse
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
@@ -18,9 +20,12 @@ logger = logging.getLogger(__name__)
 app = Flask(__name__)  # define app using Flask
 # Will be global
 model = None
+model_type = None
 PORT = int(os.environ.get("FLASK_PORT", 5000))
 MODEL_CONSTRUCTORS = {
-    "huggingface": HuggingFaceModel,
+    "huggingface": TextGenerationModel,
+    "huggingface_crossmodal": CrossModalEncoderModel,
+    "diffuser": DiffuserModel,
 }
 
 
@@ -33,7 +38,7 @@ def parse_args() -> argparse.Namespace:
         type=str,
         required=True,
         help="Model type used for finding constructor.",
-        choices=["huggingface", "zoo"],
+        choices=MODEL_CONSTRUCTORS.keys(),
     )
     parser.add_argument(
         "--model_name_or_path",
@@ -97,7 +102,7 @@ def main() -> None:
     kwargs = parse_args()
     if is_port_in_use(PORT):
         raise ValueError(f"Port {PORT} is already in use.")
-
+    global model_type
     model_type = kwargs.model_type
     model_name_or_path = kwargs.model_name_or_path
     if not model_name_or_path:
@@ -150,15 +155,19 @@ def completions() -> Response:
     if not isinstance(prompt, (str, list)):
         raise ValueError("Prompt must be a str or list of str")
     try:
-        results_text = []
+        result_gens = []
         for generations in model.generate(prompt, **generation_args):
-            results_text.append(generations)
-        results = [{"text": r[0], "text_logprob": r[1]} for r in results_text]
+            result_gens.append(generations)
+        if model_type == "diffuser":
+            # Assign None logprob as it's not supported in diffusers
+            results = [{"array": r[0], "logprob": None} for r in result_gens]
+            res_type = "image_generation"
+        else:
+            results = [{"text": r[0], "logprob": r[1]} for r in result_gens]
+            res_type = "text_completion"
         # transform the result into the openai format
         return Response(
-            json.dumps(
-                ModelResponse(results, response_type="text_completion").__dict__()
-            ),
+            json.dumps(ModelResponse(results, response_type=res_type).__dict__()),
             status=200,
         )
     except Exception as e:
@@ -167,6 +176,34 @@ def completions() -> Response:
             json.dumps({"message": str(e)}),
             status=400,
         )
+
+
+@app.route("/embed", methods=["POST"])
+def embed() -> Dict:
+    """Get embed for generation."""
+    modality = request.json["modality"]
+    if modality == "text":
+        prompts = request.json["prompts"]
+    elif modality == "image":
+        import base64
+
+        from PIL import Image
+
+        prompts = [
+            Image.open(io.BytesIO(base64.b64decode(data)))
+            for data in request.json["prompts"]
+        ]
+    else:
+        raise ValueError("modality must be text or image")
+
+    results = []
+    embeddings = model.embed(prompts)
+    for embedding in embeddings:
+        results.append(embedding.tolist())
+
+    # transform the result into the openai format
+    # return Response(results, response_type="text_completion").__dict__()
+    return {"result": results}
 
 
 @app.route("/choice_logits", methods=["POST"])

@@ -1,6 +1,8 @@
 """Model class."""
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Tuple, Union
+
+import numpy as np
 
 
 class Model(ABC):
@@ -42,8 +44,9 @@ class Model(ABC):
         """Return init params to determine what model is being used."""
         raise NotImplementedError()
 
-    @abstractmethod
-    def generate(self, prompt: str, **kwargs: Any) -> List[Tuple[str, float]]:
+    def generate(
+        self, prompt: Union[str, List[str]], **kwargs: Any
+    ) -> List[Tuple[Any, float]]:
         """
         Generate the prompt from model.
 
@@ -58,9 +61,21 @@ class Model(ABC):
         raise NotImplementedError()
 
     @abstractmethod
+    def embed(self, prompt: Union[str, List[str]], **kwargs: Any) -> np.ndarray:
+        """
+        Compute embedding for prompts.
+
+        Args:
+            prompt: promt to generate from.
+
+        Returns:
+            embedding
+        """
+        raise NotImplementedError()
+
     def logits_scoring(
-        self, prompt: str, gold_choices: List[str], **kwargs: Any
-    ) -> List[Tuple[str, float]]:
+        self, prompt: Union[str, List[str]], gold_choices: List[str], **kwargs: Any
+    ) -> List[Tuple[Any, float]]:
         """
         Given the prompt and gold choices, choose the best choice with max logits.
 

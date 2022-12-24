@@ -13,7 +13,7 @@ class NoopCache(Cache):
 
         Args:
             connection_str: connection string.
-            cache_args: cache arguments.
+            cache_args: arguments for cache.
         """
         pass
 

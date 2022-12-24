@@ -193,7 +193,7 @@ python3 -m manifest.api.app \
 # Development
 Before submitting a PR, run
 ```bash
-export REDIS_PORT="6380"  # or whatever PORT local redis is running for those tests
+export REDIS_PORT="6379"  # or whatever PORT local redis is running for those tests
 cd <REDIS_PATH>
 docker run -d -p 127.0.0.1:${REDIS_PORT}:6379 -v `pwd`:`pwd` -w `pwd` --name manifest_redis_test redis
 make test

@@ -6,7 +6,7 @@ from subprocess import PIPE, Popen
 
 import pytest
 
-from manifest.api.models.huggingface import HuggingFaceModel
+from manifest.api.models.huggingface import TextGenerationModel
 
 NOCUDA = 0
 try:
@@ -37,7 +37,7 @@ if NOCUDA == 0:
 
 def test_gpt_generate():
     """Test pipeline generation from a gpt model."""
-    model = HuggingFaceModel(
+    model = TextGenerationModel(
         model_name_or_path="gpt2",
         use_accelerate=False,
         use_parallelize=False,
@@ -82,7 +82,7 @@ def test_gpt_generate():
 
 def test_encdec_generate():
     """Test pipeline generation from a gpt model."""
-    model = HuggingFaceModel(
+    model = TextGenerationModel(
         model_name_or_path="google/t5-small-lm-adapt",
         use_accelerate=False,
         use_parallelize=False,
@@ -127,7 +127,7 @@ def test_encdec_generate():
 
 def test_gpt_score():
     """Test pipeline generation from a gpt model."""
-    model = HuggingFaceModel(
+    model = TextGenerationModel(
         model_name_or_path="gpt2",
         use_accelerate=False,
         use_parallelize=False,
@@ -146,7 +146,7 @@ def test_gpt_score():
 
 def test_batch_gpt_generate():
     """Test pipeline generation from a gpt model."""
-    model = HuggingFaceModel(
+    model = TextGenerationModel(
         model_name_or_path="gpt2",
         use_accelerate=False,
         use_parallelize=False,
@@ -195,7 +195,7 @@ def test_batch_gpt_generate():
 
 def test_batch_encdec_generate():
     """Test pipeline generation from a gpt model."""
-    model = HuggingFaceModel(
+    model = TextGenerationModel(
         model_name_or_path="google/t5-small-lm-adapt",
         use_accelerate=False,
         use_parallelize=False,
@@ -249,7 +249,7 @@ def test_batch_encdec_generate():
 )
 def test_gpt_deepspeed_generate():
     """Test deepspeed generation from a gpt model."""
-    model = HuggingFaceModel(
+    model = TextGenerationModel(
         model_name_or_path="gpt2",
         use_accelerate=False,
         use_parallelize=False,
