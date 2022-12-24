@@ -27,11 +27,7 @@ REQUIRES_PYTHON = ">=3.8.0"
 VERSION = main_ns["__version__"]
 
 # What packages are required for this module to be executed?
-REQUIRED = [
-    "redis>=4.3.1",
-    "requests>=2.27.1",
-    "sqlitedict>=2.0.0",
-]
+REQUIRED = ["redis>=4.3.1", "requests>=2.27.1", "sqlitedict>=2.0.0", "xxhash>=3.0.0"]
 
 # What packages are optional?
 EXTRAS = {
@@ -66,6 +62,7 @@ EXTRAS = {
         "types-python-dateutil>=2.8.16",
         "types-setuptools>=57.4.17",
         "types-pillow>=9.0.0",
+        "types-xxhash>=3.0.0",
         "sphinx-autobuild",
         "twine",
     ],
