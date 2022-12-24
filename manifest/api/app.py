@@ -1,17 +1,18 @@
 """Flask app."""
 import argparse
 import io
+import json
 import logging
 import os
 import socket
 from typing import Dict
 
 import pkg_resources
-from flask import Flask, request
+from flask import Flask, Response, request
 
 from manifest.api.models.diffuser import DiffuserModel
 from manifest.api.models.huggingface import CrossModalEncoderModel, TextGenerationModel
-from manifest.api.response import Response
+from manifest.api.response import ModelResponse
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
@@ -44,12 +45,6 @@ def parse_args() -> argparse.Namespace:
         default=None,
         type=str,
         help="Name of model or path to model. Used in initialize of model class.",
-    )
-    parser.add_argument(
-        "--model_config",
-        default=None,
-        type=str,
-        help="Model config. Used in initialize of model class.",
     )
     parser.add_argument(
         "--cache_dir", default=None, type=str, help="Cache directory for models."
@@ -110,9 +105,8 @@ def main() -> None:
     global model_type
     model_type = kwargs.model_type
     model_name_or_path = kwargs.model_name_or_path
-    model_config = kwargs.model_config
-    if not model_name_or_path and not model_config:
-        raise ValueError("Must provide model_name_or_path or model_config.")
+    if not model_name_or_path:
+        raise ValueError("Must provide model_name_or_path.")
     if kwargs.use_accelerate_multigpu:
         logger.info("Using accelerate. Overridding --device argument.")
     if (
@@ -139,7 +133,6 @@ def main() -> None:
     global model
     model = MODEL_CONSTRUCTORS[model_type](
         model_name_or_path,
-        model_config=model_config,
         cache_dir=kwargs.cache_dir,
         device=kwargs.device,
         use_accelerate=kwargs.use_accelerate_multigpu,
@@ -153,7 +146,7 @@ def main() -> None:
 
 
 @app.route("/completions", methods=["POST"])
-def completions() -> Dict:
+def completions() -> Response:
     """Get completions for generation."""
     prompt = request.json["prompt"]
     del request.json["prompt"]
@@ -161,19 +154,28 @@ def completions() -> Dict:
 
     if not isinstance(prompt, (str, list)):
         raise ValueError("Prompt must be a str or list of str")
-
-    result_gens = []
-    for generations in model.generate(prompt, **generation_args):
-        result_gens.append(generations)
-    if model_type == "diffuser":
-        # Assign None logprob as it's not supported in diffusers
-        results = [{"array": r[0], "logprob": None} for r in result_gens]
-        res_type = "image_generation"
-    else:
-        results = [{"text": r[0], "logprob": r[1]} for r in result_gens]
-        res_type = "text_completion"
-    # transform the result into the openai format
-    return Response(results, response_type=res_type).__dict__()
+    try:
+        result_gens = []
+        for generations in model.generate(prompt, **generation_args):
+            result_gens.append(generations)
+        if model_type == "diffuser":
+            # Assign None logprob as it's not supported in diffusers
+            results = [{"array": r[0], "logprob": None} for r in result_gens]
+            res_type = "image_generation"
+        else:
+            results = [{"text": r[0], "logprob": r[1]} for r in result_gens]
+            res_type = "text_completion"
+        # transform the result into the openai format
+        return Response(
+            json.dumps(ModelResponse(results, response_type=res_type).__dict__()),
+            status=200,
+        )
+    except Exception as e:
+        logger.error(e)
+        return Response(
+            json.dumps({"message": str(e)}),
+            status=400,
+        )
 
 
 @app.route("/embed", methods=["POST"])
@@ -205,7 +207,7 @@ def embed() -> Dict:
 
 
 @app.route("/choice_logits", methods=["POST"])
-def choice_logits() -> Dict:
+def choice_logits() -> Response:
     """Get maximal likely choice via max logits after generation."""
     prompt = request.json["prompt"]
     del request.json["prompt"]
@@ -218,11 +220,24 @@ def choice_logits() -> Dict:
 
     if not isinstance(gold_choices, list):
         raise ValueError("Gold choices must be a list of string choices")
-
-    choice_score_list = model.logits_scoring(prompt, gold_choices, **generation_args)
-    results = [{"text": r[0], "logprob": r[1]} for r in choice_score_list]
-    # transform the result into the openai format
-    return Response(results, response_type="choice_selection").__dict__()
+    try:
+        choice_score_list = model.logits_scoring(
+            prompt, gold_choices, **generation_args
+        )
+        results = [{"text": r[0], "text_logprob": r[1]} for r in choice_score_list]
+        # transform the result into the openai format
+        return Response(
+            json.dumps(
+                ModelResponse(results, response_type="choice_selection").__dict__()
+            ),
+            status=200,
+        )
+    except Exception as e:
+        logger.error(e)
+        return Response(
+            json.dumps({"message": str(e)}),
+            status=400,
+        )
 
 
 @app.route("/params", methods=["POST"])

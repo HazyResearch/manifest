@@ -14,7 +14,8 @@ module = [
   "accelerate",
   "accelerate.utils.modeling",
   "transformers",
-  "cohere",
+  "flask",
+  "torch"
 ]
 
 [tool.isort]

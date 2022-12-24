@@ -112,6 +112,7 @@ class HuggingFaceClient(Client):
                 logger.error("HF request timed out. Increase client_timeout.")
                 raise e
             except requests.exceptions.HTTPError as e:
+                logger.error(res.text)
                 raise e
             return res.json()
 

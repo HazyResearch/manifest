@@ -1,39 +1,21 @@
 """TOMA client."""
-import json
 import logging
 import os
-import time
 from datetime import datetime
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Dict, Optional
 
 import requests
 
 from manifest.clients.client import Client
-from manifest.request import LMRequest, Request
+from manifest.request import LMRequest
 
 logger = logging.getLogger(__name__)
 
 # Engines are dynamically instantiated from API
 # but a few example engines are listed below.
-# TOMA_ENGINES = {
-#     "bloom",
-#     "glm-int8",
-#     "gpt-neox-20b",
-#     "opt-66b",
-#     "opt-175b",
-#     "glm",
-#     "stable_diffusion",
-#     "t0pp",
-#     "gpt-j-6b",
-#     "t5-11b",
-#     "glm-int4",
-#     "ul2",
-# }
-
-# Engine -> request type
-# Default is language-model-inference
-TOMA_ENGINE_REQUEST_TYPE = {
-    "stable_diffusion": "image-model-inference",
+TOMA_ENGINES = {
+    "StableDiffusion",
+    "Together-gpt-JT-6B-v1",
 }
 
 
@@ -43,11 +25,12 @@ class TOMAClient(Client):
     # User param -> (client param, default value)
     PARAMS = {
         "engine": ("model", "gpt-j-6b"),
-        "temperature": ("temperature", 1.0),
-        "max_tokens": ("max_tokens", 10),
-        "n": ("n", 1),
-        "top_p": ("top_p", 1.0),
-        "top_k": ("best_of", 1),
+        "temperature": ("temperature", 0.1),
+        "max_tokens": ("max_tokens", 32),
+        # n is depricated with new API but will come back online soon
+        # "n": ("n", 1),
+        "top_p": ("top_p", 0.9),
+        "top_k": ("top_k", 40),
         "stop_sequences": ("stop", []),
         "client_timeout": ("client_timeout", 120),  # seconds
     }
@@ -72,11 +55,14 @@ class TOMAClient(Client):
         # if self.api_key is None:
         #     raise ValueError(
         #         "TOMA API key not set. Set TOMA_API_KEY environment "
-        #         "variable or pass through `connection_str`."
+        #         "variable or pass through `client_connection`."
         #     )
 
         for key in self.PARAMS:
             setattr(self, key, client_args.pop(key, self.PARAMS[key][1]))
+
+        # Not functioning yet in new TOMA API. Will come back online soon.
+        """
         model_heartbeats = self.get_model_heartbeats()
         if getattr(self, "engine") not in model_heartbeats.keys():
             raise ValueError(
@@ -103,8 +89,7 @@ class TOMAClient(Client):
                 "seconds to respond. Increase client_timeout "
                 "to avoid timeout."
             )
-        self.pending_jobs: List = []
-        self.completed_jobs: List = []
+        """
 
     def close(self) -> None:
         """Close the client."""
@@ -112,7 +97,7 @@ class TOMAClient(Client):
 
     def get_generation_url(self) -> str:
         """Get generation URL."""
-        return self.host + "/jobs"
+        return self.host + "/inference"
 
     def get_generation_header(self) -> Dict[str, str]:
         """
@@ -138,17 +123,6 @@ class TOMAClient(Client):
             model params.
         """
         return {"model_name": "toma", "engine": getattr(self, "engine")}
-
-    def get_last_job_id(self) -> Optional[str]:
-        """
-        Get last job id.
-
-        Returns:
-            last job id.
-        """
-        if len(self.completed_jobs) > 0:
-            return self.completed_jobs[-1]
-        return None
 
     def get_model_heartbeats(self) -> Dict[str, Dict]:
         """
@@ -187,85 +161,6 @@ class TOMAClient(Client):
                     "text": item["text"],
                     # "logprobs": [],
                 }
-                for item in response["inference_result"][0]["choices"]
+                for item in response["output"]["choices"]
             ],
         }
-
-    def get_response(self, job_id: str, retry_timeout: int) -> Dict[str, Any]:
-        """
-        Get response from job id.
-
-        Will try up to `client_timeout` seconds to get response.
-
-        Args:
-            job_id: job id
-            retry_timeout: retry timeout
-
-        Returns:
-            response as dict
-        """
-        final_res = None
-        attempts = 0
-        while True:
-            ret = requests.get(f"{self.host}/job/{job_id}", json={"id": job_id}).json()
-            attempts += 1
-            if ret["status"] == "finished" or ret["status"] == "failed":
-                final_res = ret["returned_payload"]
-                break
-            if attempts > retry_timeout:
-                break
-            time.sleep(1)
-        if not final_res:
-            raise RuntimeError(
-                f"TOMA request timed out after {retry_timeout}s with {ret['status']}."
-            )
-        if "result" in final_res:
-            return self.format_response(final_res["result"])
-        else:
-            raise RuntimeError(f"TOMA request failed with {final_res['message']}.")
-
-    def get_request(self, request: Request) -> Tuple[Callable[[], Dict], Dict]:
-        """
-        Get request string function.
-
-        Args:
-            request: request.
-
-        Returns:
-            request function that takes no input.
-            request parameters as dict.
-        """
-        if isinstance(request.prompt, list):
-            raise ValueError("TOMA does not support batch requests.")
-        request_params = request.to_dict(self.PARAMS)
-        request_params["request_type"] = TOMA_ENGINE_REQUEST_TYPE.get(
-            getattr(self, "engine"), "language-model-inference"
-        )
-        retry_timeout = request_params.pop("client_timeout")
-
-        # num_returns is for image-model-inference
-        if request_params["request_type"] == "image-model-inference":
-            request_params["num_returns"] = request_params["n"]
-
-        def _run_completion() -> Dict:
-            post_str = self.host + "/jobs"
-            res = requests.post(
-                post_str,
-                # headers={"Authorization": f"Bearer {self.api_key}"},
-                json={
-                    "type": "general",
-                    "payload": request_params,
-                    "returned_payload": {},
-                    "status": "submitted",
-                    "source": "dalle",
-                },
-            ).json()
-            job_id = res["id"]
-            # TODO: ideally just submit the jobs and then fetch results in parallel
-            self.pending_jobs.append(job_id)
-            job_id = self.pending_jobs.pop()
-            final_res = self.get_response(job_id, retry_timeout)
-            self.completed_jobs.append(job_id)
-            return final_res
-
-        return _run_completion, request_params

@@ -51,7 +51,7 @@ class AI21Client(Client):
         if self.api_key is None:
             raise ValueError(
                 "AI21 API key not set. Set AI21_API_KEY environment "
-                "variable or pass through `connection_str`."
+                "variable or pass through `client_connection`."
             )
 
         for key in self.PARAMS:
