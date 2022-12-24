@@ -13,14 +13,43 @@ class Request(BaseModel):
     # Engine
     engine: str = "text-ada-001"
 
+    # Number completions
+    n: int = 1
+
+    # Timeout
+    client_timeout: int = 60
+
+    def to_dict(
+        self, allowable_keys: Dict[str, Tuple[str, Any]] = None, add_prompt: bool = True
+    ) -> Dict[str, Any]:
+        """
+        Convert request to a dictionary.
+
+        Add prompt ensures the prompt is always in the output dictionary.
+        """
+        if allowable_keys:
+            include_keys = set(allowable_keys.keys())
+            if add_prompt and "prompt":
+                include_keys.add("prompt")
+        else:
+            allowable_keys = {}
+            include_keys = None
+        request_dict = {
+            allowable_keys.get(k, (k, None))[0]: v
+            for k, v in self.dict(include=include_keys).items()
+            if v is not None
+        }
+        return request_dict
+
+
+class LMRequest(Request):
+    """Language Model Request object."""
+
     # Temperature for generation
     temperature: float = 0.7
 
     # Max tokens for generation
     max_tokens: int = 100
-
-    # Number completions
-    n: int = 1
 
     # Nucleus sampling taking top_p probability mass tokens
     top_p: float = 1.0
@@ -49,27 +78,21 @@ class Request(BaseModel):
     # Penalize frequency
     frequency_penalty: float = 0
 
-    # Timeout
-    client_timeout: int = 60
 
-    def to_dict(
-        self, allowable_keys: Dict[str, Tuple[str, Any]] = None, add_prompt: bool = True
-    ) -> Dict[str, Any]:
-        """
-        Convert request to a dictionary.
+class DiffusionRequest(Request):
+    """Diffusion Model Request object."""
 
-        Add prompt ensures the prompt is always in the output dictionary.
-        """
-        if allowable_keys:
-            include_keys = set(allowable_keys.keys())
-            if add_prompt and "prompt":
-                include_keys.add("prompt")
-        else:
-            allowable_keys = {}
-            include_keys = None
-        request_dict = {
-            allowable_keys.get(k, (k, None))[0]: v
-            for k, v in self.dict(include=include_keys).items()
-            if v is not None
-        }
-        return request_dict
+    # Number of steps
+    num_inference_steps: int = 50
+
+    # Height of image
+    height: int = 512
+
+    # Width of image
+    width: int = 512
+
+    # Guidance scale
+    guidance_scale: float = 7.5
+
+    # Eta
+    eta: float = 0.0

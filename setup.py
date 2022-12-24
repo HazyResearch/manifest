@@ -27,20 +27,17 @@ REQUIRES_PYTHON = ">=3.8.0"
 VERSION = main_ns["__version__"]
 
 # What packages are required for this module to be executed?
-REQUIRED = [
-    "dill>=0.3.5",
-    "redis>=4.3.1",
-    "requests>=2.27.1",
-    "sqlitedict>=2.0.0",
-]
+REQUIRED = ["redis>=4.3.1", "requests>=2.27.1", "sqlitedict>=2.0.0", "xxhash>=3.0.0"]
 
 # What packages are optional?
 EXTRAS = {
     "api": [
+        "diffusers>=0.6.0",
         "Flask>=2.1.2",
         "accelerate>=0.10.0",
         "transformers>=4.20.0",
         "torch>=1.8.0",
+        "numpy>=1.20.0",
     ],
     "dev": [
         "autopep8>=1.6.0",
@@ -64,6 +61,8 @@ EXTRAS = {
         "types-protobuf>=3.19.21",
         "types-python-dateutil>=2.8.16",
         "types-setuptools>=57.4.17",
+        "types-pillow>=9.0.0",
+        "types-xxhash>=3.0.0",
         "sphinx-autobuild",
         "twine",
     ],

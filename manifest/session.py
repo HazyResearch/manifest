@@ -6,12 +6,7 @@ import uuid
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-from manifest.caches.cache import (
-    key_to_request,
-    key_to_response,
-    request_to_key,
-    response_to_key,
-)
+from manifest.caches.serializers import Serializer
 
 logging.getLogger("sqlitedict").setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
@@ -30,10 +25,11 @@ class Session:
             session_id: session id.
 
         """
-        manifest_home = Path(os.environ.get("MANIFEST_SESSION_HOME", Path.home()))
+        manifest_home = Path(os.environ.get("MANIFEST_HOME", Path.home()))
         self.db_file = manifest_home / ".manifest" / "session.db"
         self.db_file.parent.mkdir(parents=True, exist_ok=True)
         self.conn = sqlite3.connect(str(self.db_file))
+        self.serializer = Serializer()
         self._create_table()
         if not session_id:
             self.session_id = str(uuid.uuid4())
@@ -124,8 +120,8 @@ class Session:
             query,
             self.query_id,
             self.session_id,
-            request_to_key(query_key),
-            response_to_key(response_key),
+            self.serializer.request_to_key(query_key),
+            self.serializer.response_to_key(response_key),
         )
         self.query_id += 1
         return
@@ -151,7 +147,10 @@ class Session:
                     ORDER BY query_id;"""
         res = self._execute_query(query, self.session_id, first_query)
         parsed_res = [
-            (key_to_request(pair[0]), key_to_response(pair[1]))
+            (
+                self.serializer.key_to_request(pair[0]),
+                self.serializer.key_to_response(pair[1]),
+            )
             for pair in res.fetchall()
         ]
         return parsed_res

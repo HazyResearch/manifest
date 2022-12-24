@@ -3,7 +3,7 @@ import logging
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from manifest.clients.client import Client
-from manifest.request import Request
+from manifest.request import LMRequest, Request
 
 logger = logging.getLogger(__name__)
 
@@ -15,6 +15,7 @@ class DummyClient(Client):
     PARAMS = {
         "n": ("num_results", 1),
     }
+    REQUEST_CLS = LMRequest
 
     def connect(
         self,

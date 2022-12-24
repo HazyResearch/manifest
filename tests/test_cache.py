@@ -1,4 +1,5 @@
 """Cache test."""
+import numpy as np
 import pytest
 from redis import Redis
 from sqlitedict import SqliteDict
@@ -56,18 +57,32 @@ def test_get(sqlite_cache, redis_cache, cache_type):
     test_request = {"test": "hello", "testA": "world"}
     compute = lambda: {"choices": [{"text": "hello"}]}
 
-    response = cache.get(test_request, overwrite_cache=False, compute=compute)
-    assert response.get_response() == "hello"
-    assert not response.is_cached()
-    assert response.get_request() == test_request
+    # response = cache.get(test_request, overwrite_cache=False, compute=compute)
+    # assert response.get_response() == "hello"
+    # assert not response.is_cached()
+    # assert response.get_request() == test_request
 
-    response = cache.get(test_request, overwrite_cache=False, compute=compute)
-    assert response.get_response() == "hello"
-    assert response.is_cached()
-    assert response.get_request() == test_request
+    # response = cache.get(test_request, overwrite_cache=False, compute=compute)
+    # assert response.get_response() == "hello"
+    # assert response.is_cached()
+    # assert response.get_request() == test_request
 
-    response = cache.get(test_request, overwrite_cache=True, compute=compute)
-    assert response.get_response() == "hello"
+    # response = cache.get(test_request, overwrite_cache=True, compute=compute)
+    # assert response.get_response() == "hello"
+    # assert not response.is_cached()
+    # assert response.get_request() == test_request
+
+    arr = np.random.rand(4, 4)
+    test_request = {"test": "hello", "testA": "world of images"}
+    compute = lambda: {"choices": [{"array": arr}]}
+
+    # Test array
+    if cache_type == "sqlite":
+        cache = SQLiteCache(sqlite_cache, client_name="diffuser")
+    else:
+        cache = RedisCache(redis_cache, client_name="diffuser")
+    response = cache.get(test_request, overwrite_cache=False, compute=compute)
+    assert np.allclose(response.get_response(), arr)
     assert not response.is_cached()
     assert response.get_request() == test_request
 

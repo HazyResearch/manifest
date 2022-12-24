@@ -1,69 +1,37 @@
 """Cache for queries and responses."""
-import json
 from abc import ABC, abstractmethod
 from typing import Any, Callable, Dict, Union
 
+from manifest.caches.serializers import ArraySerializer, Serializer
 from manifest.response import Response
 
+RESPONSE_CONSTRUCTORS = {
+    "diffuser": {
+        "generation_key": "choices",
+        "logits_key": "logprobs",
+        "item_key": "array",
+    },
+}
 
-def request_to_key(request: Dict) -> str:
-    """
-    Normalize a request into a key.
-
-    Args:
-        request: request to normalize.
-
-    Returns:
-        normalized key.
-    """
-    return json.dumps(request, sort_keys=True)
-
-
-def key_to_request(key: str) -> Dict:
-    """
-    Convert the normalized version to the request.
-
-    Args:
-        key: normalized key to convert.
-
-    Returns:
-        unnormalized request dict.
-    """
-    return json.loads(key)
-
-
-def response_to_key(response: Dict) -> str:
-    """
-    Normalize a response into a key.
-
-    Args:
-        response: response to normalize.
-
-    Returns:
-        normalized key.
-    """
-    return json.dumps(response, sort_keys=True)
-
-
-def key_to_response(key: str) -> Dict:
-    """
-    Convert the normalized version to the response.
-
-    Args:
-        key: normalized key to convert.
-
-    Returns:
-        unnormalized response dict.
-    """
-    return json.loads(key)
+CACHE_CONSTRUCTOR = {"diffuser": ArraySerializer}
 
 
 class Cache(ABC):
     """A cache for request/response pairs."""
 
-    def __init__(self, connection_str: str, cache_args: Dict[str, Any] = {}):
+    def __init__(
+        self,
+        connection_str: str,
+        client_name: str = "None",
+        cache_args: Dict[str, Any] = {},
+    ):
         """
         Initialize client.
+
+        Args:
+            connection_str: connection string.
+            client_name: name of client.
+            cache_args: arguments for cache.
 
         cache_args are passed to client as default parameters.
 
@@ -74,7 +42,9 @@ class Cache(ABC):
             connection_str: connection string for client.
             cache_args: cache arguments.
         """
+        self.client_name = client_name
         self.connect(connection_str, cache_args)
+        self.serializer = CACHE_CONSTRUCTOR.get(client_name, Serializer)()
 
     @abstractmethod
     def close(self) -> None:
@@ -127,14 +97,16 @@ class Cache(ABC):
         self, request: Dict, overwrite_cache: bool, compute: Callable[[], Dict]
     ) -> Response:
         """Get the result of request (by calling compute as needed)."""
-        key = request_to_key(request)
+        key = self.serializer.request_to_key(request)
         cached_response = self.get_key(key)
         if cached_response and not overwrite_cache:
             cached = True
-            response = key_to_response(cached_response)
+            response = self.serializer.key_to_response(cached_response)
         else:
             # Type Response
             response = compute()
-            self.set_key(key, response_to_key(response))
+            self.set_key(key, self.serializer.response_to_key(response))
             cached = False
-        return Response(response, cached, request)
+        return Response(
+            response, cached, request, **RESPONSE_CONSTRUCTORS.get(self.client_name, {})
+        )

@@ -4,6 +4,7 @@ import os
 from typing import Any, Dict, Optional
 
 from manifest.clients.client import Client
+from manifest.request import LMRequest
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +40,7 @@ class OpenAIClient(Client):
         "frequency_penalty": ("frequency_penalty", 0.0),
         "client_timeout": ("client_timeout", 60),  # seconds
     }
+    REQUEST_CLS = LMRequest
 
     def connect(
         self,

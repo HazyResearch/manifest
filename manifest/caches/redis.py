@@ -15,7 +15,7 @@ class RedisCache(Cache):
 
         Args:
             connection_str: connection string.
-            cache_args: cache arguments.
+            cache_args: arguments for cache.
         """
         host, port = connection_str.split(":")
         self.redis = redis.Redis(host=host, port=int(port), db=0)

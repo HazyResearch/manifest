@@ -7,6 +7,7 @@ from typing import Any, Dict, Optional
 import requests
 
 from manifest.clients.client import Client
+from manifest.request import LMRequest
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +34,7 @@ class TOMAClient(Client):
         "stop_sequences": ("stop", []),
         "client_timeout": ("client_timeout", 120),  # seconds
     }
+    REQUEST_CLS = LMRequest
 
     def connect(
         self,
