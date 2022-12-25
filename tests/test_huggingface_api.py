@@ -28,14 +28,16 @@ except OSError:
 MAXGPU = 0
 if NOCUDA == 0:
     try:
-        p = os.popen("nvidia-smi --query-gpu=index --format=csv,noheader,nounits")
-        i = p.read().split("\n")
+        p = os.popen(  # type: ignore
+            "nvidia-smi --query-gpu=index --format=csv,noheader,nounits"
+        )
+        i = p.read().split("\n")  # type: ignore
         MAXGPU = int(i[-2]) + 1
     except OSError:
         NOCUDA = 1
 
 
-def test_gpt_generate():
+def test_gpt_generate() -> None:
     """Test pipeline generation from a gpt model."""
     model = TextGenerationModel(
         model_name_or_path="gpt2",
@@ -80,7 +82,7 @@ def test_gpt_generate():
     assert math.isclose(round(result[0][1], 3), -1.414)
 
 
-def test_encdec_generate():
+def test_encdec_generate() -> None:
     """Test pipeline generation from a gpt model."""
     model = TextGenerationModel(
         model_name_or_path="google/t5-small-lm-adapt",
@@ -125,7 +127,7 @@ def test_encdec_generate():
     assert math.isclose(round(result[0][1], 3), -4.233)
 
 
-def test_gpt_score():
+def test_gpt_score() -> None:
     """Test pipeline generation from a gpt model."""
     model = TextGenerationModel(
         model_name_or_path="gpt2",
@@ -144,7 +146,7 @@ def test_gpt_score():
     assert math.isclose(round(result[1], 3), -45.831)
 
 
-def test_batch_gpt_generate():
+def test_batch_gpt_generate() -> None:
     """Test pipeline generation from a gpt model."""
     model = TextGenerationModel(
         model_name_or_path="gpt2",
@@ -193,7 +195,7 @@ def test_batch_gpt_generate():
     assert math.isclose(round(result[1][1], 3), -6.246)
 
 
-def test_batch_encdec_generate():
+def test_batch_encdec_generate() -> None:
     """Test pipeline generation from a gpt model."""
     model = TextGenerationModel(
         model_name_or_path="google/t5-small-lm-adapt",
@@ -247,7 +249,7 @@ def test_batch_encdec_generate():
 @pytest.mark.skipif(
     (NOCUDA == 1 or MAXGPU == 0), reason="No cuda or GPUs found through nvidia-smi"
 )
-def test_gpt_deepspeed_generate():
+def test_gpt_deepspeed_generate() -> None:
     """Test deepspeed generation from a gpt model."""
     model = TextGenerationModel(
         model_name_or_path="gpt2",
