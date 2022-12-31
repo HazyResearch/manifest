@@ -105,6 +105,42 @@ class Manifest:
         self.client.close()
         self.cache.close()
 
+    def change_client(
+        self,
+        client_name: Optional[str] = None,
+        client_connection: Optional[str] = None,
+        stop_token: Optional[str] = None,
+        **kwargs: Any,
+    ) -> None:
+        """
+        Change manifest client.
+
+        Args:
+            client_name: name of client.
+            client_connection: connection string for client.
+            stop_token: stop token prompt generation.
+                        Can be overridden in run
+
+        Remaining kwargs sent to client.
+        """
+        if client_name:
+            if client_name not in CLIENT_CONSTRUCTORS:
+                raise ValueError(
+                    f"Unknown client name: {client_name}. "
+                    f"Choices are {list(CLIENT_CONSTRUCTORS.keys())}"
+                )
+            self.client_name = client_name
+            self.client = CLIENT_CONSTRUCTORS[client_name](  # type: ignore
+                client_connection, client_args=kwargs
+            )
+            if len(kwargs) > 0:
+                raise ValueError(
+                    f"{list(kwargs.items())} arguments are not recognized."
+                )
+
+        if stop_token is not None:
+            self.stop_token = stop_token
+
     def run(
         self,
         prompt: Union[str, List[str]],
@@ -164,7 +200,6 @@ class Manifest:
         ]
         if len(request_unused_kwargs) > 0:
             logger.warning(f"{list(request_unused_kwargs)} arguments are unused.")
-
         # Create cacke key
         cache_key = full_kwargs.copy()
         # Make query model dependent

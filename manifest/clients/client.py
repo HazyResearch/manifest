@@ -160,9 +160,9 @@ class Client(ABC):
                     " Increase client_timeout."
                 )
                 raise e
-            except requests.exceptions.HTTPError as e:
-                logger.error(res.text)
-                raise e
+            except requests.exceptions.HTTPError:
+                logger.error(res.json())
+                raise requests.exceptions.HTTPError(res.json())
             return self.format_response(res.json())
 
         return _run_completion, request_params

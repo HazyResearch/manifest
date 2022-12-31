@@ -1,5 +1,6 @@
 """Test session."""
 import sqlite3
+from pathlib import Path
 
 import pytest
 
@@ -7,7 +8,7 @@ from manifest.session import Session
 
 
 @pytest.mark.usefixtures("session_cache")
-def test_init(session_cache):
+def test_init(session_cache: Path) -> None:
     """Test session initialization."""
     session = Session()
     assert isinstance(session.conn, sqlite3.Connection)
@@ -27,7 +28,7 @@ def test_init(session_cache):
 
 
 @pytest.mark.usefixtures("session_cache")
-def test_log_query(session_cache):
+def test_log_query(session_cache: Path) -> None:
     """Test session log_query."""
     session = Session()
     assert session.get_last_queries(1) == []
@@ -51,7 +52,7 @@ def test_log_query(session_cache):
 
 
 @pytest.mark.usefixtures("session_cache")
-def test_resume_query(session_cache):
+def test_resume_query(session_cache: Path) -> None:
     """Test session log_query."""
     session = Session(session_id="dog_days")
     query_key = {"query": "What is your name?", "time": "now"}
@@ -64,7 +65,7 @@ def test_resume_query(session_cache):
 
 
 @pytest.mark.usefixtures("session_cache")
-def test_session_keys(session_cache):
+def test_session_keys(session_cache: Path) -> None:
     """Test get session keys."""
     # Assert empty before queries
     assert Session.get_session_keys(session_cache / ".manifest" / "session.db") == []

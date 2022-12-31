@@ -19,10 +19,10 @@ with open(ver_path) as ver_file:
 
 # Package meta-data.
 NAME = "manifest-ml"
-DESCRIPTION = "Manifest for Prompt Programming Foundation Models."
+DESCRIPTION = "Manifest for Prompting Foundation Models."
 URL = "https://github.com/HazyResearch/manifest"
 EMAIL = "lorr1@cs.stanford.edu"
-AUTHOR = "Laurel Orr and Avanika Narayan"
+AUTHOR = "Laurel Orr"
 REQUIRES_PYTHON = ">=3.8.0"
 VERSION = main_ns["__version__"]
 
@@ -34,6 +34,8 @@ EXTRAS = {
     "api": [
         "diffusers>=0.6.0",
         "Flask>=2.1.2",
+        "fastapi>=0.70.0",
+        "uvicorn>=0.18.0",
         "accelerate>=0.10.0",
         "transformers>=4.20.0",
         "torch>=1.8.0",

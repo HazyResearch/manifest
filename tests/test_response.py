@@ -5,10 +5,10 @@ import pytest
 from manifest import Response
 
 
-def test_init():
+def test_init() -> None:
     """Test response initialization."""
     with pytest.raises(ValueError) as exc_info:
-        response = Response(4, False, {})
+        response = Response(4, False, {})  # type: ignore
     assert str(exc_info.value) == "Response must be dict. Response is\n4."
     with pytest.raises(ValueError) as exc_info:
         response = Response({"test": "hello"}, False, {})
@@ -64,7 +64,7 @@ def test_init():
     assert response.item_dtype == "int64"
 
 
-def test_getters():
+def test_getters() -> None:
     """Test response cached."""
     response = Response({"choices": [{"text": "hello"}]}, False, {})
     assert response.get_json_response() == {"choices": [{"text": "hello"}]}
@@ -85,7 +85,7 @@ def test_getters():
     assert response.get_request() == {"request": "yoyo"}
 
 
-def test_serialize():
+def test_serialize() -> None:
     """Test response serialization."""
     response = Response({"choices": [{"text": "hello"}]}, True, {"request": "yoyo"})
     deserialized_response = Response.deserialize(response.serialize())
@@ -116,7 +116,7 @@ def test_serialize():
     assert deserialized_response._request_params == {"request": "yoyo"}
 
 
-def test_get_results():
+def test_get_results() -> None:
     """Test response get results."""
     response = Response({"choices": [{"text": "hello"}]}, True, {"request": "yoyo"})
     assert response.get_response() == "hello"

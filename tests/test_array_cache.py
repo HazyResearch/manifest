@@ -7,16 +7,15 @@ import pytest
 from manifest.caches.array_cache import ArrayCache
 
 
-def test_init(tmpdir):
+def test_init(tmpdir: Path) -> None:
     """Test cache initialization."""
-    tmpdir = Path(tmpdir)
-    cache = ArrayCache(tmpdir)
+    cache = ArrayCache(Path(tmpdir))
     assert (tmpdir / "hash2arrloc.sqlite").exists()
     assert cache.cur_file_idx == 0
     assert cache.cur_offset == 0
 
 
-def test_put_get(tmpdir):
+def test_put_get(tmpdir: Path) -> None:
     """Test putting and getting."""
     cache = ArrayCache(tmpdir)
     cache.max_memmap_size = 5
@@ -67,7 +66,7 @@ def test_put_get(tmpdir):
     assert np.allclose(cache.get("key2"), arr2)
 
 
-def test_contains_key(tmpdir):
+def test_contains_key(tmpdir: Path) -> None:
     """Test contains key."""
     cache = ArrayCache(tmpdir)
     assert not cache.contains_key("key")
