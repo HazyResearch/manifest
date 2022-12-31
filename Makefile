@@ -10,14 +10,14 @@ deepspeed:
 	pip install -e git+https://github.com/microsoft/DeepSpeed.git#egg=deepspeed
 
 format:
-	isort --atomic manifest/ tests/
-	black manifest/ tests/
+	isort --atomic manifest/ tests/ web_app/
+	black manifest/ tests/ web_app/
 
 check:
-	isort -c manifest/ tests/
-	black manifest/ tests/ --check
-	flake8 manifest/ tests/
-	mypy manifest/
+	isort -c manifest/ tests/ web_app/
+	black manifest/ tests/ web_app/ --check
+	flake8 manifest/ tests/ web_app/
+	mypy manifest/ tests/ web_app/
 
 clean:
 	pip uninstall -y manifest
