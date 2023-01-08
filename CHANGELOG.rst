@@ -4,6 +4,8 @@ Added
 ^^^^^
 * Batched inference support in `manifest.run`. No more separate `manifest.run_batch` method.
 * Standard request base model for all language inputs.
+* ChatGPT client. Requires CHATGPT_SESSION_KEY to be passed in.
+* Diffusion model support
 
 Fixed
 ^^^^^^^^
