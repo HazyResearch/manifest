@@ -15,7 +15,8 @@ module = [
   "accelerate.utils.modeling",
   "transformers",
   "flask",
-  "torch"
+  "torch",
+  "pyChatGPT",
 ]
 
 [tool.isort]

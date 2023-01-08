@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 # Engines are dynamically instantiated from API
 # but a few example engines are listed below.
 TOMA_ENGINES = {
-    "StableDiffusion",
+    # "StableDiffusion",
     "Together-gpt-JT-6B-v1",
 }
 

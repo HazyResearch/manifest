@@ -34,12 +34,17 @@ EXTRAS = {
     "api": [
         "diffusers>=0.6.0",
         "Flask>=2.1.2",
-        "fastapi>=0.70.0",
-        "uvicorn>=0.18.0",
         "accelerate>=0.10.0",
         "transformers>=4.20.0",
         "torch>=1.8.0",
         "numpy>=1.20.0",
+    ],
+    "app": [
+        "fastapi>=0.70.0",
+        "uvicorn>=0.18.0",
+    ],
+    "chatgpt": [
+        "pyChatGPT>=0.4.3",
     ],
     "dev": [
         "autopep8>=1.6.0",
