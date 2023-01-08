@@ -16,6 +16,12 @@ Install:
 pip install manifest-ml
 ```
 
+Install with ChatGPT Support:
+```bash
+pip install manifest-ml[chatgpt]
+```
+This installs [pyChatGPT](https://github.com/terry3041/pyChatGPT) and uses the ChatGPT session key to start a session. This key must be set as the `CHATGPT_SESSION_KEY` environment variable or passed in with `client_connection`.
+
 Install with HuggingFace API Support:
 ```bash
 pip install manifest-ml[api]
