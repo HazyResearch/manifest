@@ -6,6 +6,7 @@ Added
 * Standard request base model for all language inputs.
 * ChatGPT client. Requires CHATGPT_SESSION_KEY to be passed in.
 * Diffusion model support
+* HELM support
 
 Fixed
 ^^^^^^^^

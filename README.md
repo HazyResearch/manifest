@@ -22,16 +22,26 @@ pip install manifest-ml[chatgpt]
 ```
 This installs [pyChatGPT](https://github.com/terry3041/pyChatGPT) and uses the ChatGPT session key to start a session. This key must be set as the `CHATGPT_SESSION_KEY` environment variable or passed in with `client_connection`.
 
+Install with [HELM](https://crfm-helm.readthedocs.io/en/latest/) Support:
+```bash
+pip install manifest-ml[helm]
+```
+This requires a HELM api key.
+
 Install with HuggingFace API Support:
 ```bash
 pip install manifest-ml[api]
 ```
 
-Dev Install:
+Manual Install:
 ```bash
 git clone git@github.com:HazyResearch/manifest.git
 cd manifest
 make dev
+```
+or
+```
+pip install .[all]
 ```
 
 # Getting Started
