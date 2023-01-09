@@ -46,6 +46,9 @@ EXTRAS = {
     "chatgpt": [
         "pyChatGPT>=0.4.3",
     ],
+    "helm": [
+        "crfm-helm>=0.1.0",
+    ],
     "dev": [
         "autopep8>=1.6.0",
         "black>=22.3.0",
