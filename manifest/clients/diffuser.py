@@ -22,6 +22,7 @@ class DiffuserClient(Client):
         "n": ("num_images_per_prompt", 1),
         "guidance_scale": ("guidance_scale", 7.5),
         "eta": ("eta", 0.0),
+        "client_timeout": ("client_timeout", 120),  # seconds
     }
     REQUEST_CLS = DiffusionRequest
 
@@ -41,6 +42,14 @@ class DiffuserClient(Client):
         for key in self.PARAMS:
             setattr(self, key, client_args.pop(key, self.PARAMS[key][1]))
         self.model_params = self.get_model_params()
+
+    def to_numpy(self, image: np.ndarray) -> np.ndarray:
+        """Convert a numpy image to a PIL image.
+
+        Adapted from https://github.com/huggingface/diffusers/blob/src/diffusers/pipelines/pipeline_utils.py#L808   # noqa: E501
+        """
+        image = (image * 255).round().astype("uint8")
+        return image
 
     def close(self) -> None:
         """Close the client."""
@@ -88,5 +97,5 @@ class DiffuserClient(Client):
         """
         # Convert array to np.array
         for choice in response["choices"]:
-            choice["array"] = np.array(choice["array"])
+            choice["array"] = self.to_numpy(np.array(choice["array"]))
         return response

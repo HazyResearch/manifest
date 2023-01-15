@@ -11,9 +11,17 @@ RESPONSE_CONSTRUCTORS = {
         "logits_key": "logprobs",
         "item_key": "array",
     },
+    "tomadiffuser": {
+        "generation_key": "choices",
+        "logits_key": "logprobs",
+        "item_key": "array",
+    },
 }
 
-CACHE_CONSTRUCTOR = {"diffuser": ArraySerializer}
+CACHE_CONSTRUCTOR = {
+    "diffuser": ArraySerializer,
+    "tomadiffuser": ArraySerializer,
+}
 
 
 class Cache(ABC):
