@@ -60,7 +60,6 @@ class Model(ABC):
         """
         raise NotImplementedError()
 
-    @abstractmethod
     def embed(self, prompt: Union[str, List[str]], **kwargs: Any) -> np.ndarray:
         """
         Compute embedding for prompts.

@@ -15,6 +15,7 @@ from manifest.clients.dummy import DummyClient
 from manifest.clients.huggingface import HuggingFaceClient
 from manifest.clients.openai import OpenAIClient
 from manifest.clients.toma import TOMAClient
+from manifest.clients.toma_diffuser import TOMADiffuserClient
 from manifest.response import Response
 from manifest.session import Session
 
@@ -30,6 +31,7 @@ CLIENT_CONSTRUCTORS = {
     "diffuser": DiffuserClient,
     "dummy": DummyClient,
     "toma": TOMAClient,
+    "tomadiffuser": TOMADiffuserClient,
 }
 
 CACHE_CONSTRUCTORS = {
