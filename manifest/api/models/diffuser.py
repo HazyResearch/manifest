@@ -1,6 +1,6 @@
 """Huggingface model."""
 from pathlib import Path
-from typing import Any, Dict, List, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import torch
 from diffusers import StableDiffusionPipeline
@@ -14,14 +14,15 @@ class DiffuserModel(Model):
     def __init__(
         self,
         model_name_or_path: str,
-        model_config: str = None,
-        cache_dir: str = None,
+        model_config: Optional[str] = None,
+        cache_dir: Optional[str] = None,
         device: int = 0,
         use_accelerate: bool = False,
         use_parallelize: bool = False,
         use_bitsandbytes: bool = False,
+        use_deepspeed: bool = False,
         perc_max_gpu_mem_red: float = 1.0,
-        use_fp16: bool = True,
+        use_fp16: bool = False,
     ):
         """
         Initialize model.
@@ -36,12 +37,14 @@ class DiffuserModel(Model):
             use_accelerate: whether to use accelerate for multi-gpu inference.
             use_parallelize: use HF default parallelize
             use_bitsandbytes: use HF bits and bytes
+            use_deepspeed: use deepspeed
             perc_max_gpu_mem_red: percent max memory reduction in accelerate
             use_fp16: use fp16 for model weights.
         """
-        if use_accelerate or use_parallelize or use_bitsandbytes:
+        if use_accelerate or use_parallelize or use_bitsandbytes or use_deepspeed:
             raise ValueError(
-                "Cannot use accelerate or parallelize or bitsandbytes with diffusers"
+                "Cannot use accelerate or parallelize or "
+                "bitsandbytes or deepspeeed with diffusers"
             )
         # Check if providing path
         self.model_path = model_name_or_path

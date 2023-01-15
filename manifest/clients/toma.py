@@ -14,7 +14,6 @@ logger = logging.getLogger(__name__)
 # Engines are dynamically instantiated from API
 # but a few example engines are listed below.
 TOMA_ENGINES = {
-    # "StableDiffusion",
     "Together-gpt-JT-6B-v1",
 }
 
@@ -24,7 +23,7 @@ class TOMAClient(Client):
 
     # User param -> (client param, default value)
     PARAMS = {
-        "engine": ("model", "gpt-j-6b"),
+        "engine": ("model", "Together-gpt-JT-6B-v1"),
         "temperature": ("temperature", 0.1),
         "max_tokens": ("max_tokens", 32),
         # n is depricated with new API but will come back online soon
