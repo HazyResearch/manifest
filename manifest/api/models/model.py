@@ -72,17 +72,16 @@ class Model(ABC):
         """
         raise NotImplementedError()
 
-    def logits_scoring(
-        self, prompt: Union[str, List[str]], gold_choices: List[str], **kwargs: Any
-    ) -> List[Tuple[Any, float]]:
+    def score_sequence(
+        self, prompt: Union[str, List[str]], **kwargs: Any
+    ) -> List[float]:
         """
-        Given the prompt and gold choices, choose the best choice with max logits.
+        Score a sequence of choices.
 
         Args:
-            prompt: promt to generate from.
-            gold_choices: list of choices to choose from.
-
-        Returns:
-            the returned gold choice and the score.
+            prompt (:obj:`str` or :obj:`List[str]`):
+                The prompt to score the choices against.
+            **kwargs:
+                Additional keyword arguments passed along to the :obj:`__call__` method.
         """
         raise NotImplementedError()

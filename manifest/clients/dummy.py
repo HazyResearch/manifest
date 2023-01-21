@@ -1,6 +1,6 @@
 """Dummy client."""
 import logging
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, Optional, Tuple
 
 from manifest.clients.client import Client
 from manifest.request import LMRequest, Request
@@ -93,16 +93,14 @@ class DummyClient(Client):
 
         return _run_completion, request_params
 
-    def get_choice_logit_request(
+    def get_score_prompt_request(
         self,
-        gold_choices: List[str],
         request: Request,
     ) -> Tuple[Callable[[], Dict], Dict]:
         """
-        Get request string function for choosing max choices.
+        Get the logit score of the prompt via a forward pass of the model.
 
         Args:
-            gold_choices: choices for model to choose from via max logits.
             request: request.
 
         Returns:
@@ -113,9 +111,19 @@ class DummyClient(Client):
             num_results = len(request.prompt)
         else:
             num_results = 1
-        request_params = {"prompt": request.prompt, "gold_choices": gold_choices}
+        request_params = {"prompt": request.prompt}
 
         def _run_completion() -> Dict:
-            return {"choices": [{"text": gold_choices[0]}] * num_results}
+            return {
+                "choices": [
+                    {
+                        "text": request.prompt
+                        if isinstance(request.prompt, str)
+                        else request.prompt[i],
+                        "logprob": 0.3,
+                    }
+                    for i in range(num_results)
+                ]
+            }
 
         return _run_completion, request_params
