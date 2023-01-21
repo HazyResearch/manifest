@@ -1,6 +1,6 @@
 """Hugging Face client."""
 import logging
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, Optional, Tuple
 
 import requests
 
@@ -78,16 +78,14 @@ class HuggingFaceClient(Client):
         res = requests.post(self.host + "/params")
         return res.json()
 
-    def get_choice_logit_request(
+    def get_score_prompt_request(
         self,
-        gold_choices: List[str],
         request: Request,
     ) -> Tuple[Callable[[], Dict], Dict]:
         """
-        Get request string function for choosing max choices.
+        Get the logit score of the prompt via a forward pass of the model.
 
         Args:
-            gold_choices: choices for model to choose from via max logits.
             request: request.
 
         Returns:
@@ -97,10 +95,10 @@ class HuggingFaceClient(Client):
         request_params = request.to_dict(self.PARAMS)
         retry_timeout = request_params.pop("client_timeout")
         # Do not add params like we do with request as the model isn't sampling
-        request_params = {"prompt": request.prompt, "gold_choices": gold_choices}
+        request_params = {"prompt": request.prompt}
 
         def _run_completion() -> Dict:
-            post_str = self.host + "/choice_logits"
+            post_str = self.host + "/score_sequence"
             try:
                 res = requests.post(
                     post_str,

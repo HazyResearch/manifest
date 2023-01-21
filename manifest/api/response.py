@@ -14,12 +14,12 @@ class ModelResponse:
         self.response_type = response_type
         if self.response_type not in {
             "text_completion",
-            "choice_selection",
+            "prompt_logit_score",
             "image_generation",
         }:
             raise ValueError(
                 f"Invalid response type: {self.response_type}. "
-                "Must be one of: text_completion, choice_selection."
+                "Must be one of: text_completion, prompt_logit_score, image_generation."
             )
         self.response_id = str(uuid.uuid4())
         self.created = int(time.time())
