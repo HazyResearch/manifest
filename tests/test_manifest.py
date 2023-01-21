@@ -254,11 +254,7 @@ def test_batch_run(
 
 
 @pytest.mark.usefixtures("sqlite_cache")
-@pytest.mark.usefixtures("session_cache")
-@pytest.mark.parametrize("return_response", [True, False])
-def test_choices_run(
-    sqlite_cache: str, session_cache: str, return_response: bool
-) -> None:
+def test_score_run(sqlite_cache: str) -> None:
     """Test manifest run."""
     manifest = Manifest(
         client_name="dummy",
@@ -267,20 +263,13 @@ def test_choices_run(
     )
 
     prompt = "This is a prompt"
-    # Dummy client will always return first choice
-    choices = ["cat", "dog"]
-    result = manifest.run(prompt, gold_choices=choices, return_response=return_response)
-    if return_response:
-        assert isinstance(result, Response)
-        res = cast(Response, result).get_response(manifest.stop_token)
-    else:
-        res = cast(str, result)
+    result = manifest.score_prompt(prompt)
+
     assert (
         manifest.cache.get_key(
             json.dumps(
                 {
                     "prompt": "This is a prompt",
-                    "gold_choices": ["cat", "dog"],
                     "engine": "dummy",
                 },
                 sort_keys=True,
@@ -288,22 +277,23 @@ def test_choices_run(
         )
         is not None
     )
-    assert res == "cat"
+    assert result == {
+        "generation_key": "choices",
+        "logits_key": "logprobs",
+        "item_key": "text",
+        "item_dtype": None,
+        "response": {"choices": [{"text": "This is a prompt", "logprob": 0.3}]},
+        "cached": False,
+        "request_params": {"prompt": "This is a prompt", "engine": "dummy"},
+    }
 
-    prompt = "Hello is a prompt"
-    choices = ["cat", "dog"]
-    result = manifest.run(prompt, gold_choices=choices, return_response=return_response)
-    if return_response:
-        assert isinstance(result, Response)
-        res = cast(Response, result).get_response(manifest.stop_token)
-    else:
-        res = cast(str, result)
+    prompt_list = ["Hello is a prompt", "Hello is another prompt"]
+    result = manifest.score_prompt(prompt_list)
     assert (
         manifest.cache.get_key(
             json.dumps(
                 {
-                    "prompt": "Hello is a prompt",
-                    "gold_choices": ["cat", "dog"],
+                    "prompt": ["Hello is a prompt", "Hello is another prompt"],
                     "engine": "dummy",
                 },
                 sort_keys=True,
@@ -311,63 +301,23 @@ def test_choices_run(
         )
         is not None
     )
-    assert res == "cat"
-
-    prompt = "Hello is a prompt"
-    choices = ["callt", "dog"]
-    result = manifest.run(
-        prompt,
-        gold_choices=choices,
-        stop_token="ll",
-        return_response=return_response,
-    )
-    if return_response:
-        assert isinstance(result, Response)
-        res = cast(Response, result).get_response(stop_token="ll")
-    else:
-        res = cast(str, result)
-    assert (
-        manifest.cache.get_key(
-            json.dumps(
-                {
-                    "prompt": "Hello is a prompt",
-                    "gold_choices": ["cat", "dog"],
-                    "engine": "dummy",
-                },
-                sort_keys=True,
-            )
-        )
-        is not None
-    )
-    assert res == "ca"
-
-    prompt_lst = ["Hello is a prompt", "Hello is a prompt"]
-    choices = ["callt", "dog"]
-    result = manifest.run(
-        prompt_lst,
-        gold_choices=choices,
-        stop_token="ll",
-        return_response=return_response,
-    )
-    if return_response:
-        assert isinstance(result, Response)
-        res = cast(Response, result).get_response(stop_token="ll", is_batch=True)
-    else:
-        res = cast(str, result)
-    assert (
-        manifest.cache.get_key(
-            json.dumps(
-                {
-                    "prompt": ["Hello is a prompt", "Hello is a prompt"],
-                    "gold_choices": ["callt", "dog"],
-                    "engine": "dummy",
-                },
-                sort_keys=True,
-            )
-        )
-        is not None
-    )
-    assert res == ["ca", "ca"]
+    assert result == {
+        "generation_key": "choices",
+        "logits_key": "logprobs",
+        "item_key": "text",
+        "item_dtype": None,
+        "response": {
+            "choices": [
+                {"text": "Hello is a prompt", "logprob": 0.3},
+                {"text": "Hello is another prompt", "logprob": 0.3},
+            ]
+        },
+        "cached": False,
+        "request_params": {
+            "prompt": ["Hello is a prompt", "Hello is another prompt"],
+            "engine": "dummy",
+        },
+    }
 
 
 @pytest.mark.usefixtures("session_cache")

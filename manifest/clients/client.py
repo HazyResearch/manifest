@@ -167,16 +167,14 @@ class Client(ABC):
 
         return _run_completion, request_params
 
-    def get_choice_logit_request(
+    def get_score_prompt_request(
         self,
-        gold_choices: List[str],
         request: Request,
     ) -> Tuple[Callable[[], Dict], Dict]:
         """
-        Get request string function for choosing max choices.
+        Get the logit score of the prompt via a forward pass of the model.
 
         Args:
-            gold_choices: choices for model to choose from via max logits.
             request: request.
 
         Returns:
@@ -184,5 +182,5 @@ class Client(ABC):
             request parameters as dict.
         """
         raise NotImplementedError(
-            f"{self.__class__.__name__} does not support choice logit request."
+            f"{self.__class__.__name__} does not support prompt scoring request."
         )

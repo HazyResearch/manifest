@@ -206,29 +206,26 @@ def embed() -> Dict:
     return {"result": results}
 
 
-@app.route("/choice_logits", methods=["POST"])
-def choice_logits() -> Response:
-    """Get maximal likely choice via max logits after generation."""
+@app.route("/score_sequence", methods=["POST"])
+def score_sequence() -> Response:
+    """Get logprob of prompt."""
     prompt = request.json["prompt"]
     del request.json["prompt"]
-    gold_choices = request.json["gold_choices"]
-    del request.json["gold_choices"]
     generation_args = request.json
 
     if not isinstance(prompt, (str, list)):
         raise ValueError("Prompt must be a str or list of str")
 
-    if not isinstance(gold_choices, list):
-        raise ValueError("Gold choices must be a list of string choices")
     try:
-        choice_score_list = model.logits_scoring(
-            prompt, gold_choices, **generation_args
-        )
-        results = [{"text": r[0], "text_logprob": r[1]} for r in choice_score_list]
+        score_list = model.score_sequence(prompt, **generation_args)
+        results = [
+            {"text": prompt if isinstance(prompt, str) else prompt[i], "logprob": r}
+            for i, r in enumerate(score_list)
+        ]
         # transform the result into the openai format
         return Response(
             json.dumps(
-                ModelResponse(results, response_type="choice_selection").__dict__()
+                ModelResponse(results, response_type="prompt_logit_score").__dict__()
             ),
             status=200,
         )
