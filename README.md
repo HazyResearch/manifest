@@ -8,6 +8,7 @@ How to make prompt programming with Foundation Models a little easier.
 - [Manifest](#manifest-components)
 - [Local HuggingFace Models](#local-huggingface-models)
 - [Development](#development)
+- [Cite](#cite)
 
 
 # Install
@@ -203,4 +204,16 @@ export REDIS_PORT="6379"  # or whatever PORT local redis is running for those te
 cd <REDIS_PATH>
 docker run -d -p 127.0.0.1:${REDIS_PORT}:6379 -v `pwd`:`pwd` -w `pwd` --name manifest_redis_test redis
 make test
+```
+
+# Cite
+Please cite Manifest if you used it for any publications. Thanks!!
+```
+@misc{orr2022manifest,
+  author = {Orr, Laurel},
+  title = {Manifest},
+  year = {2022},
+  publisher = {GitHub},
+  howpublished = {\url{https://github.com/HazyResearch/manifest}},
+}
 ```
