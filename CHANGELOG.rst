@@ -1,4 +1,8 @@
-Unreleased 0.0.2
+0.0.3 - Unreleased
+---------------------
+
+
+0.0.2 - 2022-01-31
 ---------------------
 Added
 ^^^^^
@@ -6,9 +10,7 @@ Added
 * Standard request base model for all language inputs.
 * ChatGPT client. Requires CHATGPT_SESSION_KEY to be passed in.
 * Diffusion model support
-
-Fixed
-^^^^^^^^
+* Together model support
 
 Removed
 ^^^^^^^
