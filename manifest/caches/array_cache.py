@@ -98,6 +98,7 @@ class ArrayCache:
             "offset": self.cur_offset,
             "flatten_size": len(arr),
             "shape": arr_shape,
+            "dtype": arr.dtype,
         }
         self.cur_offset += len(arr)
         return
@@ -112,4 +113,4 @@ class ArrayCache:
         arr = memmap[
             file_data["offset"] : file_data["offset"] + file_data["flatten_size"]
         ]
-        return arr.reshape(file_data["shape"])
+        return arr.reshape(file_data["shape"]).astype(file_data["dtype"])

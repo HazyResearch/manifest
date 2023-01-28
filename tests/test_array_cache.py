@@ -28,6 +28,7 @@ def test_put_get(tmpdir: Path) -> None:
     cache.max_memmap_size = 120
     cache.put("key", arr)
     assert np.allclose(cache.get("key"), arr)
+    assert cache.get("key").dtype == arr.dtype
     assert cache.cur_file_idx == 0
     assert cache.cur_offset == 100
     assert cache.hash2arrloc["key"] == {
@@ -35,11 +36,13 @@ def test_put_get(tmpdir: Path) -> None:
         "offset": 0,
         "flatten_size": 100,
         "shape": (10, 10),
+        "dtype": np.dtype("float64"),
     }
 
-    arr2 = np.random.rand(10, 10)
+    arr2 = np.random.randint(0, 3, size=(10, 10))
     cache.put("key2", arr2)
     assert np.allclose(cache.get("key2"), arr2)
+    assert cache.get("key2").dtype == arr2.dtype
     assert cache.cur_file_idx == 1
     assert cache.cur_offset == 100
     assert cache.hash2arrloc["key2"] == {
@@ -47,6 +50,7 @@ def test_put_get(tmpdir: Path) -> None:
         "offset": 0,
         "flatten_size": 100,
         "shape": (10, 10),
+        "dtype": np.dtype("int64"),
     }
 
     cache = ArrayCache(tmpdir)
@@ -55,12 +59,14 @@ def test_put_get(tmpdir: Path) -> None:
         "offset": 0,
         "flatten_size": 100,
         "shape": (10, 10),
+        "dtype": np.dtype("float64"),
     }
     assert cache.hash2arrloc["key2"] == {
         "file_idx": 1,
         "offset": 0,
         "flatten_size": 100,
         "shape": (10, 10),
+        "dtype": np.dtype("int64"),
     }
     assert np.allclose(cache.get("key"), arr)
     assert np.allclose(cache.get("key2"), arr2)
