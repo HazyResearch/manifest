@@ -14,6 +14,7 @@ class DiffuserModel(Model):
     def __init__(
         self,
         model_name_or_path: str,
+        model_type: Optional[str] = None,
         model_config: Optional[str] = None,
         cache_dir: Optional[str] = None,
         device: int = 0,
@@ -93,17 +94,16 @@ class DiffuserModel(Model):
         return [(im, None) for im in result["images"]]
 
     @torch.no_grad()
-    def logits_scoring(
-        self, prompt: Union[str, List[str]], gold_choices: List[str], **kwargs: Any
-    ) -> List[Tuple[Any, float]]:
+    def score_sequence(
+        self, prompt: Union[str, List[str]], **kwargs: Any
+    ) -> List[float]:
         """
-        Given the prompt and gold choices, choose the best choice with max logits.
+        Score a sequence of choices.
 
         Args:
-            prompt: promt to generate from.
-            gold_choices: list of choices to choose from.
-
-        Returns:
-            the returned gold choice
+            prompt (:obj:`str` or :obj:`List[str]`):
+                The prompt to score the choices against.
+            **kwargs:
+                Additional keyword arguments passed along to the :obj:`__call__` method.
         """
-        raise NotImplementedError("Logits scoring not supported for diffusers")
+        raise NotImplementedError("Score sequence not supported for diffusers")

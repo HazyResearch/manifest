@@ -61,7 +61,11 @@ MODEL_REGISTRY = {
     "google/flan-t5-l": AutoModelForSeq2SeqLM,  # 800M
     "google/flan-t5-xl": AutoModelForSeq2SeqLM,  # 3B
     "google/flan-t5-xxl": AutoModelForSeq2SeqLM,  # 11B
-    "allenai/tk-instruct-3b-def": AutoModelForSeq2SeqLM,
+}
+
+MODEL_GENTYPE_REGISTRY = {
+    "text-generation": AutoModelForCausalLM,
+    "text2text-generation": AutoModelForSeq2SeqLM,
 }
 
 
@@ -187,6 +191,7 @@ class HuggingFaceModel(Model):
     def __init__(
         self,
         model_name_or_path: str,
+        model_type: Optional[str] = None,
         model_config: Optional[str] = None,
         cache_dir: Optional[str] = None,
         device: int = 0,
@@ -227,6 +232,13 @@ class HuggingFaceModel(Model):
                 config = json.load(open(Path(self.model_path) / "config.json"))
                 model_name_or_path = config["_name_or_path"]
         self.model_name = model_name_or_path
+        self.model_type = model_type
+        if self.model_name not in MODEL_REGISTRY and self.model_type is None:
+            raise ValueError(
+                f"{self.model_name} is not in our registry. Please specify "
+                "--model_generation_type as either text-generation (for Causal)"
+                " or text2text-generation (for Seq2Seq)"
+            )
         print("Model Name:", self.model_name, "Model Path:", self.model_path)
 
     def get_init_params(self) -> Dict:
@@ -316,6 +328,7 @@ class CrossModalEncoderModel(HuggingFaceModel):
     def __init__(
         self,
         model_name_or_path: str,
+        model_type: Optional[str] = None,
         model_config: Optional[str] = None,
         cache_dir: Optional[str] = None,
         device: int = 0,
@@ -345,6 +358,7 @@ class CrossModalEncoderModel(HuggingFaceModel):
         """
         super().__init__(
             model_name_or_path,
+            model_type,
             model_config,
             cache_dir,
             device,
@@ -359,7 +373,9 @@ class CrossModalEncoderModel(HuggingFaceModel):
         # TODO: make this generalizable
         self.processor = CLIPProcessor.from_pretrained(self.model_path)
 
-        model = MODEL_REGISTRY[self.model_name].from_pretrained(
+        model = MODEL_REGISTRY.get(
+            self.model_name, MODEL_GENTYPE_REGISTRY.get(self.model_type, None)
+        ).from_pretrained(
             self.model_path,
             cache_dir=cache_dir,
         )
@@ -370,7 +386,6 @@ class CrossModalEncoderModel(HuggingFaceModel):
             if (device == -1 or not torch.cuda.is_available())
             else torch.device(f"cuda:{device}")
         )
-        print("T", torch_device)
         self.model = model.to(torch_device)  # type: ignore
 
     @torch.no_grad()
@@ -401,6 +416,7 @@ class TextGenerationModel(HuggingFaceModel):
     def __init__(
         self,
         model_name_or_path: str,
+        model_type: Optional[str] = None,
         model_config: Optional[str] = None,
         cache_dir: Optional[str] = None,
         device: int = 0,
@@ -430,6 +446,7 @@ class TextGenerationModel(HuggingFaceModel):
         """
         super().__init__(
             model_name_or_path,
+            model_type,
             model_config,
             cache_dir,
             device,
@@ -455,7 +472,9 @@ class TextGenerationModel(HuggingFaceModel):
         if use_bitsandbytes:
             print("WARNING!!! Cannot use sampling with bitsandbytes.")
             max_memory = get_max_memory(perc_max_gpu_mem_red)
-            model = MODEL_REGISTRY[self.model_name].from_pretrained(  # type: ignore
+            model = MODEL_REGISTRY.get(
+                self.model_name, MODEL_GENTYPE_REGISTRY.get(self.model_type, None)
+            ).from_pretrained(  # type: ignore
                 self.model_path,
                 cache_dir=cache_dir,
                 load_in_8bit=True,
@@ -465,14 +484,18 @@ class TextGenerationModel(HuggingFaceModel):
         else:
             try:
                 # Try to explicitely find a fp16 copy (gpt-j-6B for example)
-                model = MODEL_REGISTRY[self.model_name].from_pretrained(  # type: ignore
+                model = MODEL_REGISTRY.get(
+                    self.model_name, MODEL_GENTYPE_REGISTRY.get(self.model_type, None)
+                ).from_pretrained(  # type: ignore
                     self.model_path,
                     cache_dir=cache_dir,
                     revision="float16",
                     torch_dtype=torch.float16,
                 )
             except Exception:
-                model = MODEL_REGISTRY[self.model_name].from_pretrained(  # type: ignore
+                model = MODEL_REGISTRY.get(
+                    self.model_name, MODEL_GENTYPE_REGISTRY.get(self.model_type, None)
+                ).from_pretrained(  # type: ignore
                     self.model_path, cache_dir=cache_dir, torch_dtype=dtype
                 )
         model.eval()
@@ -554,188 +577,6 @@ class TextGenerationModel(HuggingFaceModel):
             for r in result
         ]
         return final_results
-
-    @torch.no_grad()
-    def logits_scoring(
-        self, prompt: Union[str, List[str]], gold_choices: List[str], **kwargs: Any
-    ) -> List[Tuple[Any, float]]:
-        """
-        Given the prompt and gold choices, choose the best choice with max logits.
-
-        Args:
-            prompt: promt to generate from.
-            gold_choices: list of choices to choose from.
-
-        Returns:
-            the returned gold choice
-        """
-        if isinstance(prompt, str):
-            prompt = [prompt]
-        max_input_len = self.pipeline.max_length
-        if self.is_encdec:
-            # Adapted from https://github.com/bigscience-workshop/t-zero
-            tokenized_inputs = self.pipeline.tokenizer(
-                prompt,
-                padding="longest",
-                max_length=max_input_len,
-                truncation=True,
-                add_special_tokens=False,
-            )
-            # Get max target length
-            max_target_len = max(
-                [
-                    len(self.pipeline.tokenizer(ans_choi)["input_ids"])
-                    for ans_choi in gold_choices
-                ]
-            )
-            tokenized_targets = [
-                self.pipeline.tokenizer(
-                    ans_choi,
-                    # padding is on the right here.
-                    padding="max_length",
-                    max_length=min(max_target_len, max_input_len),
-                    truncation=True,
-                )
-                for ans_choi in gold_choices
-            ]
-
-            # Repeat input ids for each choice to form a batch
-            features = {
-                k: [tokenized_inputs[k] for _ in range(len(gold_choices))]
-                for k in tokenized_inputs.keys()
-            }
-            # Add choice tokens + mask
-            features["labels"] = [
-                [tokenized_targets[k]["input_ids"]] * len(tokenized_inputs["input_ids"])
-                for k in range(len(gold_choices))
-            ]
-            features["labels_attention_mask"] = [
-                [tokenized_targets[k]["attention_mask"]]
-                * len(tokenized_inputs["input_ids"])
-                for k in range(len(gold_choices))
-            ]
-        else:
-            tokenized_inputs = self.pipeline.tokenizer(
-                prompt,
-                max_length=max_input_len,
-                truncation=True,
-                padding=False,
-                add_special_tokens=False,
-            )
-            tokenized_targets = [
-                self.pipeline.tokenizer(
-                    # Add starting whitespace fo gpt
-                    ans_choi,
-                    max_length=max_input_len,
-                    truncation=True,
-                    padding=False,
-                    add_special_tokens=False,
-                )
-                for ans_choi in gold_choices
-            ]
-            features = {
-                k: [] for k in list(tokenized_inputs.keys()) + ["labels_attention_mask"]
-            }
-            max_effective_input_len = 0
-            for tokenized_targ in tokenized_targets:
-                for k in tokenized_inputs.keys():
-                    batched_features = []
-                    for prompt_i in range(len(tokenized_inputs[k])):
-                        # Make sure to leave room for the outputs
-                        batched_features.append(
-                            tokenized_inputs[k][prompt_i][
-                                : min(
-                                    len(tokenized_inputs[k][prompt_i]),
-                                    max_input_len - len(tokenized_targ[k]),
-                                )
-                            ]
-                            + tokenized_targ[k]
-                        )
-                        max_effective_input_len = max(
-                            max_effective_input_len, len(batched_features[-1])
-                        )
-                    features[k].append(batched_features)
-                # Manuall add labels_attention_mask
-                batched_features = []
-                for prompt_i in range(len(tokenized_inputs["input_ids"])):
-                    batched_features.append(
-                        [0]
-                        * min(
-                            len(tokenized_inputs["input_ids"][prompt_i]),
-                            max_input_len - len(tokenized_targ["input_ids"]),
-                        )
-                        + [1] * len(tokenized_targ["input_ids"])
-                    )
-                features["labels_attention_mask"].append(batched_features)
-            # Manually pad to max effective length
-            for k in features.keys():
-                for targ_i in range(len(features[k])):
-                    for prompt_i in range(len(features[k][targ_i])):
-                        if k == "input_ids":
-                            features[k][targ_i][prompt_i] += [
-                                self.pipeline.tokenizer.pad_token_id
-                            ] * (
-                                max_effective_input_len
-                                - len(features[k][targ_i][prompt_i])
-                            )
-                        elif k in ["attention_mask", "labels_attention_mask"]:
-                            features[k][targ_i][prompt_i] += [0] * (
-                                max_effective_input_len
-                                - len(features[k][targ_i][prompt_i])
-                            )
-                        else:
-                            raise ValueError(f"Unknown key {k} for decoder only models")
-
-            features["labels"] = features["input_ids"]
-
-        # Convert to tensors
-        tensor_features = {}
-        for k in features:
-            tensor_features[k] = torch.LongTensor(features[k]).to(self.pipeline.device)
-
-        if self.is_encdec:
-            gold_l, bsz, seq_len = tensor_features["labels"].shape
-            stacked_logits = self.pipeline.model(  # type: ignore
-                input_ids=tensor_features["input_ids"].reshape(gold_l * bsz, -1),
-                attention_mask=tensor_features["attention_mask"].reshape(
-                    gold_l * bsz, -1
-                ),
-                labels=tensor_features["labels"].reshape(gold_l * bsz, -1),
-            ).logits
-            stacked_logits = stacked_logits.reshape(gold_l, bsz, seq_len, -1)
-            # Adapted from https://github.com/bigscience-workshop/t-zero
-            masked_log_probs = tensor_features["labels_attention_mask"].unsqueeze(
-                -1
-            ) * torch.log_softmax(stacked_logits, dim=-1)
-            seq_token_log_probs = torch.gather(
-                masked_log_probs, -1, tensor_features["labels"].unsqueeze(-1)
-            )
-        else:
-            stacked_logits = self.pipeline.model(  # type: ignore
-                input_ids=tensor_features["input_ids"],
-                attention_mask=tensor_features["attention_mask"],
-            ).logits
-            # For causal decoders, shift logts and labels
-            labels_attention_mask = tensor_features["labels_attention_mask"].unsqueeze(
-                -1
-            )[..., 1:, :]
-            masked_log_probs = (
-                labels_attention_mask.float()
-                * torch.log_softmax(stacked_logits.float(), dim=-1)[..., :-1, :]
-            )
-            seq_token_log_probs = torch.gather(
-                masked_log_probs, -1, tensor_features["labels"][..., 1:].unsqueeze(-1)
-            )
-        seq_token_log_probs = seq_token_log_probs.squeeze(dim=-1)
-        seq_log_prob = seq_token_log_probs.sum(dim=-1)
-        # Averaging over output sequence length for GPT
-        if not self.is_encdec:
-            seq_log_prob = seq_log_prob * (1 / (seq_token_log_probs != 0).sum(dim=-1))
-        prediction = seq_log_prob.argmax(dim=0)
-        return [
-            (gold_choices[int(p)], seq_log_prob[int(p), i].item())
-            for i, p in enumerate(prediction)
-        ]
 
     @torch.no_grad()
     def score_sequence(

@@ -11,7 +11,11 @@ import pkg_resources
 from flask import Flask, Response, request
 
 from manifest.api.models.diffuser import DiffuserModel
-from manifest.api.models.huggingface import CrossModalEncoderModel, TextGenerationModel
+from manifest.api.models.huggingface import (
+    MODEL_GENTYPE_REGISTRY,
+    CrossModalEncoderModel,
+    TextGenerationModel,
+)
 from manifest.api.response import ModelResponse
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
@@ -39,6 +43,13 @@ def parse_args() -> argparse.Namespace:
         required=True,
         help="Model type used for finding constructor.",
         choices=MODEL_CONSTRUCTORS.keys(),
+    )
+    parser.add_argument(
+        "--model_generation_type",
+        default=None,
+        type=str,
+        help="Model generation type.",
+        choices=MODEL_GENTYPE_REGISTRY.keys(),
     )
     parser.add_argument(
         "--model_name_or_path",
@@ -104,6 +115,7 @@ def main() -> None:
         raise ValueError(f"Port {PORT} is already in use.")
     global model_type
     model_type = kwargs.model_type
+    model_gen_type = kwargs.model_generation_type
     model_name_or_path = kwargs.model_name_or_path
     if not model_name_or_path:
         raise ValueError("Must provide model_name_or_path.")
@@ -133,6 +145,7 @@ def main() -> None:
     global model
     model = MODEL_CONSTRUCTORS[model_type](
         model_name_or_path,
+        model_type=model_gen_type,
         cache_dir=kwargs.cache_dir,
         device=kwargs.device,
         use_accelerate=kwargs.use_accelerate_multigpu,

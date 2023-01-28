@@ -15,7 +15,7 @@ class ChatGPTClient(Client):
     """ChatGPT Client class."""
 
     # No params for ChatGPT
-    PARAMS = {}
+    PARAMS: Dict[str, Tuple[str, Any]] = {}
     REQUEST_CLS = LMRequest
 
     def connect(
