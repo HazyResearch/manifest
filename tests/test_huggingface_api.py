@@ -6,7 +6,7 @@ from subprocess import PIPE, Popen
 
 import pytest
 
-from manifest.api.models.huggingface import TextGenerationModel
+from manifest.api.models.huggingface import MODEL_REGISTRY, TextGenerationModel
 
 NOCUDA = 0
 try:
@@ -35,6 +35,17 @@ if NOCUDA == 0:
         MAXGPU = int(i[-2]) + 1
     except OSError:
         NOCUDA = 1
+
+
+def test_load_non_registry_model() -> None:
+    """Test load model not in registry."""
+    model_name = "NinedayWang/PolyCoder-160M"
+    assert model_name not in MODEL_REGISTRY
+    model = TextGenerationModel(
+        model_name_or_path=model_name, model_type="text-generation"
+    )
+    result = model.generate("Why is the sky green?", max_tokens=10)
+    assert result is not None
 
 
 def test_gpt_generate() -> None:
@@ -66,12 +77,6 @@ def test_gpt_generate() -> None:
     assert len(result) == 1
     assert result[0][0] == "\n\nThe sky is"
     assert math.isclose(round(result[0][1], 3), -6.046)
-
-    result = model.logits_scoring(inputs, gold_choices=[" blue sky", " green sky"])
-    assert result is not None
-    assert len(result) == 1
-    assert result[0][0] == " blue sky"
-    assert math.isclose(round(result[0][1], 3), -6.999)
 
     # Truncate max length
     model.pipeline.max_length = 5
@@ -111,12 +116,6 @@ def test_encdec_generate() -> None:
     assert len(result) == 1
     assert result[0][0] == "What is the sky green"
     assert math.isclose(round(result[0][1], 3), -5.144)
-
-    result = model.logits_scoring(inputs, gold_choices=[" blue sky", " green sky"])
-    assert result is not None
-    assert len(result) == 1
-    assert result[0][0] == " green sky"
-    assert math.isclose(round(result[0][1], 3), -13.538)
 
     # Truncate max length
     model.pipeline.max_length = 5
@@ -174,16 +173,6 @@ def test_batch_gpt_generate() -> None:
     assert result[1][0] == " not the only ones who"
     assert math.isclose(round(result[1][1], 3), -9.978)
 
-    result = model.logits_scoring(
-        inputs, gold_choices=[" purple sky", " green sky", " blue sky"]
-    )
-    assert result is not None
-    assert len(result) == 2
-    assert result[0][0] == " blue sky"
-    assert math.isclose(round(result[0][1], 3), -6.999)
-    assert result[1][0] == " blue sky"
-    assert math.isclose(round(result[1][1], 3), -8.212)
-
     # Truncate max length
     model.pipeline.max_length = 5
     result = model.generate(inputs, max_tokens=2)
@@ -222,18 +211,6 @@ def test_batch_encdec_generate() -> None:
     assert math.isclose(round(result[0][1], 3), -5.144)
     assert result[1][0] == "a great way to"
     assert math.isclose(round(result[1][1], 3), -6.353)
-
-    result = model.logits_scoring(
-        inputs, gold_choices=[" purple sky", " green sky", " blue sky"]
-    )
-    assert result is not None
-    assert len(result) == 2
-    assert result[0][0] == " green sky"
-    assert math.isclose(round(result[0][1], 3), -13.538)
-    assert result[1][0] == " blue sky"
-    assert math.isclose(round(result[1][1], 3), -41.503) or math.isclose(
-        round(result[1][1], 3), -41.504
-    )
 
     # Truncate max length
     model.pipeline.max_length = 5

@@ -35,7 +35,7 @@ EXTRAS = {
         "diffusers>=0.6.0",
         "Flask>=2.1.2",
         "accelerate>=0.10.0",
-        "transformers>=4.20.0",
+        "transformers>=4.20.0,<4.26.0",
         "torch>=1.8.0",
         "numpy>=1.20.0",
     ],
