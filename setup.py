@@ -27,17 +27,24 @@ REQUIRES_PYTHON = ">=3.8.0"
 VERSION = main_ns["__version__"]
 
 # What packages are required for this module to be executed?
-REQUIRED = ["redis>=4.3.1", "requests>=2.27.1", "sqlitedict>=2.0.0", "xxhash>=3.0.0"]
+REQUIRED = [
+    "numpy>=1.20.0",
+    "pydantic>=1.9.0",
+    "redis>=4.3.1",
+    "requests>=2.27.1",
+    "sqlitedict>=2.0.0",
+    "xxhash>=3.0.0",
+]
 
 # What packages are optional?
 EXTRAS = {
     "api": [
+        "deepspeed>=0.7.0",
         "diffusers>=0.6.0",
         "Flask>=2.1.2",
         "accelerate>=0.10.0",
         "transformers>=4.20.0,<4.26.0",
         "torch>=1.8.0",
-        "numpy>=1.20.0",
     ],
     "app": [
         "fastapi>=0.70.0",
@@ -45,6 +52,9 @@ EXTRAS = {
     ],
     "chatgpt": [
         "pyChatGPT>=0.4.3",
+    ],
+    "diffusers": [
+        "pillow>=9.0.0",
     ],
     "dev": [
         "autopep8>=1.6.0",
