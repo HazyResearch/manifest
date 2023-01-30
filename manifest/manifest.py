@@ -8,14 +8,11 @@ from manifest.caches.noop import NoopCache
 from manifest.caches.redis import RedisCache
 from manifest.caches.sqlite import SQLiteCache
 from manifest.clients.ai21 import AI21Client
-from manifest.clients.chatgpt import ChatGPTClient
 from manifest.clients.cohere import CohereClient
-from manifest.clients.diffuser import DiffuserClient
 from manifest.clients.dummy import DummyClient
 from manifest.clients.huggingface import HuggingFaceClient
 from manifest.clients.openai import OpenAIClient
 from manifest.clients.toma import TOMAClient
-from manifest.clients.toma_diffuser import TOMADiffuserClient
 from manifest.request import Request
 from manifest.response import Response
 from manifest.session import Session
@@ -25,15 +22,34 @@ logger = logging.getLogger(__name__)
 
 CLIENT_CONSTRUCTORS = {
     "openai": OpenAIClient,
-    "chatgpt": ChatGPTClient,
     "cohere": CohereClient,
     "ai21": AI21Client,
     "huggingface": HuggingFaceClient,
-    "diffuser": DiffuserClient,
     "dummy": DummyClient,
     "toma": TOMAClient,
-    "tomadiffuser": TOMADiffuserClient,
 }
+
+# ChatGPT
+try:
+    from manifest.clients.chatgpt import ChatGPTClient
+
+    CLIENT_CONSTRUCTORS["chatgpt"] = ChatGPTClient
+except Exception:
+    logger.info("ChatGPT not installed. Skipping import.")
+    pass
+
+# Diffusion
+DIFFUSION_CLIENTS = ["diffuser", "tomadiffuser"]
+try:
+    from manifest.clients.diffuser import DiffuserClient
+    from manifest.clients.toma_diffuser import TOMADiffuserClient
+
+    CLIENT_CONSTRUCTORS["diffuser"] = DiffuserClient
+    CLIENT_CONSTRUCTORS["tomadiffuser"] = TOMADiffuserClient
+except Exception:
+    logger.info("Diffusion not supported. Skipping import.")
+    pass
+
 
 CACHE_CONSTRUCTORS = {
     "redis": RedisCache,
@@ -72,10 +88,17 @@ class Manifest:
         Remaining kwargs sent to client and cache.
         """
         if client_name not in CLIENT_CONSTRUCTORS:
-            raise ValueError(
-                f"Unknown client name: {client_name}. "
-                f"Choices are {list(CLIENT_CONSTRUCTORS.keys())}"
-            )
+            if client_name in DIFFUSION_CLIENTS:
+                raise ImportError(
+                    f"Diffusion client {client_name} requires the proper install. "
+                    "Make sure to run `pip install manifest-ml[diffusers]` "
+                    "or install Pillow."
+                )
+            else:
+                raise ValueError(
+                    f"Unknown client name: {client_name}. "
+                    f"Choices are {list(CLIENT_CONSTRUCTORS.keys())}"
+                )
         if cache_name not in CACHE_CONSTRUCTORS:
             raise ValueError(
                 f"Unknown cache name: {cache_name}. "
