@@ -7,7 +7,7 @@ import numpy as np
 from manifest.caches.noop import NoopCache
 from manifest.caches.redis import RedisCache
 from manifest.caches.sqlite import SQLiteCache
-from manifest.caches.postgres import PostgreSQLCache
+from manifest.caches.postgres import PostgresCache
 from manifest.clients.ai21 import AI21Client
 from manifest.clients.cohere import CohereClient
 from manifest.clients.dummy import DummyClient
@@ -56,7 +56,7 @@ CACHE_CONSTRUCTORS = {
     "redis": RedisCache,
     "sqlite": SQLiteCache,
     "noop": NoopCache,
-    "postgres": PostgreSQLCache,
+    "postgres": PostgresCache,
 }
 
 

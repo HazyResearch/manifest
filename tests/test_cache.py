@@ -10,31 +10,51 @@ from manifest.caches.cache import Cache
 from manifest.caches.noop import NoopCache
 from manifest.caches.redis import RedisCache
 from manifest.caches.sqlite import SQLiteCache
+from manifest.caches.postgres import PostgresCache
+
+def _get_postgres_cache() -> str:
+    """Get postgres cache."""
+    return PostgresCache(
+        "postgres",  
+        cache_args={
+            "cache_user": "",
+            "cache_password": "",
+            "cache_db": ""
+        }
+    )
+        
 
 
 @pytest.mark.usefixtures("sqlite_cache")
 @pytest.mark.usefixtures("redis_cache")
-@pytest.mark.parametrize("cache_type", ["sqlite", "redis"])
-def test_init(sqlite_cache: str, redis_cache: str, cache_type: str) -> None:
+@pytest.mark.usefixtures("postgres_cache")
+@pytest.mark.parametrize("cache_type", ["sqlite", "redis", "postgres"])
+def test_init(sqlite_cache: str, redis_cache: str, postgres_cache: str, cache_type: str) -> None:
     """Test cache initialization."""
     if cache_type == "sqlite":
         sql_cache_obj = SQLiteCache(sqlite_cache)
         assert isinstance(sql_cache_obj.cache, SqliteDict)
-    else:
+    elif cache_type == "redis":
         redis_cache_obj = RedisCache(redis_cache)
         assert isinstance(redis_cache_obj.redis, Redis)
+    elif cache_type == "postgres":
+        postgres_cache_obj = _get_postgres_cache()
+        isinstance(postgres_cache_obj, PostgresCache)
 
 
 @pytest.mark.usefixtures("sqlite_cache")
 @pytest.mark.usefixtures("redis_cache")
-@pytest.mark.parametrize("cache_type", ["sqlite", "redis"])
-def test_key_get_and_set(sqlite_cache: str, redis_cache: str, cache_type: str) -> None:
+@pytest.mark.usefixtures("postgres_cache")
+@pytest.mark.parametrize("cache_type", ["sqlite", "postgres", "redis"])
+def test_key_get_and_set(sqlite_cache: str, redis_cache: str, postgres_cache: str, cache_type: str) -> None:
     """Test cache key get and set."""
     if cache_type == "sqlite":
         cache = cast(Cache, SQLiteCache(sqlite_cache))
-    else:
+    elif cache_type == "redis":
         cache = cast(Cache, RedisCache(redis_cache))
-
+    elif cache_type == "postgres":
+        cache = cast(Cache, _get_postgres_cache())
+    
     cache.set_key("test", "valueA")
     cache.set_key("testA", "valueB")
     assert cache.get_key("test") == "valueA"
@@ -50,13 +70,17 @@ def test_key_get_and_set(sqlite_cache: str, redis_cache: str, cache_type: str) -
 
 @pytest.mark.usefixtures("sqlite_cache")
 @pytest.mark.usefixtures("redis_cache")
-@pytest.mark.parametrize("cache_type", ["sqlite", "redis"])
-def test_get(sqlite_cache: str, redis_cache: str, cache_type: str) -> None:
+@pytest.mark.usefixtures("postgres_cache")
+@pytest.mark.parametrize("cache_type", ["sqlite", "redis", "postgres"])
+def test_get(sqlite_cache: str, redis_cache: str, postgres_cache: str, cache_type: str) -> None:
     """Test cache save prompt."""
     if cache_type == "sqlite":
         cache = cast(Cache, SQLiteCache(sqlite_cache))
-    else:
+    elif cache_type == "redis":
         cache = cast(Cache, RedisCache(redis_cache))
+    elif cache_type == "postgres":
+        cache = cast(Cache, _get_postgres_cache())
+
     test_request = {"test": "hello", "testA": "world"}
     compute = lambda: {"choices": [{"text": "hello"}]}
 
@@ -82,8 +106,11 @@ def test_get(sqlite_cache: str, redis_cache: str, cache_type: str) -> None:
     # Test array
     if cache_type == "sqlite":
         cache = SQLiteCache(sqlite_cache, client_name="diffuser")
-    else:
+    elif cache_type == "redis":
         cache = RedisCache(redis_cache, client_name="diffuser")
+    elif cache_type == "postgres":
+        cache = _get_postgres_cache()
+
     response = cache.get(test_request, overwrite_cache=False, compute=compute_arr)
     assert np.allclose(response.get_response(), arr)
     assert not response.is_cached()

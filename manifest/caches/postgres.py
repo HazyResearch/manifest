@@ -8,13 +8,10 @@ logger.setLevel(logging.WARNING)
 from ..caches.cache import Cache
 
 try:
-    import pg8000
     import sqlalchemy
-    from sqlalchemy.dialects.postgresql import HSTORE
-    from sqlalchemy import Column, Integer, String, Boolean, DateTime
+    from sqlalchemy import Column, String
     from sqlalchemy.ext.declarative import declarative_base
     from sqlalchemy.orm import sessionmaker
-    from sqlalchemy.pool import NullPool
     from google.cloud.sql.connector import Connector
 
     Base = declarative_base()
@@ -26,13 +23,13 @@ try:
             String
         )  # FIXME: this should be an hstore ideally, but I don't want to set it up on GCP
 
-    missing_dependcies = False
+    missing_dependencies = None
 
-except ImportError:
-    missing_dependencies = True
+except ImportError as e:
+    missing_dependencies = e
 
 
-class PostgreSQLCache(Cache):
+class PostgresCache(Cache):
     """A PostgreSQL cache for request/response pairs."""
 
     def connect(self, connection_str: str, cache_args: Dict[str, Any]) -> None:
@@ -49,9 +46,10 @@ class PostgreSQLCache(Cache):
                 }
         """
         if missing_dependencies:
-            logger.error(
+            raise ValueError(
                 "Missing dependencies for GCP PostgreSQL cache. "
-                "Install with `pip install manifest[gcp]`"
+                "Install with `pip install manifest[gcp]`",
+                missing_dependencies,
             )
 
         connector = Connector()
