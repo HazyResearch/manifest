@@ -56,7 +56,7 @@ CACHE_CONSTRUCTORS = {
     "redis": RedisCache,
     "sqlite": SQLiteCache,
     "noop": NoopCache,
-    "postgres": PostgreSQLCache
+    "postgres": PostgreSQLCache,
 }
 
 

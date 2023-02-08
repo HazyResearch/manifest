@@ -2,53 +2,67 @@
 import logging
 from typing import Any, Dict, Union
 
-import pg8000
-import sqlalchemy
-from sqlalchemy.dialects.postgresql import HSTORE
-from sqlalchemy import Column, Integer, String, Boolean, DateTime
+logger = logging.getLogger("postgresql")
+logger.setLevel(logging.WARNING)
 
+from ..caches.cache import Cache
 
-from manifest.caches.cache import Cache
+try:
+    import pg8000
+    import sqlalchemy
+    from sqlalchemy.dialects.postgresql import HSTORE
+    from sqlalchemy import Column, Integer, String, Boolean, DateTime
+    from sqlalchemy.ext.declarative import declarative_base
+    from sqlalchemy.orm import sessionmaker
+    from sqlalchemy.pool import NullPool
+    from google.cloud.sql.connector import Connector
 
-logging.getLogger("sqlitedict").setLevel(logging.WARNING)
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import NullPool
+    Base = declarative_base()
 
-Base = declarative_base()
+    class Request(Base):
+        __tablename__ = "requests"
+        key = Column(String, primary_key=True)
+        response = Column(
+            String
+        )  # FIXME: this should be an hstore ideally, but I don't want to set it up on GCP
 
+    missing_dependcies = False
 
-class Request(Base):
-    __tablename__ = "requests"
-    key = Column(String, primary_key=True)
-    response = Column(String)   # FIXME: this should be an hstore ideally, but I don't want to set it up on GCP
+except ImportError:
+    missing_dependencies = True
 
 
 class PostgreSQLCache(Cache):
     """A PostgreSQL cache for request/response pairs."""
 
-    def connect(
-        self, 
-        connection_str: str, 
-        cache_args: Dict[str, Any]
-    ) -> None:
+    def connect(self, connection_str: str, cache_args: Dict[str, Any]) -> None:
         """
         Connect to client.
 
         Args:
             connection_str: connection string.
-            cache_args: arguments for cache.
+            cache_args: arguments for cache should include the following fields:
+                {
+                    "cache_user": "",
+                    "cache_password": "",
+                    "cache_db": ""
+                }
         """
-        from google.cloud.sql.connector import Connector
+        if missing_dependencies:
+            logger.error(
+                "Missing dependencies for GCP PostgreSQL cache. "
+                "Install with `pip install manifest[gcp]`"
+            )
+
         connector = Connector()
 
         def getconn():
             conn = connector.connect(
                 connection_str,
                 "pg8000",
-                user=cache_args.pop("user"),
-                password=cache_args.pop("password"),
-                db=cache_args.pop("db"),
+                user=cache_args.pop("cache_user"),
+                password=cache_args.pop("cache_password"),
+                db=cache_args.pop("cache_db"),
             )
             return conn
 
@@ -60,14 +74,14 @@ class PostgreSQLCache(Cache):
 
         db_exists = len(sqlalchemy.inspect(engine).get_table_names()) > 0
         if not db_exists:
-            print("Creating database...")
+            logger.info("Creating database...")
             Base.metadata.create_all(engine)
 
         self.session = sessionmaker(bind=engine)()
 
     def close(self) -> None:
         """Close the client."""
-        self.session.close() 
+        self.session.close()
 
     def _normalize_table_key(self, key: str, table: str) -> str:
         """Cast key for prompt key."""
