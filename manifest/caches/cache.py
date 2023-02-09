@@ -8,12 +8,12 @@ from manifest.response import Response
 RESPONSE_CONSTRUCTORS = {
     "diffuser": {
         "generation_key": "choices",
-        "logits_key": "logprobs",
+        "logits_key": "token_logprobs",
         "item_key": "array",
     },
     "tomadiffuser": {
         "generation_key": "choices",
-        "logits_key": "logprobs",
+        "logits_key": "token_logprobs",
         "item_key": "array",
     },
 }

@@ -24,7 +24,7 @@ class Response:
         cached: bool,
         request_params: Dict,
         generation_key: str = "choices",
-        logits_key: str = "logprobs",
+        logits_key: str = "token_logprobs",
         item_key: str = "text",
     ):
         """
@@ -68,8 +68,8 @@ class Response:
                 self._response[self.generation_key][0][self.logits_key], list
             ):
                 raise ValueError(
-                    "Response must be serialized to a dict with a "
-                    "list of choices with logprobs field"
+                    f"{self.logits_key} must be a list of items "
+                    "one for each token in the choice."
                 )
         if isinstance(
             self._response[self.generation_key][0][self.item_key], np.ndarray

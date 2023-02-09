@@ -48,7 +48,7 @@ class Model(ABC):
 
     def generate(
         self, prompt: Union[str, List[str]], **kwargs: Any
-    ) -> List[Tuple[Any, float]]:
+    ) -> List[Tuple[Any, float, List[float]]]:
         """
         Generate the prompt from model.
 
@@ -59,6 +59,8 @@ class Model(ABC):
 
         Returns:
             list of generated text (list of length 1 for 1 generation).
+            Each item is the response, answer logprob,
+            and list of logprobs for each token.
         """
         raise NotImplementedError()
 
@@ -76,7 +78,7 @@ class Model(ABC):
 
     def score_sequence(
         self, prompt: Union[str, List[str]], **kwargs: Any
-    ) -> List[float]:
+    ) -> List[Tuple[float, List[float]]]:
         """
         Score a sequence of choices.
 
@@ -85,5 +87,8 @@ class Model(ABC):
                 The prompt to score the choices against.
             **kwargs:
                 Additional keyword arguments passed along to the :obj:`__call__` method.
+
+        Returns:
+            Tuple of scores for each choice and logprobs for the tokens of each choice.
         """
         raise NotImplementedError()

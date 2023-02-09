@@ -279,7 +279,7 @@ def test_score_run(sqlite_cache: str) -> None:
     )
     assert result == {
         "generation_key": "choices",
-        "logits_key": "logprobs",
+        "logits_key": "token_logprobs",
         "item_key": "text",
         "item_dtype": None,
         "response": {"choices": [{"text": "This is a prompt", "logprob": 0.3}]},
@@ -303,7 +303,7 @@ def test_score_run(sqlite_cache: str) -> None:
     )
     assert result == {
         "generation_key": "choices",
-        "logits_key": "logprobs",
+        "logits_key": "token_logprobs",
         "item_key": "text",
         "item_dtype": None,
         "response": {
@@ -338,7 +338,7 @@ def test_log_query(session_cache: str) -> None:
         "generation_key": "choices",
         "item_dtype": None,
         "item_key": "text",
-        "logits_key": "logprobs",
+        "logits_key": "token_logprobs",
     }
     assert manifest.get_last_queries(1) == [("This is a prompt", "hello")]
     assert manifest.get_last_queries(1, return_raw_values=True) == [
@@ -361,7 +361,7 @@ def test_log_query(session_cache: str) -> None:
         "generation_key": "choices",
         "item_dtype": None,
         "item_key": "text",
-        "logits_key": "logprobs",
+        "logits_key": "token_logprobs",
         "request_params": query_key,
         "response": {"choices": [{"text": "hello"}, {"text": "hello"}]},
     }
