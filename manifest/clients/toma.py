@@ -158,7 +158,7 @@ class TOMAClient(Client):
             "choices": [
                 {
                     "text": item["text"],
-                    # "logprobs": [],
+                    # "token_logprobs": [],
                 }
                 for item in response["output"]["choices"]
             ],
