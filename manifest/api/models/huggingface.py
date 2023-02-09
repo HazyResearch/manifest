@@ -547,7 +547,7 @@ class TextGenerationModel(HuggingFaceModel):
     @torch.no_grad()
     def generate(
         self, prompt: Union[str, List[str]], **kwargs: Any
-    ) -> List[Tuple[Any, float]]:
+    ) -> List[Tuple[Any, float, List[float]]]:
         """
         Generate the prompt from model.
 
@@ -573,7 +573,11 @@ class TextGenerationModel(HuggingFaceModel):
             num_return_sequences=num_return,
         )
         final_results = [
-            (cast(str, r["generated_text"]), sum(cast(List[float], r["logprobs"])))
+            (
+                cast(str, r["generated_text"]),
+                sum(cast(List[float], r["logprobs"])),
+                cast(List[float], r["logprobs"]),
+            )
             for r in result
         ]
         return final_results
@@ -581,7 +585,7 @@ class TextGenerationModel(HuggingFaceModel):
     @torch.no_grad()
     def score_sequence(
         self, prompt: Union[str, List[str]], **kwargs: Any
-    ) -> List[float]:
+    ) -> List[Tuple[float, List[float]]]:
         """
         Score a sequence of choices.
 
@@ -618,4 +622,9 @@ class TextGenerationModel(HuggingFaceModel):
         )
         seq_token_log_probs = seq_token_log_probs.squeeze(dim=-1)
         seq_log_prob = seq_token_log_probs.sum(dim=-1)
-        return seq_log_prob.tolist()
+        return [
+            (seq, seq_token)
+            for seq, seq_token in zip(
+                seq_log_prob.tolist(), seq_token_log_probs.tolist()
+            )
+        ]

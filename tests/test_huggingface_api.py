@@ -141,8 +141,10 @@ def test_gpt_score() -> None:
     result = model.score_sequence(inputs)
     assert result is not None
     assert len(result) == 2
-    assert math.isclose(round(result[0], 3), -19.935)
-    assert math.isclose(round(result[1], 3), -45.831)
+    assert math.isclose(round(result[0][0], 3), -19.935)
+    assert math.isclose(round(result[1][0], 3), -45.831)
+    assert isinstance(result[0][1], list)
+    assert isinstance(result[1][1], list)
 
 
 def test_batch_gpt_generate() -> None:

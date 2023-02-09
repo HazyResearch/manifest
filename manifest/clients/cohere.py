@@ -110,7 +110,7 @@ class CohereClient(Client):
                 {
                     "text": item["text"],
                     "text_logprob": item.get("likelihood", None),
-                    "logprobs": item.get("token_likelihoods", None),
+                    "token_logprobs": item.get("token_likelihoods", None),
                 }
                 for item in response["generations"]
             ],

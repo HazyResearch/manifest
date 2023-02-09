@@ -110,7 +110,7 @@ class AI21Client(Client):
             "choices": [
                 {
                     "text": item["data"]["text"],
-                    "logprobs": item["data"]["tokens"],
+                    "token_logprobs": item["data"]["tokens"],
                 }
                 for item in response["completions"]
             ],

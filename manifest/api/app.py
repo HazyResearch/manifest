@@ -173,10 +173,16 @@ def completions() -> Response:
             result_gens.append(generations)
         if model_type == "diffuser":
             # Assign None logprob as it's not supported in diffusers
-            results = [{"array": r[0], "logprob": None} for r in result_gens]
+            results = [
+                {"array": r[0], "logprob": None, "token_logprobs": None}
+                for r in result_gens
+            ]
             res_type = "image_generation"
         else:
-            results = [{"text": r[0], "logprob": r[1]} for r in result_gens]
+            results = [
+                {"text": r[0], "logprob": r[1], "token_logprobs": r[2]}
+                for r in result_gens
+            ]
             res_type = "text_completion"
         # transform the result into the openai format
         return Response(
@@ -232,7 +238,11 @@ def score_sequence() -> Response:
     try:
         score_list = model.score_sequence(prompt, **generation_args)
         results = [
-            {"text": prompt if isinstance(prompt, str) else prompt[i], "logprob": r}
+            {
+                "text": prompt if isinstance(prompt, str) else prompt[i],
+                "logprob": r[0],
+                "token_logprobs": r[1],
+            }
             for i, r in enumerate(score_list)
         ]
         # transform the result into the openai format
