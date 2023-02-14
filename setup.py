@@ -56,6 +56,11 @@ EXTRAS = {
     "diffusers": [
         "pillow>=9.0.0",
     ],
+    "gcp": [
+        "pg8000",
+        "cloud-sql-python-connector[pg8000]>=1.0.0",
+        "sqlalchemy",
+    ], 
     "dev": [
         "autopep8>=1.6.0",
         "black>=22.3.0",
