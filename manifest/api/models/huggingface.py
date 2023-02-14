@@ -3,6 +3,7 @@ import json
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union, cast
 
+import deepspeed
 import numpy as np
 import PIL
 import torch
@@ -24,7 +25,6 @@ from transformers import (
     PreTrainedTokenizer,
 )
 
-import deepspeed
 from manifest.api.models.model import Model
 
 MODEL_REGISTRY = {
