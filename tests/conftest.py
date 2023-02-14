@@ -41,7 +41,7 @@ def postgres_cache(monkeypatch: pytest.MonkeyPatch) -> Generator[str, None, None
     url = sqlalchemy.engine.url.URL.create("sqlite", database=":memory:")
     engine = sqlalchemy.create_engine(url)
     monkeypatch.setattr(sqlalchemy, "create_engine", lambda *args, **kwargs: engine)
-    return engine
+    return engine  # type: ignore
 
 
 @pytest.fixture

@@ -70,7 +70,7 @@ class PostgresCache(Cache):
             "postgresql+pg8000://",
             creator=getconn,
         )
-        engine.dialect.description_encoding = None
+        engine.dialect.description_encoding = None  # type: ignore
 
         db_exists = len(sqlalchemy.inspect(engine).get_table_names()) > 0
         if not db_exists:
@@ -99,7 +99,7 @@ class PostgresCache(Cache):
         """
         request = self.session.query(Request).filter_by(key=key).first()
         out = request.response if request else None
-        return out
+        return out  # type: ignore
 
     def set_key(self, key: str, value: str, table: str = "default") -> None:
         """
@@ -114,7 +114,7 @@ class PostgresCache(Cache):
         """
         request = self.session.query(Request).filter_by(key=key).first()
         if request:
-            request.response = value
+            request.response = value  # type: ignore
         else:
             self.session.add(Request(key=key, response=value))
         self.commit()
