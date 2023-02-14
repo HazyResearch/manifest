@@ -32,7 +32,7 @@ def redis_cache() -> Generator[str, None, None]:
 
 
 @pytest.fixture
-def postgres_cache(monkeypatch):
+def postgres_cache(monkeypatch: pytest.MonkeyPatch):
     import sqlalchemy
 
     # Replace the sqlalchemy.create_engine function with a function that returns an in-memory SQLite engine

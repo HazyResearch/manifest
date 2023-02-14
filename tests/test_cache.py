@@ -8,9 +8,9 @@ from sqlitedict import SqliteDict
 
 from manifest.caches.cache import Cache
 from manifest.caches.noop import NoopCache
+from manifest.caches.postgres import PostgresCache
 from manifest.caches.redis import RedisCache
 from manifest.caches.sqlite import SQLiteCache
-from manifest.caches.postgres import PostgresCache
 
 
 def _get_postgres_cache(**kwargs) -> str:

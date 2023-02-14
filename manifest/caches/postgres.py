@@ -1,4 +1,4 @@
-"""SQLite cache."""
+"""Postgres cache."""
 import logging
 from typing import Any, Dict, Union
 
@@ -9,10 +9,10 @@ from ..caches.cache import Cache
 
 try:
     import sqlalchemy
+    from google.cloud.sql.connector import Connector
     from sqlalchemy import Column, String
     from sqlalchemy.ext.declarative import declarative_base
     from sqlalchemy.orm import sessionmaker
-    from google.cloud.sql.connector import Connector
 
     Base = declarative_base()
 

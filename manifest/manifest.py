@@ -5,9 +5,9 @@ from typing import Any, Dict, List, Optional, Tuple, Union, cast
 import numpy as np
 
 from manifest.caches.noop import NoopCache
+from manifest.caches.postgres import PostgresCache
 from manifest.caches.redis import RedisCache
 from manifest.caches.sqlite import SQLiteCache
-from manifest.caches.postgres import PostgresCache
 from manifest.clients.ai21 import AI21Client
 from manifest.clients.cohere import CohereClient
 from manifest.clients.dummy import DummyClient
