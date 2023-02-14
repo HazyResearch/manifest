@@ -8,20 +8,22 @@ logger.setLevel(logging.WARNING)
 from ..caches.cache import Cache
 
 try:
-    import sqlalchemy
-    from google.cloud.sql.connector import Connector
-    from sqlalchemy import Column, String
-    from sqlalchemy.ext.declarative import declarative_base
-    from sqlalchemy.orm import sessionmaker
+    import sqlalchemy  # type: ignore
+    from google.cloud.sql.connector import Connector  # type: ignore
+    from sqlalchemy import Column, String  # type: ignore
+    from sqlalchemy.ext.declarative import declarative_base  # type: ignore
+    from sqlalchemy.orm import sessionmaker  # type: ignore
 
     Base = declarative_base()
 
-    class Request(Base):
+    class Request(Base):  # type: ignore
+        """The request table."""
+
         __tablename__ = "requests"
         key = Column(String, primary_key=True)
         response = Column(
             String
-        )  # FIXME: this should be an hstore ideally, but I don't want to set it up on GCP
+        )  # FIXME: ideally should be an hstore, but I don't want to set it up on GCP
 
     missing_dependencies = None
 
@@ -54,7 +56,7 @@ class PostgresCache(Cache):
 
         connector = Connector()
 
-        def getconn():
+        def getconn() -> Any:
             conn = connector.connect(
                 connection_str,
                 "pg8000",

@@ -13,7 +13,7 @@ from manifest.caches.redis import RedisCache
 from manifest.caches.sqlite import SQLiteCache
 
 
-def _get_postgres_cache(**kwargs) -> str:
+def _get_postgres_cache(**kwargs) -> Cache:  # type: ignore
     """Get postgres cache."""
     return PostgresCache(
         "postgres",

@@ -58,7 +58,7 @@ EXTRAS = {
     ],
     "gcp": [
         "pg8000",
-        "google-cloud-storage",
+        "google-cloud-storage>=1.0.0",
         "sqlalchemy",
     ], 
     "dev": [
