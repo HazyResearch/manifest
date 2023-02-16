@@ -119,11 +119,7 @@ class PostgresCache(Cache):
             table: table to set key in.
         """
         key = self._hash_key(key, table)
-        request = (
-            self.session.query(Request)
-            .filter_by(key=key)
-            .first()
-        )
+        request = self.session.query(Request).filter_by(key=key).first()
         if request:
             request.response = value  # type: ignore
         else:
