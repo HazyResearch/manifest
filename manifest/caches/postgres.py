@@ -1,4 +1,5 @@
 """Postgres cache."""
+import hashlib
 import logging
 from typing import Any, Dict, Union
 
@@ -83,9 +84,10 @@ class PostgresCache(Cache):
         """Close the client."""
         self.session.close()
 
-    def _normalize_table_key(self, key: str, table: str) -> str:
-        """Cast key for prompt key."""
-        return f"{table}:{key}"
+    @staticmethod
+    def _hash_key(key: str, table: str) -> str:
+        """Compute MD5 hash of the key."""
+        return hashlib.md5(f"{key}:{table}".encode("utf-8")).hexdigest()
 
     def get_key(self, key: str, table: str = "default") -> Union[str, None]:
         """
@@ -97,7 +99,11 @@ class PostgresCache(Cache):
             key: key for cache.
             table: table to get key in.
         """
-        request = self.session.query(Request).filter_by(key=key).first()
+        request = (
+            self.session.query(Request)
+            .filter_by(key=self._hash_key(key, table))
+            .first()
+        )
         out = request.response if request else None
         return out  # type: ignore
 
@@ -112,7 +118,12 @@ class PostgresCache(Cache):
             value: new value for key.
             table: table to set key in.
         """
-        request = self.session.query(Request).filter_by(key=key).first()
+        key = self._hash_key(key, table)
+        request = (
+            self.session.query(Request)
+            .filter_by(key=key)
+            .first()
+        )
         if request:
             request.response = value  # type: ignore
         else:
