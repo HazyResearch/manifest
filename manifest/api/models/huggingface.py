@@ -226,11 +226,11 @@ class HuggingFaceModel(Model):
             )
         # Check if providing path
         self.model_path = model_name_or_path
-        if Path(self.model_path).exists() and Path(self.model_path).is_dir():
-            # Try to find config
-            if (Path(self.model_path) / "config.json").exists():
-                config = json.load(open(Path(self.model_path) / "config.json"))
-                model_name_or_path = config["_name_or_path"]
+        # if Path(self.model_path).exists() and Path(self.model_path).is_dir():
+        #     # Try to find config
+        #     if (Path(self.model_path) / "config.json").exists():
+        #         config = json.load(open(Path(self.model_path) / "config.json"))
+        #         model_name_or_path = config["_name_or_path"]
         self.model_name = model_name_or_path
         self.model_type = model_type
         if self.model_name not in MODEL_REGISTRY and self.model_type is None:
