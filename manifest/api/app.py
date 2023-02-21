@@ -73,6 +73,11 @@ def parse_args() -> argparse.Namespace:
         help="Used with accelerate multigpu. Scales down max memory.",
     )
     parser.add_argument(
+        "--is_flask_debug",
+        action="store_true",
+        help=("If TRUE, then run Flask in debug mode with autoreload."),
+    )
+    parser.add_argument(
         "--use_bitsandbytes",
         action="store_true",
         help=("Use bits and bytes. " "This will override --device parameter."),
@@ -111,8 +116,8 @@ def is_port_in_use(port: int) -> bool:
 def main() -> None:
     """Run main."""
     kwargs = parse_args()
-    if is_port_in_use(PORT):
-        raise ValueError(f"Port {PORT} is already in use.")
+    # if is_port_in_use(PORT):
+    #     raise ValueError(f"Port {PORT} is already in use.")
     global model_type
     model_type = kwargs.model_type
     model_gen_type = kwargs.model_generation_type
@@ -155,7 +160,7 @@ def main() -> None:
         perc_max_gpu_mem_red=kwargs.percent_max_gpu_mem_reduction,
         use_fp16=kwargs.fp16,
     )
-    app.run(host="0.0.0.0", port=PORT)
+    app.run(host="0.0.0.0", port=PORT, debug=kwargs.is_flask_debug)
 
 
 @app.route("/completions", methods=["POST"])
@@ -266,12 +271,21 @@ def params() -> Dict:
     return model.get_init_params()
 
 
+@app.route("/tokenize", methods=["POST"])
+def tokenize() -> Dict:
+    """Get tokenized version of prompt."""
+    prompt = request.json["prompt"]
+    encoded_prompt = model.tokenize(prompt)
+    return {
+        'input_ids' : encoded_prompt['input_ids'],
+        'attention_mask' : encoded_prompt['attention_mask'],
+    }
+
+
 @app.route("/")
 def index() -> str:
     """Get index completion."""
-    fn = pkg_resources.resource_filename("metaseq", "service/index.html")
-    with open(fn) as f:
-        return f.read()
+    return 'Welcome to Manifest. Try using a different endpoint.'
 
 
 if __name__ == "__main__":

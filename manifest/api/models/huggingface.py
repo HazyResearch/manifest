@@ -321,7 +321,6 @@ class HuggingFaceModel(Model):
         dispatch_model(model, device_map=device_map)
         return
 
-
 class CrossModalEncoderModel(HuggingFaceModel):
     """CrossModalEncoderModel."""
 
@@ -628,3 +627,16 @@ class TextGenerationModel(HuggingFaceModel):
                 seq_log_prob.tolist(), seq_token_log_probs.tolist()
             )
         ]
+
+    def tokenize(self, prompt: Union[str, List[str]], **kwargs) -> torch.Tensor:
+        """Tokenize input."""
+        if isinstance(prompt, str):
+            prompt = [prompt]
+        encoded_prompt = self.pipeline.tokenizer(
+            prompt,
+            max_length=self.pipeline.max_length,
+            truncation=kwargs.get('truncation', True),
+            padding=kwargs.get('padding', True),
+            **kwargs,
+        )
+        return encoded_prompt
