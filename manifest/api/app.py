@@ -196,6 +196,8 @@ def completions() -> Response:
         )
     except Exception as e:
         logger.error(e)
+        import traceback
+        print(traceback.format_exc())
         return Response(
             json.dumps({"message": str(e)}),
             status=400,
@@ -265,11 +267,21 @@ def score_sequence() -> Response:
         )
 
 
-@app.route("/params", methods=["POST"])
+@app.route("/params", methods=["GET"])
 def params() -> Dict:
     """Get model params."""
     return model.get_init_params()
 
+
+@app.route("/model_config", methods=["GET"])
+def model_config() -> Dict:
+    """Get model config."""
+    return model.pipeline.model.config.to_dict()
+
+@app.route("/tokenizer_config", methods=["GET"])
+def tokenizer_config() -> Dict:
+    """Get tokenizer config."""
+    return model.pipeline.tokenizer.__repr__()
 
 @app.route("/tokenize", methods=["POST"])
 def tokenize() -> Dict:

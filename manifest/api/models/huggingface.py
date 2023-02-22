@@ -563,7 +563,7 @@ class TextGenerationModel(HuggingFaceModel):
             raise ValueError("In batch generate, n must be 1.")
         result = self.pipeline(
             prompt,
-            max_new_tokens=kwargs.get("max_tokens"),
+            max_new_tokens=kwargs.get("max_new_tokens"),
             temperature=kwargs.get("temperature"),
             repetition_penalty=kwargs.get("repetition_penalty"),
             top_k=kwargs.get("top_k"),
