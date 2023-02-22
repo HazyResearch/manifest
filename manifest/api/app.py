@@ -73,11 +73,6 @@ def parse_args() -> argparse.Namespace:
         help="Used with accelerate multigpu. Scales down max memory.",
     )
     parser.add_argument(
-        "--is_flask_debug",
-        action="store_true",
-        help=("If TRUE, then run Flask in debug mode with autoreload."),
-    )
-    parser.add_argument(
         "--use_bitsandbytes",
         action="store_true",
         help=("Use bits and bytes. " "This will override --device parameter."),
@@ -102,6 +97,17 @@ def parse_args() -> argparse.Namespace:
         "--use_deepspeed",
         action="store_true",
         help=("Use deepspeed. This will override --device parameter."),
+    )
+    parser.add_argument(
+        "--is_flask_debug",
+        action="store_true",
+        help=("If TRUE, then run Flask in debug mode with autoreload."),
+    )
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=PORT,
+        help=("Specify the port to run Flask server on. Defaults to FLASK_PORT environment variable. If that's not set, defaults to 5000"),
     )
     args = parser.parse_args()
     return args
@@ -160,7 +166,7 @@ def main() -> None:
         perc_max_gpu_mem_red=kwargs.percent_max_gpu_mem_reduction,
         use_fp16=kwargs.fp16,
     )
-    app.run(host="0.0.0.0", port=PORT, debug=kwargs.is_flask_debug)
+    app.run(host="0.0.0.0", port=kwargs.port, debug=kwargs.is_flask_debug)
 
 
 @app.route("/completions", methods=["POST"])
