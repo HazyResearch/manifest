@@ -273,6 +273,38 @@ def score_sequence() -> Response:
         )
 
 
+@app.route("/score_sequence_eleuther_lm_eval", methods=["POST"])
+def score_sequence_eleuther_lm_eval() -> Response:
+    """Get logprob of prompt."""
+    prompts_with_labels = request.json["prompts_with_labels"]
+    del request.json["prompts_with_labels"]
+    generation_args = request.json
+
+    if not isinstance(prompts_with_labels, (tuple, list)):
+        raise ValueError("Prompt must be a tuple or list of tuples")
+
+    if isinstance(prompts_with_labels, tuple):
+        prompts_with_labels = [prompts_with_labels]
+
+    try:
+        score_list = model.score_sequence_eleuther_lm_eval(prompts_with_labels, **generation_args)
+        results = [
+            {
+                "prompt": p,
+                "label" : l,
+                "label_prob": probs,
+            }
+            for p, l, probs in score_list
+        ]
+        # transform the result into the openai format
+        return Response(json.dumps(results), status=200)
+    except Exception as e:
+        logger.error(e)
+        return Response(
+            json.dumps({"message": str(e)}),
+            status=400,
+        )
+
 @app.route("/params", methods=["GET"])
 def params() -> Dict:
     """Get model params."""

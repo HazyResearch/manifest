@@ -458,7 +458,7 @@ class TextGenerationModel(HuggingFaceModel):
         )
         try:
             tokenizer = AutoTokenizer.from_pretrained(
-                self.model_name, truncation_side="left", padding_side="left"
+                self.model_name, truncation_side="left", padding_side="left",
             )
         except ValueError:
             tokenizer = AutoTokenizer.from_pretrained(
@@ -488,8 +488,11 @@ class TextGenerationModel(HuggingFaceModel):
                 ).from_pretrained(  # type: ignore
                     self.model_path,
                     cache_dir=cache_dir,
-                    revision="float16",
-                    torch_dtype=torch.float16,
+                    # NOTE: Always use main version of models to replicate results from other
+                    # literature (e.g. BigBio uses 'main' revision)
+                    revision='main',
+                    # revision="float16",
+                    # torch_dtype=torch.float16,
                 )
             except Exception:
                 model = MODEL_REGISTRY.get(
@@ -603,13 +606,22 @@ class TextGenerationModel(HuggingFaceModel):
             padding=True,
             return_tensors="pt",
         )
+        
         encoded_prompt["labels"] = encoded_prompt["input_ids"].clone()
         encoded_prompt = encoded_prompt.to(self.pipeline.device)
         logits = self.pipeline.model(  # type: ignore
-            **encoded_prompt,
+            **encoded_prompt
         ).logits
+        # TODO
+        targets_tok = self.pipeline.tokenizer(['neutral'], padding=True, add_special_tokens=False, return_tensors="pt") # TODO
+        outputs = self.pipeline.model(  # TODO
+            input_ids=encoded_prompt['input_ids'][[1]][:,:-2].to(self.pipeline.device), 
+            attention_mask=encoded_prompt['attention_mask'][[1]][:,:-2].to(self.pipeline.device), 
+            labels=targets_tok['input_ids'].to(self.pipeline.device)
+        )
+        # log_softmaxes = F.log_softmax(logits, dim=-1) # TODO
         # For causal decoders, shift logts and labels
-        labels_attention_mask = encoded_prompt["attention_mask"].unsqueeze(-1)[
+        labels_attention_mask = encoded_prompt['attention_mask'].unsqueeze(-1)[
             ..., 1:, :
         ]
         masked_log_probs = (
@@ -640,3 +652,51 @@ class TextGenerationModel(HuggingFaceModel):
             **kwargs,
         )
         return encoded_prompt
+
+    @torch.no_grad()
+    def score_sequence_eleuther_lm_eval(
+        self, prompt_with_label: List[Tuple[str,str]], **kwargs: Any
+    ) -> List[Tuple[str, str, float]]:
+        """
+        Score a sequence of (prompt + label).
+
+        Args:
+            prompt_with_label: List[Tuple[str,str]]
+                The prompt to score the labels against, plus its corresponding label.
+                Unlike the other score_sequence method, the label is not included in the prompt.
+            **kwargs:
+                Additional keyword arguments passed along to the :obj:`__call__` method.
+        """
+
+        prompts: List[str] = [ x[0] for x in prompt_with_label ]
+        labels: List[str] = [ x[1] for x in prompt_with_label ]
+        
+        encoded_prompt = self.pipeline.tokenizer(
+            prompts,
+            max_length=self.pipeline.max_length,
+            truncation=True,
+            padding=True,
+            add_special_tokens=False,
+            return_tensors="pt",
+        )
+        
+        if self.model_type == 'text2text-generation':
+            encoded_prompt["labels"] = self.pipeline.tokenizer(
+                                            labels, 
+                                            return_tensors="pt",
+                                            truncation=True,
+                                            padding=True,
+                                            add_special_tokens=False,
+                                        )['input_ids']
+        else:
+            encoded_prompt["labels"] = encoded_prompt["input_ids"].clone()
+        encoded_prompt = encoded_prompt.to(self.pipeline.device)
+        # Generate model logits for `labels`
+        outputs = self.pipeline.model(  # type: ignore
+            **encoded_prompt
+        )
+        log_softmaxes = torch.log_softmax(outputs.logits, dim=-1)
+        label_mask = encoded_prompt["labels"] != self.pipeline.tokenizer.pad_token_id
+        label_token_probs = torch.gather(log_softmaxes, -1, encoded_prompt["labels"].unsqueeze(-1)).squeeze(-1)
+        label_probs = (label_mask * label_token_probs).sum(dim=-1)
+        return list(zip(prompts, labels, label_probs.tolist()))

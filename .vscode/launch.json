@@ -1,0 +1,23 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Python: Module",
+            "type": "python",
+            "request": "launch",
+            "module": "manifest.api.app",
+            "cwd": "${fileDirname}",
+            "justMyCode": true,
+            "args": [
+                "--model_type", "huggingface",
+                "--model_name_or_path", "/local-scratch-nvme/nigam/huggingface/pretrained/T0pp",
+                "--model_generation_type", "text2text-generation",
+                "--use_hf_parallelize",
+                "--is_flask_debug"
+            ]
+        }
+    ]
+}
