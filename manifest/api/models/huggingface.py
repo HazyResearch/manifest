@@ -481,20 +481,19 @@ class TextGenerationModel(HuggingFaceModel):
                 max_memory=max_memory,
             )
         else:
-            try:
-                # Try to explicitely find a fp16 copy (gpt-j-6B for example)
-                model = MODEL_REGISTRY.get(
-                    self.model_name, MODEL_GENTYPE_REGISTRY.get(self.model_type, None)
-                ).from_pretrained(  # type: ignore
-                    self.model_path,
-                    cache_dir=cache_dir,
-                    # NOTE: Always use main version of models to replicate results from other
-                    # literature (e.g. BigBio uses 'main' revision)
-                    revision='main',
-                    # revision="float16",
-                    # torch_dtype=torch.float16,
-                )
-            except Exception:
+            model = None
+            if use_fp16:
+                try:
+                    # Try to find an explicit float16 model
+                    model = MODEL_REGISTRY.get(
+                        self.model_name, MODEL_GENTYPE_REGISTRY.get(self.model_type, None)
+                    ).from_pretrained(  # type: ignore
+                        self.model_path, cache_dir=cache_dir, revision="float16", torch_dtype=dtype,
+                    )
+                except:
+                    # Couldn't find explicit float16 model
+                    pass
+            if model is None:
                 model = MODEL_REGISTRY.get(
                     self.model_name, MODEL_GENTYPE_REGISTRY.get(self.model_type, None)
                 ).from_pretrained(  # type: ignore
@@ -583,14 +582,13 @@ class TextGenerationModel(HuggingFaceModel):
             for r in result
         ]
         return final_results
-
+    
     @torch.no_grad()
     def score_sequence(
         self, prompt: Union[str, List[str]], **kwargs: Any
     ) -> List[Tuple[float, List[float]]]:
         """
         Score a sequence of choices.
-
         Args:
             prompt (:obj:`str` or :obj:`List[str]`):
                 The prompt to score the choices against.
@@ -606,22 +604,13 @@ class TextGenerationModel(HuggingFaceModel):
             padding=True,
             return_tensors="pt",
         )
-        
         encoded_prompt["labels"] = encoded_prompt["input_ids"].clone()
         encoded_prompt = encoded_prompt.to(self.pipeline.device)
         logits = self.pipeline.model(  # type: ignore
-            **encoded_prompt
+            **encoded_prompt,
         ).logits
-        # TODO
-        targets_tok = self.pipeline.tokenizer(['neutral'], padding=True, add_special_tokens=False, return_tensors="pt") # TODO
-        outputs = self.pipeline.model(  # TODO
-            input_ids=encoded_prompt['input_ids'][[1]][:,:-2].to(self.pipeline.device), 
-            attention_mask=encoded_prompt['attention_mask'][[1]][:,:-2].to(self.pipeline.device), 
-            labels=targets_tok['input_ids'].to(self.pipeline.device)
-        )
-        # log_softmaxes = F.log_softmax(logits, dim=-1) # TODO
         # For causal decoders, shift logts and labels
-        labels_attention_mask = encoded_prompt['attention_mask'].unsqueeze(-1)[
+        labels_attention_mask = encoded_prompt["attention_mask"].unsqueeze(-1)[
             ..., 1:, :
         ]
         masked_log_probs = (
@@ -671,25 +660,39 @@ class TextGenerationModel(HuggingFaceModel):
         prompts: List[str] = [ x[0] for x in prompt_with_label ]
         labels: List[str] = [ x[1] for x in prompt_with_label ]
         
-        encoded_prompt = self.pipeline.tokenizer(
-            prompts,
-            max_length=self.pipeline.max_length,
-            truncation=True,
-            padding=True,
-            add_special_tokens=False,
-            return_tensors="pt",
-        )
-        
         if self.model_type == 'text2text-generation':
+            # For seq2seq models, we add the label as the output expected from the decoder, and
+            # separate the label from the prompt (input to the encoder)
+            encoded_prompt = self.pipeline.tokenizer(
+                prompts,
+                max_length=self.pipeline.max_length,
+                truncation=True,
+                padding=True,
+                add_special_tokens=False,
+                return_tensors="pt",
+            )
             encoded_prompt["labels"] = self.pipeline.tokenizer(
                                             labels, 
+                                            max_length=self.pipeline.max_length,
                                             return_tensors="pt",
                                             truncation=True,
                                             padding=True,
                                             add_special_tokens=False,
                                         )['input_ids']
         else:
-            encoded_prompt["labels"] = encoded_prompt["input_ids"].clone()
+            # For gpt2-like models, we append the label to the end of the prompt, measure
+            # the entire sequence's logprob, and count that as the label's logprob (since 
+            # the label is the only thing that changes between sequences, so the prompt's logprob
+            # will be constant across all labels)
+            encoded_prompt = self.pipeline.tokenizer(
+                [ f"{x} {y}" for (x,y) in zip(prompts, labels) ],
+                max_length=self.pipeline.max_length,
+                truncation=True,
+                padding=True,
+                add_special_tokens=False,
+                return_tensors="pt",
+            )
+            encoded_prompt["labels"] = encoded_prompt['input_ids'].clone()
         encoded_prompt = encoded_prompt.to(self.pipeline.device)
         # Generate model logits for `labels`
         outputs = self.pipeline.model(  # type: ignore

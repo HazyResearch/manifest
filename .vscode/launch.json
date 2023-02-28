@@ -13,9 +13,11 @@
             "justMyCode": true,
             "args": [
                 "--model_type", "huggingface",
-                "--model_name_or_path", "/local-scratch-nvme/nigam/huggingface/pretrained/T0pp",
-                "--model_generation_type", "text2text-generation",
-                "--use_hf_parallelize",
+                "--model_name_or_path", "/local-scratch-nvme/nigam/huggingface/pretrained/gpt-j-6B",
+                "--model_generation_type", "text-generation",
+                // "--use_hf_parallelize",
+                "--device", "0",
+                "--port", "5005",
                 "--is_flask_debug"
             ]
         }

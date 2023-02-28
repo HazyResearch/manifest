@@ -7,7 +7,6 @@ import os
 import socket
 from typing import Dict
 
-import pkg_resources
 from flask import Flask, Response, request
 
 from manifest.api.models.diffuser import DiffuserModel
