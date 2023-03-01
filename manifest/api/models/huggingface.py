@@ -679,11 +679,22 @@ class TextGenerationModel(HuggingFaceModel):
                                             padding=True,
                                             add_special_tokens=False,
                                         )['input_ids']
-        else:
+            encoded_prompt = encoded_prompt.to(self.pipeline.device)
+            # Generate model logits for `labels`
+            outputs = self.pipeline.model(  # type: ignore
+                **encoded_prompt
+            )
+            log_softmaxes = torch.log_softmax(outputs.logits, dim=-1)
+            label_mask = encoded_prompt["labels"] != self.pipeline.tokenizer.pad_token_id
+            label_token_probs = torch.gather(log_softmaxes, -1, encoded_prompt["labels"].unsqueeze(-1)).squeeze(-1)
+            label_probs = (label_mask * label_token_probs).sum(dim=-1)
+        elif self.model_type == 'text-generation':
             # For gpt2-like models, we append the label to the end of the prompt, measure
             # the entire sequence's logprob, and count that as the label's logprob (since 
             # the label is the only thing that changes between sequences, so the prompt's logprob
             # will be constant across all labels)
+            
+            # Pad right instead of left
             encoded_prompt = self.pipeline.tokenizer(
                 [ f"{x} {y}" for (x,y) in zip(prompts, labels) ],
                 max_length=self.pipeline.max_length,
@@ -692,14 +703,32 @@ class TextGenerationModel(HuggingFaceModel):
                 add_special_tokens=False,
                 return_tensors="pt",
             )
-            encoded_prompt["labels"] = encoded_prompt['input_ids'].clone()
-        encoded_prompt = encoded_prompt.to(self.pipeline.device)
-        # Generate model logits for `labels`
-        outputs = self.pipeline.model(  # type: ignore
-            **encoded_prompt
-        )
-        log_softmaxes = torch.log_softmax(outputs.logits, dim=-1)
-        label_mask = encoded_prompt["labels"] != self.pipeline.tokenizer.pad_token_id
-        label_token_probs = torch.gather(log_softmaxes, -1, encoded_prompt["labels"].unsqueeze(-1)).squeeze(-1)
-        label_probs = (label_mask * label_token_probs).sum(dim=-1)
+            encoded_prompt = encoded_prompt.to(self.pipeline.device)
+            # Generate model logits for `labels`
+            outputs = self.pipeline.model(  # type: ignore
+                **encoded_prompt
+            )
+            prompt_lens: List[int] = [ len(x) for x in self.pipeline.tokenizer(
+                [ f"{x}" for (x,y) in zip(prompts, labels) ],
+                max_length=self.pipeline.max_length,
+                truncation=True,
+                padding=False,
+                add_special_tokens=False,
+            )['input_ids'] ]
+            log_softmaxes = torch.log_softmax(outputs.logits, dim=-1)
+            label_mask = torch.ones(log_softmaxes.shape[0], log_softmaxes.shape[1])
+            for idx, prompt_len in enumerate(prompt_lens):
+                # Mask out the prompt (plus any initial left padding) so that we're left with
+                # just the tokens corresponding to the label
+                left_padding_in_encoded_prompt: int = (encoded_prompt['attention_mask'][idx, :] == 0).sum().item()
+                label_mask[idx, :prompt_len + left_padding_in_encoded_prompt] = 0
+            # Shift everything to the left by one token, so that we're measuring the logprob of the *next* token
+            shifted_input_ids = torch.roll(encoded_prompt['input_ids'], -1, dims=1).unsqueeze(-1)
+            shifted_label_mask = torch.roll(label_mask, -1, dims=1).to(self.pipeline.device)
+            # Calculate probability of next token at each position
+            all_token_probs = torch.gather(log_softmaxes, -1, shifted_input_ids).squeeze(-1)
+            # Drop everything except the logprobs corresponding to the labels
+            label_probs = (shifted_label_mask * all_token_probs).sum(dim=-1)
+        else:
+            raise ValueError(f"Unsupported model type: {self.model_type}")
         return list(zip(prompts, labels, label_probs.tolist()))
