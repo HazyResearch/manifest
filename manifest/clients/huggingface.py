@@ -17,7 +17,6 @@ class HuggingFaceClient(Client):
     PARAMS = {
         "temperature": ("temperature", 1.0),
         "max_tokens": ("max_tokens", 10),
-        "max_new_tokens": ("max_new_tokens", 20),
         "n": ("n", 1),
         "top_p": ("top_p", 1.0),
         "top_k": ("top_k", 50),
@@ -76,7 +75,7 @@ class HuggingFaceClient(Client):
         Returns:
             model params.
         """
-        res = requests.get(self.host + "/params")
+        res = requests.post(self.host + "/params")
         return res.json()
 
     def get_score_prompt_request(

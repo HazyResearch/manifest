@@ -230,6 +230,7 @@ class Manifest:
         possible_request, full_kwargs = self.client.get_request(request_params)
 
         self._validate_kwargs(kwargs, request_params)
+        
         # Create cacke key
         cache_key = full_kwargs.copy()
         # Make query model dependent

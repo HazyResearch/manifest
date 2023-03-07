@@ -304,7 +304,7 @@ def score_sequence_eleuther_lm_eval() -> Response:
             status=400,
         )
 
-@app.route("/params", methods=["GET"])
+@app.route("/params", methods=["POST"])
 def params() -> Dict:
     """Get model params."""
     return model.get_init_params()
