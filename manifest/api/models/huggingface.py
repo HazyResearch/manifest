@@ -154,7 +154,7 @@ class GenerationPipeline:
         encoded_prompt = encoded_prompt.to(self.device)
         output_dict = self.model.generate(  # type: ignore
             **encoded_prompt,
-            max_new_tokens=kwargs.get("max_tokens"),
+            max_new_tokens=kwargs.get("max_new_tokens"),
             temperature=kwargs.get("temperature", None),
             top_k=kwargs.get("top_k", None),
             top_p=kwargs.get("top_p", None),
