@@ -152,17 +152,28 @@ class GenerationPipeline:
             return_tensors="pt",
         )
         encoded_prompt = encoded_prompt.to(self.device)
+        # set generation params
+        max_new_tokens = kwargs.get("max_new_tokens", 30)
+        temperature = kwargs.get("temperature", 1.0)
+        top_k = kwargs.get("top_k", 50)
+        top_p = kwargs.get("top_p", 1)
+        repetition_penalty = kwargs.get("repetition_penalty", 1)
+        do_sample = kwargs.get("do_sample", False)
+        num_return_sequences = kwargs.get("num_return_sequences", 1)
+        print(f"Generating with parameters: max_new_tokens={max_new_tokens}, temperature={temperature}, top_k={top_k}, top_p={top_p}, repetition_penalty={repetition_penalty}, do_sample={do_sample}, num_return_sequences={num_return_sequences}")
+        
         output_dict = self.model.generate(  # type: ignore
-            **encoded_prompt,
-            max_new_tokens=kwargs.get("max_new_tokens"),
-            temperature=kwargs.get("temperature", None),
-            top_k=kwargs.get("top_k", None),
-            top_p=kwargs.get("top_p", None),
-            repetition_penalty=kwargs.get("repetition_penalty", None),
-            do_sample=kwargs.get("do_sample", None) if not self.bitsandbytes else False,
+            input_ids=encoded_prompt['input_ids'],
+            attention_mask=encoded_prompt['attention_mask'],
+            max_new_tokens=max_new_tokens,
+            temperature=temperature,
+            top_k=top_k,
+            top_p=top_p,
+            repetition_penalty=repetition_penalty,
+            do_sample=do_sample if not self.bitsandbytes else False,
             eos_token_id=self.tokenizer.eos_token_id,
             pad_token_id=self.tokenizer.pad_token_id,
-            num_return_sequences=kwargs.get("num_return_sequences", None),
+            num_return_sequences=num_return_sequences,
             output_scores=True,
             return_dict_in_generate=True,
         )

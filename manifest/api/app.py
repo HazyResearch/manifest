@@ -179,6 +179,7 @@ def completions() -> Response:
         raise ValueError("Prompt must be a str or list of str")
     try:
         result_gens = []
+        print('G_ARGS:', generation_args)
         for generations in model.generate(prompt, **generation_args):
             result_gens.append(generations)
         if model_type == "diffuser":
