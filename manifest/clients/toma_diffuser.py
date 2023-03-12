@@ -30,9 +30,9 @@ class TOMADiffuserClient(TOMAClient):
         "width": ("width", 512),
         "n": ("n", 1),
         "guidance_scale": ("guidance_scale", 7.5),
-        "client_timeout": ("client_timeout", 120),  # seconds
     }
     REQUEST_CLS = DiffusionRequest  # type: ignore
+    NAME = "tomadiffuser"
 
     def get_model_params(self) -> Dict:
         """

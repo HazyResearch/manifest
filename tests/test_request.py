@@ -10,10 +10,10 @@ def test_llm_init() -> None:
     request = LMRequest(temperature=0.5)
     assert request.temperature == 0.5
 
-    request = LMRequest(**{"temperature": 0.5})
+    request = LMRequest(**{"temperature": 0.5})  # type: ignore
     assert request.temperature == 0.5
 
-    request = LMRequest(**{"temperature": 0.5, "prompt": "test"})
+    request = LMRequest(**{"temperature": 0.5, "prompt": "test"})  # type: ignore
     assert request.temperature == 0.5
     assert request.prompt == "test"
 
@@ -26,10 +26,10 @@ def test_diff_init() -> None:
     request = DiffusionRequest(height=128)
     assert request.height == 128
 
-    request = DiffusionRequest(**{"height": 128})
+    request = DiffusionRequest(**{"height": 128})  # type: ignore
     assert request.height == 128
 
-    request = DiffusionRequest(**{"height": 128, "prompt": "test"})
+    request = DiffusionRequest(**{"height": 128, "prompt": "test"})  # type: ignore
     assert request.height == 128
     assert request.prompt == "test"
 

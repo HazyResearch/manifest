@@ -22,9 +22,9 @@ class DiffuserClient(Client):
         "n": ("num_images_per_prompt", 1),
         "guidance_scale": ("guidance_scale", 7.5),
         "eta": ("eta", 0.0),
-        "client_timeout": ("client_timeout", 120),  # seconds
     }
     REQUEST_CLS = DiffusionRequest
+    NAME = "diffuser"
 
     def connect(
         self,

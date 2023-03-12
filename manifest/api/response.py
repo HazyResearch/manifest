@@ -36,6 +36,7 @@ class ModelResponse:
                 {
                     key: result[key],
                     "logprob": result["logprob"],
+                    "tokens": result["tokens"],
                     "token_logprobs": result["token_logprobs"],
                 }
                 if key == "text"

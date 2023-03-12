@@ -74,7 +74,7 @@ class DiffuserModel(Model):
     @torch.no_grad()
     def generate(
         self, prompt: Union[str, List[str]], **kwargs: Any
-    ) -> List[Tuple[Any, float, List[float]]]:
+    ) -> List[Tuple[Any, float, List[int], List[float]]]:
         """
         Generate the prompt from model.
 
@@ -91,12 +91,12 @@ class DiffuserModel(Model):
             prompt = [prompt]
         result = self.pipeline(prompt, output_type="np.array", **kwargs)
         # Return None for logprobs and token logprobs
-        return [(im, None, None) for im in result["images"]]
+        return [(im, None, None, None) for im in result["images"]]
 
     @torch.no_grad()
     def score_sequence(
         self, prompt: Union[str, List[str]], **kwargs: Any
-    ) -> List[Tuple[float, List[float]]]:
+    ) -> List[Tuple[float, List[int], List[float]]]:
         """
         Score a sequence of choices.
 
