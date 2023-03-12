@@ -1,22 +1,9 @@
 """Cache for queries and responses."""
 from abc import ABC, abstractmethod
-from typing import Any, Callable, Dict, Union
+from typing import Any, Dict, Union
 
 from manifest.caches.serializers import ArraySerializer, Serializer
-from manifest.response import Response
-
-RESPONSE_CONSTRUCTORS = {
-    "diffuser": {
-        "generation_key": "choices",
-        "logits_key": "token_logprobs",
-        "item_key": "array",
-    },
-    "tomadiffuser": {
-        "generation_key": "choices",
-        "logits_key": "token_logprobs",
-        "item_key": "array",
-    },
-}
+from manifest.response import RESPONSE_CONSTRUCTORS, Response
 
 CACHE_CONSTRUCTOR = {
     "diffuser": ArraySerializer,
@@ -101,20 +88,35 @@ class Cache(ABC):
         """Commit any results."""
         raise NotImplementedError()
 
-    def get(
-        self, request: Dict, overwrite_cache: bool, compute: Callable[[], Dict]
-    ) -> Response:
-        """Get the result of request (by calling compute as needed)."""
+    def get(self, request: Dict) -> Union[Response, None]:
+        """Get the result of request (by calling compute as needed).
+
+        Args:
+            request: request to get.
+            response: response to get.
+
+        Returns:
+            Response object or None if not in cache.
+        """
         key = self.serializer.request_to_key(request)
         cached_response = self.get_key(key)
-        if cached_response and not overwrite_cache:
+        if cached_response:
             cached = True
             response = self.serializer.key_to_response(cached_response)
-        else:
-            # Type Response
-            response = compute()
-            self.set_key(key, self.serializer.response_to_key(response))
-            cached = False
-        return Response(
-            response, cached, request, **RESPONSE_CONSTRUCTORS.get(self.client_name, {})
-        )
+            return Response(
+                response,
+                cached,
+                request,
+                **RESPONSE_CONSTRUCTORS.get(self.client_name, {})
+            )
+        return None
+
+    def set(self, request: Dict, response: Dict) -> None:
+        """Set the value for the key.
+
+        Args:
+            request: request to set.
+            response: response to set.
+        """
+        key = self.serializer.request_to_key(request)
+        self.set_key(key, self.serializer.response_to_key(response))

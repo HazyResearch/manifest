@@ -42,10 +42,3 @@ def postgres_cache(monkeypatch: pytest.MonkeyPatch) -> Generator[str, None, None
     engine = sqlalchemy.create_engine(url)
     monkeypatch.setattr(sqlalchemy, "create_engine", lambda *args, **kwargs: engine)
     return engine  # type: ignore
-
-
-@pytest.fixture
-def session_cache(tmpdir: str) -> Generator[Path, None, None]:
-    """Session cache dir."""
-    os.environ["MANIFEST_HOME"] = str(tmpdir)
-    yield Path(tmpdir)

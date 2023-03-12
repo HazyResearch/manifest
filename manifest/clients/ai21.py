@@ -27,9 +27,9 @@ class AI21Client(Client):
         "n": ("numResults", 1),
         "top_p": ("topP", 1.0),
         "stop_sequences": ("stopSequences", []),
-        "client_timeout": ("client_timeout", 60),  # seconds
     }
     REQUEST_CLS = LMRequest
+    NAME = "ai21"
 
     def connect(
         self,

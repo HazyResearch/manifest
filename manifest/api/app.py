@@ -174,13 +174,13 @@ def completions() -> Response:
         if model_type == "diffuser":
             # Assign None logprob as it's not supported in diffusers
             results = [
-                {"array": r[0], "logprob": None, "token_logprobs": None}
+                {"array": r[0], "logprob": None, "tokens": None, "token_logprobs": None}
                 for r in result_gens
             ]
             res_type = "image_generation"
         else:
             results = [
-                {"text": r[0], "logprob": r[1], "token_logprobs": r[2]}
+                {"text": r[0], "logprob": r[1], "tokens": r[2], "token_logprobs": r[3]}
                 for r in result_gens
             ]
             res_type = "text_completion"
@@ -241,7 +241,8 @@ def score_sequence() -> Response:
             {
                 "text": prompt if isinstance(prompt, str) else prompt[i],
                 "logprob": r[0],
-                "token_logprobs": r[1],
+                "tokens": r[1],
+                "token_logprobs": r[2],
             }
             for i, r in enumerate(score_list)
         ]

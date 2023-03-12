@@ -1,13 +1,12 @@
 """Cache test."""
 import json
-from pathlib import Path
 
 import numpy as np
 
 from manifest.caches.serializers import ArraySerializer
 
 
-def test_response_to_key(session_cache: Path) -> None:
+def test_response_to_key() -> None:
     """Test array serializer initialization."""
     serializer = ArraySerializer()
     arr = np.random.rand(4, 4)

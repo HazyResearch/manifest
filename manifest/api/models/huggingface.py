@@ -179,6 +179,7 @@ class GenerationPipeline:
                 "logprobs": logits[
                     range(num_generated_tokens), i, output_seq[-num_generated_tokens:]
                 ].tolist(),
+                "tokens": output_seq[-num_generated_tokens:].tolist(),
             }
             for i, output_seq in enumerate(output_dict.sequences)
         ]
@@ -547,7 +548,7 @@ class TextGenerationModel(HuggingFaceModel):
     @torch.no_grad()
     def generate(
         self, prompt: Union[str, List[str]], **kwargs: Any
-    ) -> List[Tuple[Any, float, List[float]]]:
+    ) -> List[Tuple[Any, float, List[int], List[float]]]:
         """
         Generate the prompt from model.
 
@@ -576,6 +577,7 @@ class TextGenerationModel(HuggingFaceModel):
             (
                 cast(str, r["generated_text"]),
                 sum(cast(List[float], r["logprobs"])),
+                cast(List[int], r["tokens"]),
                 cast(List[float], r["logprobs"]),
             )
             for r in result
@@ -585,7 +587,7 @@ class TextGenerationModel(HuggingFaceModel):
     @torch.no_grad()
     def score_sequence(
         self, prompt: Union[str, List[str]], **kwargs: Any
-    ) -> List[Tuple[float, List[float]]]:
+    ) -> List[Tuple[float, List[int], List[float]]]:
         """
         Score a sequence of choices.
 
@@ -610,21 +612,20 @@ class TextGenerationModel(HuggingFaceModel):
             **encoded_prompt,
         ).logits
         # For causal decoders, shift logts and labels
-        labels_attention_mask = encoded_prompt["attention_mask"].unsqueeze(-1)[
-            ..., 1:, :
-        ]
-        masked_log_probs = (
-            labels_attention_mask.float()
-            * torch.log_softmax(logits.float(), dim=-1)[..., :-1, :]
+        labels_attention_mask = encoded_prompt["attention_mask"].unsqueeze(-1)
+        masked_log_probs = labels_attention_mask.float() * torch.log_softmax(
+            logits.float(), dim=-1
         )
         seq_token_log_probs = torch.gather(
-            masked_log_probs, -1, encoded_prompt["labels"][..., 1:].unsqueeze(-1)
+            masked_log_probs, -1, encoded_prompt["labels"].unsqueeze(-1)
         )
         seq_token_log_probs = seq_token_log_probs.squeeze(dim=-1)
         seq_log_prob = seq_token_log_probs.sum(dim=-1)
         return [
-            (seq, seq_token)
-            for seq, seq_token in zip(
-                seq_log_prob.tolist(), seq_token_log_probs.tolist()
+            (seq, tokens, seq_token)
+            for seq, tokens, seq_token in zip(
+                seq_log_prob.tolist(),
+                encoded_prompt["input_ids"].tolist(),
+                seq_token_log_probs.tolist(),
             )
         ]
