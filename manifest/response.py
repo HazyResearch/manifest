@@ -4,6 +4,17 @@ from typing import Any, Dict, List, Union
 
 import numpy as np
 
+RESPONSE_CONSTRUCTORS = {
+    "diffuser": {
+        "logits_key": "token_logprobs",
+        "item_key": "array",
+    },
+    "tomadiffuser": {
+        "logits_key": "token_logprobs",
+        "item_key": "array",
+    },
+}
+
 
 class NumpyArrayEncoder(json.JSONEncoder):
     """Numpy array encoder."""

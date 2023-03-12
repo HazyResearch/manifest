@@ -22,12 +22,6 @@ Install with diffusion support:
 pip install manifest-ml[diffusers]
 ```
 
-Install with ChatGPT support:
-```bash
-pip install manifest-ml[chatgpt]
-```
-This installs [pyChatGPT](https://github.com/terry3041/pyChatGPT) and uses the ChatGPT session key to start a session. This key must be set as the `CHATGPT_SESSION_KEY` environment variable or passed in with `client_connection`.
-
 Install with HuggingFace local model support:
 ```bash
 pip install manifest-ml[api]
@@ -105,24 +99,6 @@ manifest = Manifest(
 )
 ```
 As a hint, if you want to get Redis running, see the `docker run` command below under development.
-
-## Sessions
-Each Manifest run supports a session that, in addition to a global cache, connects to a local SQLite DB to store user query history.
-```python
-manifest = Manifest(
-    client_name = "openai",
-    cache_name = "sqlite",
-    cache_connection = "mycache.sqlite",
-    session_id = "grass_color",
-)
-```
-will start a Manifest session with the session name `grass_color`. This can be helpful for a user to logically keep track of sessions, see interaction history, and resume sessions if desired. If the session id provided is `_default`, we generate a random id for the user.
-
-After a few queries, the user can explore their history
-```python
-manifest.get_last_queries(4)
-```
-will retrieve the last 4 model queries and responses.
 
 ## Running Queries
 Once you have a session open, you can write and develop prompts.

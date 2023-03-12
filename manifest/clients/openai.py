@@ -38,9 +38,9 @@ class OpenAIClient(Client):
         "stop_sequences": ("stop", None),  # OpenAI doesn't like empty lists
         "presence_penalty": ("presence_penalty", 0.0),
         "frequency_penalty": ("frequency_penalty", 0.0),
-        "client_timeout": ("client_timeout", 60),  # seconds
     }
     REQUEST_CLS = LMRequest
+    NAME = "openai"
 
     def connect(
         self,

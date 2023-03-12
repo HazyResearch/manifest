@@ -32,6 +32,7 @@ REQUIRED = [
     "pydantic>=1.9.0",
     "redis>=4.3.1",
     "requests>=2.27.1",
+    "aiohttp>=3.8.0",
     "sqlitedict>=2.0.0",
     "xxhash>=3.0.0",
 ]
@@ -50,9 +51,6 @@ EXTRAS = {
         "fastapi>=0.70.0",
         "uvicorn>=0.18.0",
     ],
-    "chatgpt": [
-        "pyChatGPT>=0.4.3",
-    ],
     "diffusers": [
         "pillow>=9.0.0",
     ],
@@ -60,7 +58,7 @@ EXTRAS = {
         "pg8000",
         "cloud-sql-python-connector[pg8000]>=1.0.0",
         "sqlalchemy",
-    ], 
+    ],
     "dev": [
         "autopep8>=1.6.0",
         "black>=22.3.0",

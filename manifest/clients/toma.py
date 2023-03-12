@@ -31,9 +31,9 @@ class TOMAClient(Client):
         "top_p": ("top_p", 0.9),
         "top_k": ("top_k", 40),
         "stop_sequences": ("stop", []),
-        "client_timeout": ("client_timeout", 120),  # seconds
     }
     REQUEST_CLS = LMRequest
+    NAME = "toma"
 
     def connect(
         self,

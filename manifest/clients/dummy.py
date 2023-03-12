@@ -1,9 +1,10 @@
 """Dummy client."""
 import logging
-from typing import Any, Callable, Dict, Optional, Tuple
+from typing import Any, Dict, Optional
 
 from manifest.clients.client import Client
 from manifest.request import LMRequest, Request
+from manifest.response import Response
 
 logger = logging.getLogger(__name__)
 
@@ -16,6 +17,7 @@ class DummyClient(Client):
         "n": ("num_results", 1),
     }
     REQUEST_CLS = LMRequest
+    NAME = "dummy"
 
     def connect(
         self,
@@ -67,7 +69,7 @@ class DummyClient(Client):
         """
         return {"engine": "dummy"}
 
-    def get_request(self, request: Request) -> Tuple[Callable[[], Dict], Dict]:
+    def run_request(self, request: Request) -> Response:
         """
         Get request string function.
 
@@ -84,19 +86,29 @@ class DummyClient(Client):
             num_results = 1
         request_params = request.to_dict(self.PARAMS)
 
-        def _run_completion() -> Dict:
-            return {
-                "choices": [{"text": "hello"}]
-                * int(request_params["num_results"])
-                * num_results
-            }
+        response_dict = {
+            "choices": [{"text": "hello"}]
+            * int(request_params["num_results"])
+            * num_results
+        }
+        return Response(response_dict, False, request_params)
 
-        return _run_completion, request_params
+    async def arun_batch_request(self, request: Request) -> Response:
+        """
+        Get async request string function.
+
+        Args:
+            request: request.
+
+        Returns:
+            response.
+        """
+        return self.run_request(request)
 
     def get_score_prompt_request(
         self,
         request: Request,
-    ) -> Tuple[Callable[[], Dict], Dict]:
+    ) -> Response:
         """
         Get the logit score of the prompt via a forward pass of the model.
 
@@ -113,17 +125,15 @@ class DummyClient(Client):
             num_results = 1
         request_params = {"prompt": request.prompt}
 
-        def _run_completion() -> Dict:
-            return {
-                "choices": [
-                    {
-                        "text": request.prompt
-                        if isinstance(request.prompt, str)
-                        else request.prompt[i],
-                        "logprob": 0.3,
-                    }
-                    for i in range(num_results)
-                ]
-            }
-
-        return _run_completion, request_params
+        response_dict = {
+            "choices": [
+                {
+                    "text": request.prompt
+                    if isinstance(request.prompt, str)
+                    else request.prompt[i],
+                    "logprob": 0.3,
+                }
+                for i in range(num_results)
+            ]
+        }
+        return Response(response_dict, False, request_params)

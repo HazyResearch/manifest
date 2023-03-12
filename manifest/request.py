@@ -3,6 +3,14 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 from pydantic import BaseModel
 
+NOT_CACHE_KEYS = {"client_timeout", "batch_size"}
+DEFAULT_REQUEST_KEYS = {
+    "client_timeout": ("client_timeout", 60),  # seconds
+    "batch_size": ("batch_size", 1),
+    "run_id": ("run_id", None),
+    "request_type": ("request_type", None),
+}
+
 
 class Request(BaseModel):
     """Request object."""
@@ -17,7 +25,16 @@ class Request(BaseModel):
     n: int = 1
 
     # Timeout
-    client_timeout: int = 60
+    client_timeout: int = 120
+
+    # Run id used to repeat run with same parameters
+    run_id: Optional[str] = None
+
+    # Batch size for async batch run
+    batch_size: int = 8
+
+    # Request type None is for completion. Used to scoring prompt
+    request_type: str = None
 
     def to_dict(
         self, allowable_keys: Dict[str, Tuple[str, Any]] = None, add_prompt: bool = True
@@ -81,6 +98,9 @@ class LMRequest(Request):
 
 class DiffusionRequest(Request):
     """Diffusion Model Request object."""
+
+    # Request type
+    request_type: str = "diffusion"
 
     # Number of steps
     num_inference_steps: int = 50
