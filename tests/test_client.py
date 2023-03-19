@@ -34,7 +34,10 @@ def test_get_request() -> None:
         "num_results": 3,
         "engine": "dummy",
     }
-    assert response.get_json_response() == {"choices": [{"text": "hello"}] * 3}
+    assert response.get_json_response() == {
+        "choices": [{"text": "hello"}] * 3,
+        "usage": [{"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2}] * 3,
+    }
 
     request_params = client.get_request("hello", {"n": 5})
     response = client.run_request(request_params)
@@ -43,7 +46,10 @@ def test_get_request() -> None:
         "num_results": 5,
         "engine": "dummy",
     }
-    assert response.get_json_response() == {"choices": [{"text": "hello"}] * 5}
+    assert response.get_json_response() == {
+        "choices": [{"text": "hello"}] * 5,
+        "usage": [{"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2}] * 5,
+    }
 
     request_params = client.get_request(["hello"] * 5, {"n": 1})
     response = client.run_request(request_params)
@@ -52,4 +58,7 @@ def test_get_request() -> None:
         "num_results": 1,
         "engine": "dummy",
     }
-    assert response.get_json_response() == {"choices": [{"text": "hello"}] * 5}
+    assert response.get_json_response() == {
+        "choices": [{"text": "hello"}] * 5,
+        "usage": [{"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2}] * 5,
+    }

@@ -142,18 +142,34 @@ class Client(ABC):
         request_params.update(self.get_model_params())
         return request_params
 
-    def format_response(self, response: Dict) -> Dict[str, Any]:
+    def split_usage(self, request: Dict, choices: List[str]) -> List[Dict[str, int]]:
+        """Split usage into list of usages for each prompt."""
+        return []
+
+    def format_response(self, response: Dict, request: Dict) -> Dict[str, Any]:
         """
         Format response to dict.
 
         Args:
             response: response
+            request: request
 
         Return:
             response as dict
         """
         if "choices" not in response:
             raise ValueError(f"Invalid response: {response}")
+        if "usage" in response:
+            # Handle splitting the usages for batch requests
+            if len(response["choices"]) == 1:
+                if isinstance(response["usage"], list):
+                    response["usage"] = response["usage"][0]
+                response["usage"] = [response["usage"]]
+            else:
+                # Try to split usage
+                split_usage = self.split_usage(request, response["choices"])
+                if split_usage:
+                    response["usage"] = split_usage
         return response
 
     def split_requests(
@@ -208,7 +224,7 @@ class Client(ABC):
         except requests.exceptions.HTTPError:
             logger.error(res.json())
             raise requests.exceptions.HTTPError(res.json())
-        return self.format_response(res.json())
+        return self.format_response(res.json(), request_params)
 
     async def _arun_completion(
         self, request_params: Dict[str, Any], retry_timeout: int, batch_size: int
@@ -234,7 +250,7 @@ class Client(ABC):
                 ) as res:
                     res.raise_for_status()
                     res_json = await res.json(content_type=None)
-                    return self.format_response(res_json)
+                    return self.format_response(res_json, request_params)
         except aiohttp.ClientError as e:
             logger.error(f"{self.__class__.__name__} request error {e}")
             raise e
@@ -307,9 +323,14 @@ class Client(ABC):
         responses = await asyncio.gather(*all_tasks)
         # Flatten responses
         choices = []
+        usages = []
         for res_dict in responses:
             choices.extend(res_dict["choices"])
-        final_response_dict = self.format_response({"choices": choices})
+            if "usage" in res_dict:
+                usages.extend(res_dict["usage"])
+        final_response_dict = {"choices": choices}
+        if usages:
+            final_response_dict["usage"] = usages
         return Response(
             final_response_dict,
             cached=False,

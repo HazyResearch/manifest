@@ -89,7 +89,10 @@ class DummyClient(Client):
         response_dict = {
             "choices": [{"text": "hello"}]
             * int(request_params["num_results"])
-            * num_results
+            * num_results,
+            "usage": [{"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2}]
+            * int(request_params["num_results"])
+            * num_results,
         }
         return Response(response_dict, False, request_params)
 

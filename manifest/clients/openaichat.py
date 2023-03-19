@@ -4,7 +4,7 @@ import logging
 import os
 from typing import Any, Dict, Optional
 
-from manifest.clients.client import Client
+from manifest.clients.openai import OpenAIClient
 from manifest.request import LMRequest
 
 logger = logging.getLogger(__name__)
@@ -14,7 +14,7 @@ OPENAICHAT_ENGINES = {
 }
 
 
-class OpenAIChatClient(Client):
+class OpenAIChatClient(OpenAIClient):
     """OpenAI Chat client."""
 
     # User param -> (client param, default value)
@@ -60,22 +60,9 @@ class OpenAIChatClient(Client):
                 f"Must be {OPENAICHAT_ENGINES}."
             )
 
-    def close(self) -> None:
-        """Close the client."""
-        pass
-
     def get_generation_url(self) -> str:
         """Get generation URL."""
         return self.host + "/chat/completions"
-
-    def get_generation_header(self) -> Dict[str, str]:
-        """
-        Get generation header.
-
-        Returns:
-            header.
-        """
-        return {"Authorization": f"Bearer {self.api_key}"}
 
     def supports_batch_inference(self) -> bool:
         """Return whether the client supports batch inference."""
