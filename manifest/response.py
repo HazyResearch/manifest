@@ -31,12 +31,13 @@ class Response:
 
     def __init__(
         self,
-        response: Dict,
+        response: Dict,  # TODO: make pydantic model
         cached: bool,
-        request_params: Dict,
+        request_params: Dict,  # TODO: use request pydantic model
         generation_key: str = "choices",
         logits_key: str = "token_logprobs",
         item_key: str = "text",
+        usage_key: str = "usage",
     ):
         """
         Initialize response.
@@ -52,6 +53,7 @@ class Response:
         self.generation_key = generation_key
         self.logits_key = logits_key
         self.item_key = item_key
+        self.usage_key = usage_key
         self.item_dtype = None
         if isinstance(response, dict):
             self._response = response
@@ -66,6 +68,16 @@ class Response:
                 "Response must be serialized to a dict with a nonempty"
                 f" list of choices. Response is\n{self._response}."
             )
+        # Turn off usage if it is not in response
+        if self.usage_key not in self._response:
+            self.usage_key = None
+        else:
+            if not isinstance(self._response[self.usage_key], list):
+                raise ValueError(
+                    "Response must be a list with usage dicts, one per choice."
+                    f" Response is\n{self._response}."
+                )
+
         if self.item_key not in self._response[self.generation_key][0]:
             raise ValueError(
                 "Response must be serialized to a dict with a "

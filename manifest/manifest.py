@@ -222,6 +222,7 @@ class Manifest:
         # We stitch the responses (the choices) here from both the new request the
         # cached entries.
         all_model_choices = []
+        all_usages = []
         all_input_prompts = []
         response_idx = 0
         number_prompts = len(cached_idx_to_response)
@@ -241,24 +242,23 @@ class Manifest:
                 response_gen_key = cached_res.generation_key
                 response_logits_key = cached_res.logits_key
                 response_item_key = cached_res.item_key
+                response_usage_key = cached_res.usage_key
                 all_input_prompts.append(cached_res.get_request()["prompt"])
+                json_response = cached_res.get_json_response()
                 if request.n == 1:
                     assert (
-                        len(cached_res.get_json_response()[response_gen_key]) == 1
+                        len(json_response[response_gen_key]) == 1
                     ), "cached response should have only one choice"
-                    all_model_choices.append(
-                        cached_res.get_json_response()[response_gen_key][0]
-                    )
-                else:
-                    all_model_choices.extend(
-                        cached_res.get_json_response()[response_gen_key]
-                    )
+                all_model_choices.extend(json_response[response_gen_key])
+                if response_usage_key:
+                    all_usages.extend(json_response[response_usage_key])
             else:
                 assert response is not None, "response should not be None"
                 response = cast(Response, response)
                 response_gen_key = response.generation_key
                 response_logits_key = response.logits_key
                 response_item_key = response.item_key
+                response_usage_key = response.usage_key
                 # the choices list in the response is a flat one.
                 # length is request.n * num_prompts
                 current_choices = response.get_json_response()[response_gen_key][
@@ -270,6 +270,11 @@ class Manifest:
                     prompt = response.get_request()["prompt"][response_idx]
                 else:
                     prompt = str(response.get_request()["prompt"])
+                if response_usage_key:
+                    usage = response.get_json_response()[response_usage_key][
+                        response_idx * request.n : (response_idx + 1) * request.n
+                    ]
+                    all_usages.extend(usage)
                 all_input_prompts.append(prompt)
                 # set cache
                 new_request = copy.deepcopy(request)
@@ -277,6 +282,8 @@ class Manifest:
                 cache_key = self.client.get_cache_key(new_request)
                 new_response_key = copy.deepcopy(response.get_json_response())
                 new_response_key[response_gen_key] = current_choices
+                if response_usage_key:
+                    new_response_key[response_usage_key] = usage
                 self.cache.set(cache_key, new_response_key)
                 response_idx += 1
 
@@ -286,13 +293,17 @@ class Manifest:
             if len(all_input_prompts) > 1 or not single_output
             else all_input_prompts[0]
         )
+        new_response = {response_gen_key: all_model_choices}
+        if response_usage_key:
+            new_response[response_usage_key] = all_usages
         response_obj = Response(
-            {response_gen_key: all_model_choices},
+            new_response,
             cached=len(cached_idx_to_response) > 0,
             request_params=self.client.get_cache_key(new_request),
             generation_key=response_gen_key,
             logits_key=response_logits_key,
             item_key=response_item_key,
+            usage_key=response_usage_key,
         )
         return response_obj
 
