@@ -35,6 +35,7 @@ REQUIRED = [
     "aiohttp>=3.8.0",
     "sqlitedict>=2.0.0",
     "xxhash>=3.0.0",
+    "tiktoken>=0.3.0",
 ]
 
 # What packages are optional?

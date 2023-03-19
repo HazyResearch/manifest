@@ -85,12 +85,13 @@ class DiffuserClient(Client):
         res = requests.post(self.host + "/params")
         return res.json()
 
-    def format_response(self, response: Dict) -> Dict[str, Any]:
+    def format_response(self, response: Dict, request: Dict) -> Dict[str, Any]:
         """
         Format response to dict.
 
         Args:
             response: response
+            request: request
 
         Return:
             response as dict
