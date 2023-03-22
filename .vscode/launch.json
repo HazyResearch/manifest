@@ -10,15 +10,13 @@
             "request": "launch",
             "module": "manifest.api.app",
             "cwd": "${fileDirname}",
-            "preLaunchTask": "export_cuda",
             "console": "integratedTerminal",
             "justMyCode": true,
             "args": [
                 "--model_type", "huggingface",
-                "--model_name_or_path", "/local-scratch-nvme/nigam/huggingface/pretrained/gpt-j-6B",
+                "--model_name_or_path", "~/desktop/lumia_model",
                 "--model_generation_type", "text-generation",
-                "--use_hf_parallelize",
-                "--port", "5009", 
+                "--port", "5001", 
                 "--is_flask_debug",
             ]
         }
