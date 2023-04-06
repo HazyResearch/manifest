@@ -9,8 +9,11 @@ from manifest.request import LMRequest
 
 logger = logging.getLogger(__name__)
 
+# List from https://platform.openai.com/docs/models/model-endpoint-compatibility
 OPENAICHAT_ENGINES = {
     "gpt-3.5-turbo",
+    "gpt-4",
+    "gpt-4-32k"
 }
 
 
