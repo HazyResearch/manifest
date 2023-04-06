@@ -13,7 +13,9 @@ from manifest.request import LMRequest, Request
 logger = logging.getLogger(__name__)
 
 HELM_ENGINES = {
-    "ai21/j1-jumbo" "ai21/j1-grande",
+    "ai21/j1-jumbo",
+    "ai21/j2-jumbo",
+    "ai21/j1-grande",
     "ai21/j1-grande-v2-beta",
     "ai21/j1-large",
     "AlephAlpha/luminous-base",
@@ -22,6 +24,7 @@ HELM_ENGINES = {
     "anthropic/stanford-online-all-v4-s3",
     "together/bloom",
     "together/t0pp",
+    "cohere/command-xlarge-beta",
     "cohere/xlarge-20220609",
     "cohere/xlarge-20221108",
     "cohere/large-20220720",
@@ -78,7 +81,7 @@ class HELMClient(Client):
         "stop_sequences": ("stop_sequences", None),  # HELM doesn't like empty lists
         "presence_penalty": ("presence_penalty", 0.0),
         "frequency_penalty": ("frequency_penalty", 0.0),
-        "client_timeout": ("client_timeout", 60),  # seconds
+        #"client_timeout": ("client_timeout", 60),  # seconds
     }
     REQUEST_CLS = LMRequest
 
@@ -168,6 +171,7 @@ class HELMClient(Client):
             except Exception as e:
                 logger.error(f"HELM error {e}.")
                 raise e
-            return self.format_response(request_result.__dict__())
+            res_dict = {"choices": [{"text": com.text} for com in request_result.completions]}
+            return self.format_response(res_dict)
 
         return _run_completion, request_params
