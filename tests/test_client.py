@@ -1,7 +1,7 @@
 """
 Test client.
 
-We just test the dummy client as we don't want to load a model or use OpenAI tokens.
+We just test the dummy client.
 """
 from manifest.clients.dummy import DummyClient
 
