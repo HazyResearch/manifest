@@ -21,7 +21,7 @@ with open(ver_path) as ver_file:
 NAME = "manifest-ml"
 DESCRIPTION = "Manifest for Prompting Foundation Models."
 URL = "https://github.com/HazyResearch/manifest"
-EMAIL = "lorr1@cs.stanford.edu"
+EMAIL = "laurel.orr@numbersstation.ai"
 AUTHOR = "Laurel Orr"
 REQUIRES_PYTHON = ">=3.8.0"
 VERSION = main_ns["__version__"]
@@ -34,8 +34,9 @@ REQUIRED = [
     "requests>=2.27.1",
     "aiohttp>=3.8.0",
     "sqlitedict>=2.0.0",
-    "xxhash>=3.0.0",
+    "tenacity>=8.2.0",
     "tiktoken>=0.3.0",
+    "xxhash>=3.0.0",
 ]
 
 # What packages are optional?

@@ -2,9 +2,11 @@
 import asyncio
 import os
 from typing import cast
+from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 import requests
+from requests import HTTPError
 
 from manifest import Manifest, Response
 from manifest.caches.noop import NoopCache
@@ -643,7 +645,7 @@ def test_openaichat(sqlite_cache: str) -> None:
     assert isinstance(response.get_response(), str) and len(response.get_response()) > 0
     assert response.is_cached() is True
     assert "usage" in response.get_json_response()
-    assert response.get_json_response()["usage"][0]["total_tokens"] == 22
+    assert response.get_json_response()["usage"][0]["total_tokens"] == 23
 
     response = cast(Response, client.run("Why are there apples?", return_response=True))
     assert response.is_cached() is True
@@ -674,10 +676,92 @@ def test_openaichat(sqlite_cache: str) -> None:
         "usage" in response.get_json_response()
         and len(response.get_json_response()["usage"]) == 2
     )
-    assert response.get_json_response()["usage"][0]["total_tokens"] == 24
-    assert response.get_json_response()["usage"][1]["total_tokens"] == 22
+    assert response.get_json_response()["usage"][0]["total_tokens"] == 25
+    assert response.get_json_response()["usage"][1]["total_tokens"] == 23
 
     response = cast(
         Response, client.run("Why are there oranges?", return_response=True)
     )
     assert response.is_cached() is True
+
+
+def test_retry_handling() -> None:
+    """Test retry handling."""
+    # We'll mock the response so we won't need a real connection
+    client = Manifest(client_name="openai", client_connection="fake")
+    mock_create = MagicMock(
+        side_effect=[
+            # raise a 429 error
+            HTTPError(
+                response=Mock(status_code=429, json=Mock(return_value={})),
+                request=Mock(),
+            ),
+            # get a valid http response with a 200 status code
+            Mock(
+                status_code=200,
+                json=Mock(
+                    return_value={
+                        "choices": [
+                            {
+                                "finish_reason": "length",
+                                "index": 0,
+                                "logprobs": None,
+                                "text": " WHATTT.",
+                            },
+                            {
+                                "finish_reason": "length",
+                                "index": 1,
+                                "logprobs": None,
+                                "text": " UH OH.",
+                            },
+                            {
+                                "finish_reason": "length",
+                                "index": 2,
+                                "logprobs": None,
+                                "text": " HARG",
+                            },
+                        ],
+                        "created": 1679469056,
+                        "id": "cmpl-6wmuWfmyuzi68B6gfeNC0h5ywxXL5",
+                        "model": "text-ada-001",
+                        "object": "text_completion",
+                        "usage": {
+                            "completion_tokens": 30,
+                            "prompt_tokens": 24,
+                            "total_tokens": 54,
+                        },
+                    }
+                ),
+            ),
+        ]
+    )
+    prompts = [
+        "The sky is purple. This is because",
+        "The sky is magnet. This is because",
+        "The sky is fuzzy. This is because",
+    ]
+    with patch("manifest.clients.client.requests.post", mock_create):
+        # Run manifest
+        result = client.run(prompts, temperature=0, overwrite_cache=True)
+        assert result == ["WHATTT.", "UH OH.", "HARG"]
+
+        # Assert that OpenAI client was called twice
+        assert mock_create.call_count == 2
+
+    # Now make sure it errors when not a 429
+    mock_create = MagicMock(
+        side_effect=[
+            # raise a 500 error
+            HTTPError(
+                response=Mock(status_code=500, json=Mock(return_value={})),
+                request=Mock(),
+            ),
+        ]
+    )
+    with patch("manifest.clients.client.requests.post", mock_create):
+        # Run manifest
+        with pytest.raises(HTTPError):
+            client.run(prompts, temperature=0, overwrite_cache=True)
+
+        # Assert that OpenAI client was called once
+        assert mock_create.call_count == 1
