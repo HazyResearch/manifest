@@ -7,6 +7,7 @@ How to make prompt programming with Foundation Models a little easier.
 - [Getting Started](#getting-started)
 - [Manifest](#manifest-components)
 - [Local HuggingFace Models](#local-huggingface-models)
+- [Embedding Models](#embedding-models)
 - [Development](#development)
 - [Cite](#cite)
 
@@ -46,6 +47,9 @@ manifest = Manifest(
 )
 manifest.run("Why is the grass green?")
 ```
+
+## Examples
+We have example notebook and python scripts located at [examples](examples). These show how to use different models, model types (i.e. text, diffusers, or embedding models), and async running.
 
 # Manifest Components
 Manifest is meant to be a very light weight package to help with prompt design and iteration. Three key design decisions of Manifest are
@@ -112,6 +116,12 @@ You can also run over multiple examples if supported by the client.
 results = manifest.run(["Where are the cats?", "Where are the dogs?"])
 ```
 
+We support async queries as well via
+```python
+import asyncio
+results = asyncio.run(manifest.arun_batch(["Where are the cats?", "Where are the dogs?"]))
+```
+
 If something doesn't go right, you can also ask to get a raw manifest Response.
 ```python
 result_object = manifest.run(["Where are the cats?", "Where are the dogs?"], return_response=True)
@@ -176,6 +186,23 @@ python3 -m manifest.api.app \
     --model_name_or_path bigscience/bloom \
     --use_bitsandbytes \
     --percent_max_gpu_mem_reduction 0.85
+```
+
+# Embedding Models
+Manifest also supports getting embeddings from models and available APIs. We do this all through changing the `client_name` argument. You still use `run` and `abatch_run`.
+
+To use OpenAI's embedding models, simply run
+```python
+manifest = Manifest(client_name="openaiembedding")
+embedding_as_np = manifest.run("Get me an embedding for a bunny")
+```
+
+As explained above, you can load local HuggingFace models that give you embeddings, too. If you want to use a standard generative model, load the model as above use use `client_name="huggingfaceembedding"`. If you want to use a standard embedding model, like those from SentenceTransformers, load your local model via
+```bash
+python3 -m manifest.api.app \
+    --model_type sentence_transformers \
+    --model_name_or_path all-mpnet-base-v2 \
+    --device 0
 ```
 
 # Development

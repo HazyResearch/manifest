@@ -4,6 +4,7 @@ import os
 from typing import cast
 from unittest.mock import MagicMock, Mock, patch
 
+import numpy as np
 import pytest
 import requests
 from requests import HTTPError
@@ -567,6 +568,7 @@ def test_openai(sqlite_cache: str) -> None:
 
     response = cast(Response, client.run("Why are there apples?", return_response=True))
     assert isinstance(response.get_response(), str) and len(response.get_response()) > 0
+    assert response.get_response() == res
     assert response.is_cached() is True
     assert "usage" in response.get_json_response()
     assert response.get_json_response()["usage"][0]["total_tokens"] == 15
@@ -643,6 +645,7 @@ def test_openaichat(sqlite_cache: str) -> None:
 
     response = cast(Response, client.run("Why are there apples?", return_response=True))
     assert isinstance(response.get_response(), str) and len(response.get_response()) > 0
+    assert response.get_response() == res
     assert response.is_cached() is True
     assert "usage" in response.get_json_response()
     assert response.get_json_response()["usage"][0]["total_tokens"] == 23
@@ -678,6 +681,114 @@ def test_openaichat(sqlite_cache: str) -> None:
     )
     assert response.get_json_response()["usage"][0]["total_tokens"] == 25
     assert response.get_json_response()["usage"][1]["total_tokens"] == 23
+
+    response = cast(
+        Response, client.run("Why are there oranges?", return_response=True)
+    )
+    assert response.is_cached() is True
+
+
+@pytest.mark.skipif(not OPENAI_ALIVE, reason="No openai key set")
+@pytest.mark.usefixtures("sqlite_cache")
+def test_openaiembedding(sqlite_cache: str) -> None:
+    """Test openaichat client."""
+    client = Manifest(
+        client_name="openaiembedding",
+        cache_name="sqlite",
+        cache_connection=sqlite_cache,
+        array_serializer="local_file",
+    )
+
+    res = client.run("Why are there carrots?")
+    assert isinstance(res, np.ndarray)
+
+    response = cast(
+        Response, client.run("Why are there carrots?", return_response=True)
+    )
+    assert isinstance(response.get_response(), np.ndarray)
+    assert np.allclose(response.get_response(), res)
+
+    client = Manifest(
+        client_name="openaiembedding",
+        cache_name="sqlite",
+        cache_connection=sqlite_cache,
+    )
+
+    res = client.run("Why are there apples?")
+    assert isinstance(res, np.ndarray)
+
+    response = cast(Response, client.run("Why are there apples?", return_response=True))
+    assert isinstance(response.get_response(), np.ndarray)
+    assert np.allclose(response.get_response(), res)
+    assert response.is_cached() is True
+    assert "usage" in response.get_json_response()
+    assert response.get_json_response()["usage"][0]["total_tokens"] == 5
+
+    response = cast(Response, client.run("Why are there apples?", return_response=True))
+    assert response.is_cached() is True
+
+    res_list = client.run(["Why are there apples?", "Why are there bananas?"])
+    assert (
+        isinstance(res_list, list)
+        and len(res_list) == 2
+        and isinstance(res_list[0], np.ndarray)
+    )
+
+    response = cast(
+        Response,
+        client.run(
+            ["Why are there apples?", "Why are there mangos?"], return_response=True
+        ),
+    )
+    assert (
+        isinstance(response.get_response(), list) and len(response.get_response()) == 2
+    )
+    assert (
+        "usage" in response.get_json_response()
+        and len(response.get_json_response()["usage"]) == 2
+    )
+    assert response.get_json_response()["usage"][0]["total_tokens"] == 5
+    assert response.get_json_response()["usage"][1]["total_tokens"] == 6
+
+    response = cast(
+        Response, client.run("Why are there bananas?", return_response=True)
+    )
+    assert response.is_cached() is True
+
+    response = cast(
+        Response, client.run("Why are there oranges?", return_response=True)
+    )
+    assert response.is_cached() is False
+
+    res_list = asyncio.run(
+        client.arun_batch(["Why are there pears?", "Why are there oranges?"])
+    )
+    assert (
+        isinstance(res_list, list)
+        and len(res_list) == 2
+        and isinstance(res_list[0], np.ndarray)
+    )
+
+    response = cast(
+        Response,
+        asyncio.run(
+            client.arun_batch(
+                ["Why are there pinenuts?", "Why are there cocoa?"],
+                return_response=True,
+            )
+        ),
+    )
+    assert (
+        isinstance(response.get_response(), list)
+        and len(res_list) == 2
+        and isinstance(res_list[0], np.ndarray)
+    )
+    assert (
+        "usage" in response.get_json_response()
+        and len(response.get_json_response()["usage"]) == 2
+    )
+    assert response.get_json_response()["usage"][0]["total_tokens"] == 7
+    assert response.get_json_response()["usage"][1]["total_tokens"] == 5
 
     response = cast(
         Response, client.run("Why are there oranges?", return_response=True)

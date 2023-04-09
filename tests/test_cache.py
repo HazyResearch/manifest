@@ -1,5 +1,5 @@
 """Cache test."""
-from typing import cast
+from typing import Dict, cast
 
 import numpy as np
 import pytest
@@ -13,12 +13,15 @@ from manifest.caches.redis import RedisCache
 from manifest.caches.sqlite import SQLiteCache
 
 
-def _get_postgres_cache(**kwargs) -> Cache:  # type: ignore
+def _get_postgres_cache(
+    client_name: str = "", cache_args: Dict = {}
+) -> Cache:  # type: ignore
     """Get postgres cache."""
+    cache_args.update({"cache_user": "", "cache_password": "", "cache_db": ""})
     return PostgresCache(
         "postgres",
-        cache_args={"cache_user": "", "cache_password": "", "cache_db": ""},
-        **kwargs,
+        client_name=client_name,
+        cache_args=cache_args,
     )
 
 
@@ -96,17 +99,48 @@ def test_get(
     assert response.is_cached()
     assert response.get_request() == test_request
 
+    # Test array
     arr = np.random.rand(4, 4)
     test_request = {"test": "hello", "testA": "world of images"}
     compute_arr_response = {"choices": [{"array": arr}]}
 
-    # Test array
     if cache_type == "sqlite":
         cache = SQLiteCache(sqlite_cache, client_name="diffuser")
     elif cache_type == "redis":
         cache = RedisCache(redis_cache, client_name="diffuser")
     elif cache_type == "postgres":
         cache = _get_postgres_cache(client_name="diffuser")
+
+    response = cache.get(test_request)
+    assert response is None
+
+    cache.set(test_request, compute_arr_response)
+    response = cache.get(test_request)
+    assert np.allclose(response.get_response(), arr)
+    assert response.is_cached()
+    assert response.get_request() == test_request
+
+    # Test array byte string
+    arr = np.random.rand(4, 4)
+    test_request = {"test": "hello", "testA": "world of images 2"}
+    compute_arr_response = {"choices": [{"array": arr}]}
+
+    if cache_type == "sqlite":
+        cache = SQLiteCache(
+            sqlite_cache,
+            client_name="diffuser",
+            cache_args={"array_serializer": "byte_string"},
+        )
+    elif cache_type == "redis":
+        cache = RedisCache(
+            redis_cache,
+            client_name="diffuser",
+            cache_args={"array_serializer": "byte_string"},
+        )
+    elif cache_type == "postgres":
+        cache = _get_postgres_cache(
+            client_name="diffuser", cache_args={"array_serializer": "byte_string"}
+        )
 
     response = cache.get(test_request)
     assert response is None
@@ -157,6 +191,39 @@ def test_get_batch_prompt(
         cache = RedisCache(redis_cache, client_name="diffuser")
     elif cache_type == "postgres":
         cache = _get_postgres_cache(client_name="diffuser")
+
+    response = cache.get(test_request)
+    assert response is None
+
+    cache.set(test_request, compute_arr_response)
+    response = cache.get(test_request)
+    assert np.allclose(response.get_response()[0], arr)
+    assert np.allclose(response.get_response()[1], arr2)
+    assert response.is_cached()
+    assert response.get_request() == test_request
+
+    # Test arrays byte serializer
+    arr = np.random.rand(4, 4)
+    arr2 = np.random.rand(4, 4)
+    test_request = {"test": ["hello", "goodbye"], "testA": "world of images 2"}
+    compute_arr_response = {"choices": [{"array": arr}, {"array": arr2}]}
+
+    if cache_type == "sqlite":
+        cache = SQLiteCache(
+            sqlite_cache,
+            client_name="diffuser",
+            cache_args={"array_serializer": "byte_string"},
+        )
+    elif cache_type == "redis":
+        cache = RedisCache(
+            redis_cache,
+            client_name="diffuser",
+            cache_args={"array_serializer": "byte_string"},
+        )
+    elif cache_type == "postgres":
+        cache = _get_postgres_cache(
+            client_name="diffuser", cache_args={"array_serializer": "byte_string"}
+        )
 
     response = cache.get(test_request)
     assert response is None
