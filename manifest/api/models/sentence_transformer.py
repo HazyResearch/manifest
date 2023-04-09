@@ -1,24 +1,29 @@
-"""Model class."""
-from typing import Any, Dict, List, Tuple, Union
+"""Sentence transformer model."""
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
+import torch
+from sentence_transformers import SentenceTransformer
+
+from manifest.api.models.model import Model
 
 
-class Model:
-    """Model class."""
+class SentenceTransformerModel(Model):
+    """SentenceTransformer model."""
 
     def __init__(
         self,
         model_name_or_path: str,
-        model_type: str,
-        cache_dir: str,
-        device: int,
-        use_accelerate: bool,
-        use_parallelize: bool,
-        use_bitsandbytes: bool,
-        use_deepspeed: bool,
-        perc_max_gpu_mem_red: float,
-        use_fp16: bool,
+        model_type: Optional[str] = None,
+        model_config: Optional[str] = None,
+        cache_dir: Optional[str] = None,
+        device: int = 0,
+        use_accelerate: bool = False,
+        use_parallelize: bool = False,
+        use_bitsandbytes: bool = False,
+        use_deepspeed: bool = False,
+        perc_max_gpu_mem_red: float = 1.0,
+        use_fp16: bool = False,
     ):
         """
         Initialize model.
@@ -27,7 +32,7 @@ class Model:
 
         Args:
             model_name_or_path: model name string.
-            model_type: model type string for when model_name not in registry.
+            model_config: model config string.
             cache_dir: cache directory for model.
             device: device to use for model.
             use_accelerate: whether to use accelerate for multi-gpu inference.
@@ -37,12 +42,28 @@ class Model:
             perc_max_gpu_mem_red: percent max memory reduction in accelerate
             use_fp16: use fp16 for model weights.
         """
-        raise NotImplementedError()
+        if use_accelerate or use_parallelize or use_bitsandbytes or use_deepspeed:
+            raise ValueError(
+                "Cannot use accelerate or parallelize or "
+                "bitsandbytes or deepspeeed with sentence transformers"
+            )
+        # Check if providing path
+        self.model_name = model_name_or_path
+        print("Model Name:", self.model_name)
+        torch_device = (
+            torch.device("cpu")
+            if (device == -1 or not torch.cuda.is_available())
+            else torch.device(f"cuda:{device}")
+        )
+        self.embedding_model = SentenceTransformer(self.model_name, device=torch_device)
+        self.embedding_model.to(torch_device)
+        self.embedding_model.eval()
 
     def get_init_params(self) -> Dict:
         """Return init params to determine what model is being used."""
-        raise NotImplementedError()
+        return {"model_name": self.model_name, "model_path": self.model_name}
 
+    @torch.no_grad()
     def generate(
         self, prompt: Union[str, List[str]], **kwargs: Any
     ) -> List[Tuple[Any, float, List[int], List[float]]]:
@@ -56,11 +77,10 @@ class Model:
 
         Returns:
             list of generated text (list of length 1 for 1 generation).
-            Each item is the response, answer logprob, list of tokens,
-            and list of logprobs for each token.
         """
-        raise NotImplementedError()
+        raise NotImplementedError("Generate not supported for sentence transformers")
 
+    @torch.no_grad()
     def embed(self, prompt: Union[str, List[str]], **kwargs: Any) -> np.ndarray:
         """
         Embed the prompt from model.
@@ -71,8 +91,11 @@ class Model:
         Returns:
             list of embeddings (list of length 1 for 1 embedding).
         """
-        raise NotImplementedError()
+        if isinstance(prompt, str):
+            prompt = [prompt]
+        return self.embedding_model.encode(prompt)
 
+    @torch.no_grad()
     def score_sequence(
         self, prompt: Union[str, List[str]], **kwargs: Any
     ) -> List[Tuple[float, List[int], List[float]]]:
@@ -84,8 +107,7 @@ class Model:
                 The prompt to score the choices against.
             **kwargs:
                 Additional keyword arguments passed along to the :obj:`__call__` method.
-
-        Returns:
-            Tuple of total score, tokens, and probs per token.
         """
-        raise NotImplementedError()
+        raise NotImplementedError(
+            "Score sequence not supported for sentence transformers"
+        )

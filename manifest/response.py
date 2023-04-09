@@ -17,6 +17,10 @@ RESPONSE_CONSTRUCTORS = {
         "logits_key": "token_logprobs",
         "item_key": "array",
     },
+    "huggingfaceembedding": {
+        "logits_key": "token_logprobs",
+        "item_key": "array",
+    },
 }
 
 

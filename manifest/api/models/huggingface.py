@@ -535,15 +535,32 @@ class TextGenerationModel(HuggingFaceModel):
     @torch.no_grad()
     def embed(self, prompt: Union[str, List[str]], **kwargs: Any) -> np.ndarray:
         """
-        Compute embedding for prompts.
+        Embed the prompt from model.
 
         Args:
-            prompt: promt to generate from.
+            prompt: promt to embed from.
 
         Returns:
-            embedding
+            list of embeddings (list of length 1 for 1 embedding).
         """
-        pass
+        if isinstance(prompt, str):
+            prompt = [prompt]
+        encoded_prompt = self.pipeline.tokenizer(
+            prompt,
+            max_length=self.pipeline.max_length,
+            truncation=True,
+            padding=True,
+            return_tensors="pt",
+        )
+        encoded_prompt = encoded_prompt.to(self.pipeline.device)
+        # Get last hidden state
+        output = self.pipeline.model(  # type: ignore
+            **encoded_prompt,
+            output_hidden_states=True,
+            return_dict=True,
+        )
+        last_hidden_state = output["hidden_states"][-1][:, -1, :]
+        return last_hidden_state.cpu().numpy()
 
     @torch.no_grad()
     def generate(
