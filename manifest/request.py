@@ -1,5 +1,5 @@
 """Request object."""
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Literal, Optional, Tuple, Union
 
 from pydantic import BaseModel
 
@@ -94,6 +94,13 @@ class LMRequest(Request):
 
     # Penalize frequency
     frequency_penalty: float = 0
+
+
+class EmbeddingRequest(Request):
+    """Embedding Request object."""
+
+    # Aggregate method (if applicable)
+    aggregation_method: Optional[Literal["last_token", "mean"]] = None
 
 
 class DiffusionRequest(Request):

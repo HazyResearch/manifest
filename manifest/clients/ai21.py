@@ -92,7 +92,7 @@ class AI21Client(Client):
         Returns:
             model params.
         """
-        return {"model_name": "ai21", "engine": getattr(self, "engine")}
+        return {"model_name": self.NAME, "engine": getattr(self, "engine")}
 
     def format_response(self, response: Dict, request: Dict) -> Dict[str, Any]:
         """

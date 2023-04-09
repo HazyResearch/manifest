@@ -1,12 +1,12 @@
 """OpenAI client."""
 import logging
 import os
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Type
 
 import tiktoken
 
 from manifest.clients.client import Client
-from manifest.request import LMRequest
+from manifest.request import LMRequest, Request
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +41,7 @@ class OpenAIClient(Client):
         "presence_penalty": ("presence_penalty", 0.0),
         "frequency_penalty": ("frequency_penalty", 0.0),
     }
-    REQUEST_CLS = LMRequest
+    REQUEST_CLS: Type[Request] = LMRequest
     NAME = "openai"
 
     def connect(
@@ -103,7 +103,7 @@ class OpenAIClient(Client):
         Returns:
             model params.
         """
-        return {"model_name": "openai", "engine": getattr(self, "engine")}
+        return {"model_name": self.NAME, "engine": getattr(self, "engine")}
 
     def split_usage(self, request: Dict, choices: List[str]) -> List[Dict[str, int]]:
         """Split usage into list of usages for each prompt."""

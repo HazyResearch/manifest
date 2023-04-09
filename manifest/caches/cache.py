@@ -2,12 +2,14 @@
 from abc import ABC, abstractmethod
 from typing import Any, Dict, Union
 
-from manifest.caches.serializers import ArraySerializer, Serializer
+from manifest.caches.serializers import ArraySerializer, NumpyByteSerializer, Serializer
 from manifest.response import RESPONSE_CONSTRUCTORS, Response
 
-CACHE_CONSTRUCTOR = {
-    "diffuser": ArraySerializer,
-    "tomadiffuser": ArraySerializer,
+# Non-text return type caches
+ARRAY_CACHE_TYPES = {
+    "diffuser",
+    "tomadiffuser",
+    "openaiembedding",
 }
 
 
@@ -21,17 +23,21 @@ class Cache(ABC):
         cache_args: Dict[str, Any] = {},
     ):
         """
-        Initialize client.
+        Initialize cache.
 
         Args:
             connection_str: connection string.
             client_name: name of client.
             cache_args: arguments for cache.
 
-        cache_args are passed to client as default parameters.
+        cache_args are any arguments needed to initialize the cache.
 
-        For clients like OpenAI that do not require a connection,
-        the connection_str can be None.
+        Further, cache_args can contain `array_serializer` as a string
+        for embedding or image return types (e.g. diffusers) with values
+        as `local_file` or `byte_string`. `local_file` will save the
+        array in a local file and cache a pointer to the file.
+        `byte_string` will convert the array to a byte string and cache
+        the entire byte string. `byte_string` is default.
 
         Args:
             connection_str: connection string for client.
@@ -39,7 +45,22 @@ class Cache(ABC):
         """
         self.client_name = client_name
         self.connect(connection_str, cache_args)
-        self.serializer = CACHE_CONSTRUCTOR.get(client_name, Serializer)()
+        if self.client_name in ARRAY_CACHE_TYPES:
+            array_serializer = cache_args.pop("array_serializer", "byte_string")
+            if array_serializer not in ["local_file", "byte_string"]:
+                raise ValueError(
+                    "array_serializer must be local_file or byte_string,"
+                    f" not {array_serializer}"
+                )
+            self.serializer = (
+                ArraySerializer()
+                if array_serializer == "local_file"
+                else NumpyByteSerializer()
+            )
+        else:
+            # If user has array_serializer type, it will throw an error as
+            # it is not recognized for non-array return types.
+            self.serializer = Serializer()
 
     @abstractmethod
     def close(self) -> None:
@@ -107,7 +128,7 @@ class Cache(ABC):
                 response,
                 cached,
                 request,
-                **RESPONSE_CONSTRUCTORS.get(self.client_name, {})
+                **RESPONSE_CONSTRUCTORS.get(self.client_name, {}),
             )
         return None
 

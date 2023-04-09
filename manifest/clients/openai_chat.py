@@ -77,7 +77,7 @@ class OpenAIChatClient(OpenAIClient):
         Returns:
             model params.
         """
-        return {"model_name": "openaichat", "engine": getattr(self, "engine")}
+        return {"model_name": self.NAME, "engine": getattr(self, "engine")}
 
     def _format_request_for_chat(self, request_params: Dict[str, Any]) -> Dict:
         """Format request params for chat.
@@ -99,8 +99,8 @@ class OpenAIChatClient(OpenAIClient):
         request_params["messages"] = messages
         return request_params
 
-    def _format_request_for_text(self, response_dict: Dict[str, Any]) -> Dict:
-        """Format response for text.
+    def _format_request_from_chat(self, response_dict: Dict[str, Any]) -> Dict:
+        """Format response for standard response from chat.
 
         Args:
             response_dict: response.
@@ -131,7 +131,7 @@ class OpenAIChatClient(OpenAIClient):
         request_params = self._format_request_for_chat(request_params)
         response_dict = super()._run_completion(request_params, retry_timeout)
         # Reformat for text model
-        response_dict = self._format_request_for_text(response_dict)
+        response_dict = self._format_request_from_chat(response_dict)
         return response_dict
 
     async def _arun_completion(
@@ -153,5 +153,5 @@ class OpenAIChatClient(OpenAIClient):
             request_params, retry_timeout, batch_size
         )
         # Reformat for text model
-        response_dict = self._format_request_for_text(response_dict)
+        response_dict = self._format_request_from_chat(response_dict)
         return response_dict

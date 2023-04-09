@@ -13,6 +13,10 @@ RESPONSE_CONSTRUCTORS = {
         "logits_key": "token_logprobs",
         "item_key": "array",
     },
+    "openaiembedding": {
+        "logits_key": "token_logprobs",
+        "item_key": "array",
+    },
 }
 
 
