@@ -1,10 +1,12 @@
 """Serializer."""
 
+import io
 import json
 import os
 from pathlib import Path
 from typing import Dict
 
+import numpy as np
 import xxhash
 
 from manifest.caches.array_cache import ArrayCache
@@ -60,6 +62,64 @@ class Serializer:
             unnormalized response dict.
         """
         return json.loads(key)
+
+
+class NumpyByteSerializer(Serializer):
+    """Serializer by casting array to byte string."""
+
+    def response_to_key(self, response: Dict) -> str:
+        """
+        Normalize a response into a key.
+
+        Args:
+            response: response to normalize.
+
+        Returns:
+            normalized key.
+        """
+        # Assume response is a dict with keys "choices" -> List dicts
+        # with keys "array".
+        choices = response["choices"]
+        # We don't want to modify the response in place
+        # but we want to avoid calling deepcopy on an array
+        del response["choices"]
+        response_copy = response.copy()
+        response["choices"] = choices
+        response_copy["choices"] = []
+        for choice in choices:
+            if "array" not in choice:
+                raise ValueError(
+                    f"Choice with keys {choice.keys()} does not have array key."
+                )
+            arr = choice["array"]
+            # Avoid copying an array
+            del choice["array"]
+            new_choice = choice.copy()
+            choice["array"] = arr
+            with io.BytesIO() as f:
+                np.savez_compressed(f, data=arr)
+                hash_str = f.getvalue().hex()
+            new_choice["array"] = hash_str
+            response_copy["choices"].append(new_choice)
+        return json.dumps(response_copy, sort_keys=True)
+
+    def key_to_response(self, key: str) -> Dict:
+        """
+        Convert the normalized version to the response.
+
+        Args:
+            key: normalized key to convert.
+
+        Returns:
+            unnormalized response dict.
+        """
+        response = json.loads(key)
+        for choice in response["choices"]:
+            hash_str = choice["array"]
+            byte_str = bytes.fromhex(hash_str)
+            with io.BytesIO(byte_str) as f:
+                choice["array"] = np.load(f)["data"]
+        return response
 
 
 class ArraySerializer(Serializer):

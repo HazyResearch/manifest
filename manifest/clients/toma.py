@@ -121,7 +121,7 @@ class TOMAClient(Client):
         Returns:
             model params.
         """
-        return {"model_name": "toma", "engine": getattr(self, "engine")}
+        return {"model_name": self.NAME, "engine": getattr(self, "engine")}
 
     def get_model_heartbeats(self) -> Dict[str, Dict]:
         """

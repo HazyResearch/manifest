@@ -14,7 +14,8 @@ from manifest.clients.cohere import CohereClient
 from manifest.clients.dummy import DummyClient
 from manifest.clients.huggingface import HuggingFaceClient
 from manifest.clients.openai import OpenAIClient
-from manifest.clients.openaichat import OpenAIChatClient
+from manifest.clients.openai_chat import OpenAIChatClient
+from manifest.clients.openai_embedding import OpenAIEmbeddingClient
 from manifest.clients.toma import TOMAClient
 from manifest.request import Request
 from manifest.response import Response
@@ -25,6 +26,7 @@ logger = logging.getLogger(__name__)
 CLIENT_CONSTRUCTORS = {
     OpenAIClient.NAME: OpenAIClient,
     OpenAIChatClient.NAME: OpenAIChatClient,
+    OpenAIEmbeddingClient.NAME: OpenAIEmbeddingClient,
     CohereClient.NAME: CohereClient,
     AI21Client.NAME: AI21Client,
     HuggingFaceClient.NAME: HuggingFaceClient,
