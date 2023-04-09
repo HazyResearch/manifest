@@ -4,9 +4,11 @@ import math
 import os
 from subprocess import PIPE, Popen
 
+import numpy as np
 import pytest
 
 from manifest.api.models.huggingface import MODEL_REGISTRY, TextGenerationModel
+from manifest.api.models.sentence_transformer import SentenceTransformerModel
 
 NOCUDA = 0
 try:
@@ -145,6 +147,37 @@ def test_gpt_score() -> None:
     assert math.isclose(round(result[1][0], 3), -12.752)
     assert isinstance(result[0][1], list)
     assert isinstance(result[1][1], list)
+
+
+def test_embed() -> None:
+    """Test embedding pipeline."""
+    model = TextGenerationModel(
+        model_name_or_path="gpt2",
+        use_accelerate=False,
+        use_parallelize=False,
+        use_bitsandbytes=False,
+        use_deepspeed=False,
+        use_fp16=False,
+        device=-1,
+    )
+    inputs = ["Why is the sky green?", "Cats are butterflies"]
+    embeddings = model.embed(inputs)
+    assert isinstance(embeddings, np.ndarray)
+    assert embeddings.shape == (2, 768)
+
+    model2 = SentenceTransformerModel(
+        model_name_or_path="all-mpnet-base-v2",
+        use_accelerate=False,
+        use_parallelize=False,
+        use_bitsandbytes=False,
+        use_deepspeed=False,
+        use_fp16=False,
+        device=-1,
+    )
+    inputs = ["Why is the sky green?", "Cats are butterflies"]
+    embeddings = model2.embed(inputs)
+    assert isinstance(embeddings, np.ndarray)
+    assert embeddings.shape == (2, 768)
 
 
 def test_batch_gpt_generate() -> None:

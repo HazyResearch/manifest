@@ -16,17 +16,24 @@ class ModelResponse:
             "text_completion",
             "prompt_logit_score",
             "image_generation",
+            "embedding_generation",
         }:
             raise ValueError(
                 f"Invalid response type: {self.response_type}. "
-                "Must be one of: text_completion, prompt_logit_score, image_generation."
+                "Must be one of: text_completion, prompt_logit_score, "
+                "image_generation, embedding_generation."
             )
         self.response_id = str(uuid.uuid4())
         self.created = int(time.time())
 
     def __dict__(self) -> Dict[str, Any]:  # type: ignore
         """Return dictionary representation of response."""
-        key = "text" if self.response_type != "image_generation" else "array"
+        key = (
+            "text"
+            if self.response_type
+            not in {"prompt_logit_score", "image_generation", "embedding_generation"}
+            else "array"
+        )
         return {
             "id": self.response_id,
             "object": self.response_type,
