@@ -4,7 +4,7 @@ import copy
 import logging
 import math
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union, cast
 
 import aiohttp
 import requests
@@ -18,9 +18,15 @@ logger = logging.getLogger(__name__)
 
 def retry_if_ratelimit(retry_base: RetryCallState) -> bool:
     """Return whether to retry if ratelimited."""
-    if isinstance(retry_base.outcome.exception(), requests.exceptions.HTTPError):
-        if retry_base.outcome.exception().response.status_code == 429:  # type: ignore
-            return True
+    try:
+        if isinstance(retry_base.outcome.exception(), requests.exceptions.HTTPError):
+            exception = cast(
+                requests.exceptions.HTTPError, retry_base.outcome.exception()
+            )
+            if exception.response.status_code == 429:  # type: ignore
+                return True
+    except Exception:
+        pass
     return False
 
 
