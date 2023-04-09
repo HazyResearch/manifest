@@ -13,6 +13,7 @@ from manifest.clients.ai21 import AI21Client
 from manifest.clients.cohere import CohereClient
 from manifest.clients.dummy import DummyClient
 from manifest.clients.huggingface import HuggingFaceClient
+from manifest.clients.huggingface_embedding import HuggingFaceEmbeddingClient
 from manifest.clients.openai import OpenAIClient
 from manifest.clients.openai_chat import OpenAIChatClient
 from manifest.clients.openai_embedding import OpenAIEmbeddingClient
@@ -30,6 +31,7 @@ CLIENT_CONSTRUCTORS = {
     CohereClient.NAME: CohereClient,
     AI21Client.NAME: AI21Client,
     HuggingFaceClient.NAME: HuggingFaceClient,
+    HuggingFaceEmbeddingClient.NAME: HuggingFaceEmbeddingClient,
     DummyClient.NAME: DummyClient,
     TOMAClient.NAME: TOMAClient,
 }

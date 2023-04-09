@@ -551,6 +551,101 @@ def test_local_huggingface(sqlite_cache: str) -> None:
     )
 
 
+@pytest.mark.skipif(not MODEL_ALIVE, reason=f"No model at {URL}")
+@pytest.mark.usefixtures("sqlite_cache")
+def test_local_huggingfaceembedding(sqlite_cache: str) -> None:
+    """Test openaichat client."""
+    client = Manifest(
+        client_name="huggingfaceembedding",
+        client_connection=URL,
+        cache_name="sqlite",
+        cache_connection=sqlite_cache,
+    )
+
+    res = client.run("Why are there carrots?")
+    assert isinstance(res, np.ndarray)
+
+    response = cast(
+        Response, client.run("Why are there carrots?", return_response=True)
+    )
+    assert isinstance(response.get_response(), np.ndarray)
+    assert np.allclose(response.get_response(), res)
+
+    client = Manifest(
+        client_name="huggingfaceembedding",
+        client_connection=URL,
+        cache_name="sqlite",
+        cache_connection=sqlite_cache,
+    )
+
+    res = client.run("Why are there apples?")
+    assert isinstance(res, np.ndarray)
+
+    response = cast(Response, client.run("Why are there apples?", return_response=True))
+    assert isinstance(response.get_response(), np.ndarray)
+    assert np.allclose(response.get_response(), res)
+    assert response.is_cached() is True
+
+    response = cast(Response, client.run("Why are there apples?", return_response=True))
+    assert response.is_cached() is True
+
+    res_list = client.run(["Why are there apples?", "Why are there bananas?"])
+    assert (
+        isinstance(res_list, list)
+        and len(res_list) == 2
+        and isinstance(res_list[0], np.ndarray)
+    )
+
+    response = cast(
+        Response,
+        client.run(
+            ["Why are there apples?", "Why are there mangos?"], return_response=True
+        ),
+    )
+    assert (
+        isinstance(response.get_response(), list) and len(response.get_response()) == 2
+    )
+
+    response = cast(
+        Response, client.run("Why are there bananas?", return_response=True)
+    )
+    assert response.is_cached() is True
+
+    response = cast(
+        Response, client.run("Why are there oranges?", return_response=True)
+    )
+    assert response.is_cached() is False
+
+    res_list = asyncio.run(
+        client.arun_batch(["Why are there pears?", "Why are there oranges?"])
+    )
+    assert (
+        isinstance(res_list, list)
+        and len(res_list) == 2
+        and isinstance(res_list[0], np.ndarray)
+    )
+
+    response = cast(
+        Response,
+        asyncio.run(
+            client.arun_batch(
+                ["Why are there pinenuts?", "Why are there cocoa?"],
+                return_response=True,
+            )
+        ),
+    )
+    assert (
+        isinstance(response.get_response(), list)
+        and len(res_list) == 2
+        and isinstance(res_list[0], np.ndarray)
+    )
+
+    response = cast(
+        Response, client.run("Why are there oranges?", return_response=True)
+    )
+    assert response.is_cached() is True
+
+
 @pytest.mark.skipif(not OPENAI_ALIVE, reason="No openai key set")
 @pytest.mark.usefixtures("sqlite_cache")
 def test_openai(sqlite_cache: str) -> None:

@@ -10,6 +10,7 @@ ARRAY_CACHE_TYPES = {
     "diffuser",
     "tomadiffuser",
     "openaiembedding",
+    "huggingfaceembedding",
 }
 
 

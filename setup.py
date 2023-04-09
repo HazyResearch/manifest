@@ -42,12 +42,13 @@ REQUIRED = [
 # What packages are optional?
 EXTRAS = {
     "api": [
+        "accelerate>=0.10.0",
         "deepspeed>=0.7.0",
         "diffusers>=0.6.0",
         "Flask>=2.1.2",
-        "accelerate>=0.10.0",
-        "transformers>=4.20.0,<4.26.0",
+        "sentence_transformers>=2.2.0",
         "torch>=1.8.0",
+        "transformers>=4.20.0,<4.26.0",
     ],
     "app": [
         "fastapi>=0.70.0",

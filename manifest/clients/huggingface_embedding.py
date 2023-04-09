@@ -1,30 +1,23 @@
 """Hugging Face client."""
 import logging
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Tuple
 
 import numpy as np
 import requests
 
 from manifest.clients.client import Client
-from manifest.request import DiffusionRequest
+from manifest.request import EmbeddingRequest
 
 logger = logging.getLogger(__name__)
 
 
-class DiffuserClient(Client):
-    """Diffuser client."""
+class HuggingFaceEmbeddingClient(Client):
+    """HuggingFaceEmbedding client."""
 
     # User param -> (client param, default value)
-    PARAMS = {
-        "num_inference_steps": ("num_inference_steps", 50),
-        "height": ("height", 512),
-        "width": ("width", 512),
-        "n": ("num_images_per_prompt", 1),
-        "guidance_scale": ("guidance_scale", 7.5),
-        "eta": ("eta", 0.0),
-    }
-    REQUEST_CLS = DiffusionRequest
-    NAME = "diffuser"
+    PARAMS: Dict[str, Tuple[str, Any]] = {}
+    REQUEST_CLS = EmbeddingRequest
+    NAME = "huggingfaceembedding"
 
     def connect(
         self,
@@ -32,24 +25,17 @@ class DiffuserClient(Client):
         client_args: Dict[str, Any] = {},
     ) -> None:
         """
-        Connect to the Diffuser url.
+        Connect to the HuggingFace url.
 
         Arsg:
             connection_str: connection string.
             client_args: client arguments.
         """
+        if not connection_str:
+            raise ValueError("Must provide connection string")
         self.host = connection_str.rstrip("/")
         for key in self.PARAMS:
             setattr(self, key, client_args.pop(key, self.PARAMS[key][1]))
-        self.model_params = self.get_model_params()
-
-    def to_numpy(self, image: np.ndarray) -> np.ndarray:
-        """Convert a numpy image to a PIL image.
-
-        Adapted from https://github.com/huggingface/diffusers/blob/src/diffusers/pipelines/pipeline_utils.py#L808   # noqa: E501
-        """
-        image = (image * 255).round().astype("uint8")
-        return image
 
     def close(self) -> None:
         """Close the client."""
@@ -57,7 +43,7 @@ class DiffuserClient(Client):
 
     def get_generation_url(self) -> str:
         """Get generation URL."""
-        return self.host + "/completions"
+        return self.host + "/embed"
 
     def get_generation_header(self) -> Dict[str, str]:
         """
@@ -99,5 +85,5 @@ class DiffuserClient(Client):
         """
         # Convert array to np.array
         for choice in response["choices"]:
-            choice["array"] = self.to_numpy(np.array(choice["array"]))
+            choice["array"] = np.array(choice["array"])
         return response

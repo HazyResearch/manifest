@@ -76,8 +76,9 @@ class HuggingFaceClient(Client):
         Returns:
             model params.
         """
-        res = requests.post(self.host + "/params")
-        return res.json()
+        res = requests.post(self.host + "/params").json()
+        res["client_name"] = self.NAME
+        return res
 
     def get_score_prompt_request(
         self,
