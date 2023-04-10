@@ -238,12 +238,15 @@ class HuggingFaceModel(Model):
                 "use_bitsandbytes, use_deepspeed can be set to True"
             )
         # Check if providing path
-        self.model_path = model_name_or_path
-        # if Path(self.model_path).exists() and Path(self.model_path).is_dir():
-        #     # Try to find config
-        #     if (Path(self.model_path) / "config.json").exists():
-        #         config = json.load(open(Path(self.model_path) / "config.json"))
-        #         model_name_or_path = config["_name_or_path"]
+        if Path(self.model_path).exists() and Path(self.model_path).is_dir():
+            # Try to find config
+            if (Path(self.model_path) / "config.json").exists():
+                try:
+                    config = json.load(open(Path(self.model_path) / "config.json"))
+                    model_name_or_path = config["_name_or_path"]
+                except Exception:
+                    # Wasn't able to load config
+                    pass
         self.model_name = model_name_or_path
         self.model_type = model_type
         if self.model_name not in MODEL_REGISTRY and self.model_type is None:
@@ -471,7 +474,7 @@ class TextGenerationModel(HuggingFaceModel):
         )
         try:
             tokenizer = AutoTokenizer.from_pretrained(
-                self.model_name, truncation_side="left", padding_side="left",
+                self.model_name, truncation_side="left", padding_side="left"
             )
         except ValueError:
             tokenizer = AutoTokenizer.from_pretrained(
@@ -505,7 +508,7 @@ class TextGenerationModel(HuggingFaceModel):
                     )
                 except:
                     # Couldn't find explicit float16 model
-                    pass
+                    print("WARNING!!! Could not find explicit float16 model. Using default model version.")
             if model is None:
                 model = MODEL_REGISTRY.get(
                     self.model_name, MODEL_GENTYPE_REGISTRY.get(self.model_type, None)
@@ -677,7 +680,7 @@ class TextGenerationModel(HuggingFaceModel):
         self, prompt_with_label: List[Tuple[str,str]], **kwargs: Any
     ) -> List[Tuple[str, str, float]]:
         """
-        Score a sequence of (prompt + label).
+        Score a sequence of (prompt + label) the way that the EleutherAI eval harness does
 
         Args:
             prompt_with_label: List[Tuple[str,str]]

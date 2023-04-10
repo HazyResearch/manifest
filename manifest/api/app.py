@@ -6,6 +6,7 @@ import logging
 import os
 import socket
 from typing import Dict
+import traceback
 
 from flask import Flask, Response, request
 
@@ -117,14 +118,14 @@ def parse_args() -> argparse.Namespace:
 def is_port_in_use(port: int) -> bool:
     """Check if port is in use."""
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        return s.connect_ex(("localhost", port)) == 0
+        return s.connect_ex(("localhost", int(port))) == 0
 
 
 def main() -> None:
     """Run main."""
     kwargs = parse_args()
-    # if is_port_in_use(PORT):
-    #     raise ValueError(f"Port {PORT} is already in use.")
+    if is_port_in_use(PORT):
+        raise ValueError(f"Port {PORT} is already in use.")
     global model_type
     model_type = kwargs.model_type
     model_gen_type = kwargs.model_generation_type
@@ -203,7 +204,6 @@ def completions() -> Response:
         )
     except Exception as e:
         logger.error(e)
-        import traceback
         print(traceback.format_exc())
         return Response(
             json.dumps({"message": str(e)}),
