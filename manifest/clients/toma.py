@@ -31,9 +31,9 @@ class TOMAClient(Client):
         "top_p": ("top_p", 0.9),
         "top_k": ("top_k", 40),
         "stop_sequences": ("stop", []),
-        "client_timeout": ("client_timeout", 120),  # seconds
     }
     REQUEST_CLS = LMRequest
+    NAME = "toma"
 
     def connect(
         self,
@@ -121,7 +121,7 @@ class TOMAClient(Client):
         Returns:
             model params.
         """
-        return {"model_name": "toma", "engine": getattr(self, "engine")}
+        return {"model_name": self.NAME, "engine": getattr(self, "engine")}
 
     def get_model_heartbeats(self) -> Dict[str, Dict]:
         """
@@ -143,12 +143,13 @@ class TOMAClient(Client):
             }
         return heartbeats
 
-    def format_response(self, response: Dict) -> Dict[str, Any]:
+    def format_response(self, response: Dict, request: Dict) -> Dict[str, Any]:
         """
         Format response to dict.
 
         Args:
             response: response
+            request: request
 
         Return:
             response as dict

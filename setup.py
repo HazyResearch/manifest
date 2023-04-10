@@ -21,7 +21,7 @@ with open(ver_path) as ver_file:
 NAME = "manifest-ml"
 DESCRIPTION = "Manifest for Prompting Foundation Models."
 URL = "https://github.com/HazyResearch/manifest"
-EMAIL = "lorr1@cs.stanford.edu"
+EMAIL = "laurel.orr@numbersstation.ai"
 AUTHOR = "Laurel Orr"
 REQUIRES_PYTHON = ">=3.8.0"
 VERSION = main_ns["__version__"]
@@ -32,26 +32,27 @@ REQUIRED = [
     "pydantic>=1.9.0",
     "redis>=4.3.1",
     "requests>=2.27.1",
+    "aiohttp>=3.8.0",
     "sqlitedict>=2.0.0",
+    "tenacity>=8.2.0",
+    "tiktoken>=0.3.0",
     "xxhash>=3.0.0",
 ]
 
 # What packages are optional?
 EXTRAS = {
     "api": [
+        "accelerate>=0.10.0",
         "deepspeed>=0.7.0",
         "diffusers>=0.6.0",
         "Flask>=2.1.2",
-        "accelerate>=0.10.0",
-        "transformers>=4.20.0,<4.26.0",
+        "sentence_transformers>=2.2.0",
         "torch>=1.8.0",
+        "transformers>=4.20.0,<4.26.0",
     ],
     "app": [
         "fastapi>=0.70.0",
         "uvicorn>=0.18.0",
-    ],
-    "chatgpt": [
-        "pyChatGPT>=0.4.3",
     ],
     "diffusers": [
         "pillow>=9.0.0",
@@ -60,7 +61,7 @@ EXTRAS = {
         "pg8000",
         "cloud-sql-python-connector[pg8000]>=1.0.0",
         "sqlalchemy",
-    ], 
+    ],
     "dev": [
         "autopep8>=1.6.0",
         "black>=22.3.0",

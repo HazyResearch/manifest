@@ -1,5 +1,5 @@
 """Cache test."""
-from typing import cast
+from typing import Dict, cast
 
 import numpy as np
 import pytest
@@ -13,12 +13,15 @@ from manifest.caches.redis import RedisCache
 from manifest.caches.sqlite import SQLiteCache
 
 
-def _get_postgres_cache(**kwargs) -> Cache:  # type: ignore
+def _get_postgres_cache(
+    client_name: str = "", cache_args: Dict = {}
+) -> Cache:  # type: ignore
     """Get postgres cache."""
+    cache_args.update({"cache_user": "", "cache_password": "", "cache_db": ""})
     return PostgresCache(
         "postgres",
-        cache_args={"cache_user": "", "cache_password": "", "cache_db": ""},
-        **kwargs,
+        client_name=client_name,
+        cache_args=cache_args,
     )
 
 
@@ -85,28 +88,22 @@ def test_get(
         cache = cast(Cache, _get_postgres_cache())
 
     test_request = {"test": "hello", "testA": "world"}
-    compute = lambda: {"choices": [{"text": "hello"}]}
+    test_response = {"choices": [{"text": "hello"}]}
 
-    response = cache.get(test_request, overwrite_cache=False, compute=compute)
-    assert response.get_response() == "hello"
-    assert not response.is_cached()
-    assert response.get_request() == test_request
+    response = cache.get(test_request)
+    assert response is None
 
-    response = cache.get(test_request, overwrite_cache=False, compute=compute)
+    cache.set(test_request, test_response)
+    response = cache.get(test_request)
     assert response.get_response() == "hello"
     assert response.is_cached()
     assert response.get_request() == test_request
 
-    response = cache.get(test_request, overwrite_cache=True, compute=compute)
-    assert response.get_response() == "hello"
-    assert not response.is_cached()
-    assert response.get_request() == test_request
-
+    # Test array
     arr = np.random.rand(4, 4)
     test_request = {"test": "hello", "testA": "world of images"}
-    compute_arr = lambda: {"choices": [{"array": arr}]}
+    compute_arr_response = {"choices": [{"array": arr}]}
 
-    # Test array
     if cache_type == "sqlite":
         cache = SQLiteCache(sqlite_cache, client_name="diffuser")
     elif cache_type == "redis":
@@ -114,9 +111,128 @@ def test_get(
     elif cache_type == "postgres":
         cache = _get_postgres_cache(client_name="diffuser")
 
-    response = cache.get(test_request, overwrite_cache=False, compute=compute_arr)
+    response = cache.get(test_request)
+    assert response is None
+
+    cache.set(test_request, compute_arr_response)
+    response = cache.get(test_request)
     assert np.allclose(response.get_response(), arr)
-    assert not response.is_cached()
+    assert response.is_cached()
+    assert response.get_request() == test_request
+
+    # Test array byte string
+    arr = np.random.rand(4, 4)
+    test_request = {"test": "hello", "testA": "world of images 2"}
+    compute_arr_response = {"choices": [{"array": arr}]}
+
+    if cache_type == "sqlite":
+        cache = SQLiteCache(
+            sqlite_cache,
+            client_name="diffuser",
+            cache_args={"array_serializer": "byte_string"},
+        )
+    elif cache_type == "redis":
+        cache = RedisCache(
+            redis_cache,
+            client_name="diffuser",
+            cache_args={"array_serializer": "byte_string"},
+        )
+    elif cache_type == "postgres":
+        cache = _get_postgres_cache(
+            client_name="diffuser", cache_args={"array_serializer": "byte_string"}
+        )
+
+    response = cache.get(test_request)
+    assert response is None
+
+    cache.set(test_request, compute_arr_response)
+    response = cache.get(test_request)
+    assert np.allclose(response.get_response(), arr)
+    assert response.is_cached()
+    assert response.get_request() == test_request
+
+
+@pytest.mark.usefixtures("sqlite_cache")
+@pytest.mark.usefixtures("redis_cache")
+@pytest.mark.usefixtures("postgres_cache")
+@pytest.mark.parametrize("cache_type", ["sqlite", "redis", "postgres"])
+def test_get_batch_prompt(
+    sqlite_cache: str, redis_cache: str, postgres_cache: str, cache_type: str
+) -> None:
+    """Test cache save prompt."""
+    if cache_type == "sqlite":
+        cache = cast(Cache, SQLiteCache(sqlite_cache))
+    elif cache_type == "redis":
+        cache = cast(Cache, RedisCache(redis_cache))
+    elif cache_type == "postgres":
+        cache = cast(Cache, _get_postgres_cache())
+
+    test_request = {"test": ["hello", "goodbye"], "testA": "world"}
+    test_response = {"choices": [{"text": "hello"}, {"text": "goodbye"}]}
+
+    response = cache.get(test_request)
+    assert response is None
+
+    cache.set(test_request, test_response)
+    response = cache.get(test_request)
+    assert response.get_response() == ["hello", "goodbye"]
+    assert response.is_cached()
+    assert response.get_request() == test_request
+
+    # Test arrays
+    arr = np.random.rand(4, 4)
+    arr2 = np.random.rand(4, 4)
+    test_request = {"test": ["hello", "goodbye"], "testA": "world of images"}
+    compute_arr_response = {"choices": [{"array": arr}, {"array": arr2}]}
+
+    if cache_type == "sqlite":
+        cache = SQLiteCache(sqlite_cache, client_name="diffuser")
+    elif cache_type == "redis":
+        cache = RedisCache(redis_cache, client_name="diffuser")
+    elif cache_type == "postgres":
+        cache = _get_postgres_cache(client_name="diffuser")
+
+    response = cache.get(test_request)
+    assert response is None
+
+    cache.set(test_request, compute_arr_response)
+    response = cache.get(test_request)
+    assert np.allclose(response.get_response()[0], arr)
+    assert np.allclose(response.get_response()[1], arr2)
+    assert response.is_cached()
+    assert response.get_request() == test_request
+
+    # Test arrays byte serializer
+    arr = np.random.rand(4, 4)
+    arr2 = np.random.rand(4, 4)
+    test_request = {"test": ["hello", "goodbye"], "testA": "world of images 2"}
+    compute_arr_response = {"choices": [{"array": arr}, {"array": arr2}]}
+
+    if cache_type == "sqlite":
+        cache = SQLiteCache(
+            sqlite_cache,
+            client_name="diffuser",
+            cache_args={"array_serializer": "byte_string"},
+        )
+    elif cache_type == "redis":
+        cache = RedisCache(
+            redis_cache,
+            client_name="diffuser",
+            cache_args={"array_serializer": "byte_string"},
+        )
+    elif cache_type == "postgres":
+        cache = _get_postgres_cache(
+            client_name="diffuser", cache_args={"array_serializer": "byte_string"}
+        )
+
+    response = cache.get(test_request)
+    assert response is None
+
+    cache.set(test_request, compute_arr_response)
+    response = cache.get(test_request)
+    assert np.allclose(response.get_response()[0], arr)
+    assert np.allclose(response.get_response()[1], arr2)
+    assert response.is_cached()
     assert response.get_request() == test_request
 
 
@@ -137,14 +253,11 @@ def test_noop_cache() -> None:
 
     # Assert always not cached
     test_request = {"test": "hello", "testA": "world"}
-    compute = lambda: {"choices": [{"text": "hello"}]}
+    test_response = {"choices": [{"text": "hello"}]}
 
-    response = cache.get(test_request, overwrite_cache=False, compute=compute)
-    assert response.get_response() == "hello"
-    assert not response.is_cached()
-    assert response.get_request() == test_request
+    response = cache.get(test_request)
+    assert response is None
 
-    response = cache.get(test_request, overwrite_cache=False, compute=compute)
-    assert response.get_response() == "hello"
-    assert not response.is_cached()
-    assert response.get_request() == test_request
+    cache.set(test_request, test_response)
+    response = cache.get(test_request)
+    assert response is None

@@ -1,26 +1,16 @@
 """Cache for queries and responses."""
 from abc import ABC, abstractmethod
-from typing import Any, Callable, Dict, Union
+from typing import Any, Dict, Union
 
-from manifest.caches.serializers import ArraySerializer, Serializer
-from manifest.response import Response
+from manifest.caches.serializers import ArraySerializer, NumpyByteSerializer, Serializer
+from manifest.response import RESPONSE_CONSTRUCTORS, Response
 
-RESPONSE_CONSTRUCTORS = {
-    "diffuser": {
-        "generation_key": "choices",
-        "logits_key": "token_logprobs",
-        "item_key": "array",
-    },
-    "tomadiffuser": {
-        "generation_key": "choices",
-        "logits_key": "token_logprobs",
-        "item_key": "array",
-    },
-}
-
-CACHE_CONSTRUCTOR = {
-    "diffuser": ArraySerializer,
-    "tomadiffuser": ArraySerializer,
+# Non-text return type caches
+ARRAY_CACHE_TYPES = {
+    "diffuser",
+    "tomadiffuser",
+    "openaiembedding",
+    "huggingfaceembedding",
 }
 
 
@@ -34,17 +24,21 @@ class Cache(ABC):
         cache_args: Dict[str, Any] = {},
     ):
         """
-        Initialize client.
+        Initialize cache.
 
         Args:
             connection_str: connection string.
             client_name: name of client.
             cache_args: arguments for cache.
 
-        cache_args are passed to client as default parameters.
+        cache_args are any arguments needed to initialize the cache.
 
-        For clients like OpenAI that do not require a connection,
-        the connection_str can be None.
+        Further, cache_args can contain `array_serializer` as a string
+        for embedding or image return types (e.g. diffusers) with values
+        as `local_file` or `byte_string`. `local_file` will save the
+        array in a local file and cache a pointer to the file.
+        `byte_string` will convert the array to a byte string and cache
+        the entire byte string. `byte_string` is default.
 
         Args:
             connection_str: connection string for client.
@@ -52,7 +46,22 @@ class Cache(ABC):
         """
         self.client_name = client_name
         self.connect(connection_str, cache_args)
-        self.serializer = CACHE_CONSTRUCTOR.get(client_name, Serializer)()
+        if self.client_name in ARRAY_CACHE_TYPES:
+            array_serializer = cache_args.pop("array_serializer", "byte_string")
+            if array_serializer not in ["local_file", "byte_string"]:
+                raise ValueError(
+                    "array_serializer must be local_file or byte_string,"
+                    f" not {array_serializer}"
+                )
+            self.serializer = (
+                ArraySerializer()
+                if array_serializer == "local_file"
+                else NumpyByteSerializer()
+            )
+        else:
+            # If user has array_serializer type, it will throw an error as
+            # it is not recognized for non-array return types.
+            self.serializer = Serializer()
 
     @abstractmethod
     def close(self) -> None:
@@ -101,20 +110,35 @@ class Cache(ABC):
         """Commit any results."""
         raise NotImplementedError()
 
-    def get(
-        self, request: Dict, overwrite_cache: bool, compute: Callable[[], Dict]
-    ) -> Response:
-        """Get the result of request (by calling compute as needed)."""
+    def get(self, request: Dict) -> Union[Response, None]:
+        """Get the result of request (by calling compute as needed).
+
+        Args:
+            request: request to get.
+            response: response to get.
+
+        Returns:
+            Response object or None if not in cache.
+        """
         key = self.serializer.request_to_key(request)
         cached_response = self.get_key(key)
-        if cached_response and not overwrite_cache:
+        if cached_response:
             cached = True
             response = self.serializer.key_to_response(cached_response)
-        else:
-            # Type Response
-            response = compute()
-            self.set_key(key, self.serializer.response_to_key(response))
-            cached = False
-        return Response(
-            response, cached, request, **RESPONSE_CONSTRUCTORS.get(self.client_name, {})
-        )
+            return Response(
+                response,
+                cached,
+                request,
+                **RESPONSE_CONSTRUCTORS.get(self.client_name, {}),
+            )
+        return None
+
+    def set(self, request: Dict, response: Dict) -> None:
+        """Set the value for the key.
+
+        Args:
+            request: request to set.
+            response: response to set.
+        """
+        key = self.serializer.request_to_key(request)
+        self.set_key(key, self.serializer.response_to_key(response))

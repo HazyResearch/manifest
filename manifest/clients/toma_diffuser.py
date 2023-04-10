@@ -30,9 +30,9 @@ class TOMADiffuserClient(TOMAClient):
         "width": ("width", 512),
         "n": ("n", 1),
         "guidance_scale": ("guidance_scale", 7.5),
-        "client_timeout": ("client_timeout", 120),  # seconds
     }
     REQUEST_CLS = DiffusionRequest  # type: ignore
+    NAME = "tomadiffuser"
 
     def get_model_params(self) -> Dict:
         """
@@ -44,14 +44,15 @@ class TOMADiffuserClient(TOMAClient):
         Returns:
             model params.
         """
-        return {"model_name": "tomadiffuser", "engine": getattr(self, "engine")}
+        return {"model_name": self.NAME, "engine": getattr(self, "engine")}
 
-    def format_response(self, response: Dict) -> Dict[str, Any]:
+    def format_response(self, response: Dict, request: Dict) -> Dict[str, Any]:
         """
         Format response to dict.
 
         Args:
             response: response
+            request: request
 
         Return:
             response as dict

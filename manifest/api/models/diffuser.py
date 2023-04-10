@@ -1,7 +1,8 @@
-"""Huggingface model."""
+"""Diffuser model."""
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
+import numpy as np
 import torch
 from diffusers import StableDiffusionPipeline
 
@@ -74,7 +75,7 @@ class DiffuserModel(Model):
     @torch.no_grad()
     def generate(
         self, prompt: Union[str, List[str]], **kwargs: Any
-    ) -> List[Tuple[Any, float, List[float]]]:
+    ) -> List[Tuple[Any, float, List[int], List[float]]]:
         """
         Generate the prompt from model.
 
@@ -91,12 +92,25 @@ class DiffuserModel(Model):
             prompt = [prompt]
         result = self.pipeline(prompt, output_type="np.array", **kwargs)
         # Return None for logprobs and token logprobs
-        return [(im, None, None) for im in result["images"]]
+        return [(im, None, None, None) for im in result["images"]]
+
+    @torch.no_grad()
+    def embed(self, prompt: Union[str, List[str]], **kwargs: Any) -> np.ndarray:
+        """
+        Embed the prompt from model.
+
+        Args:
+            prompt: promt to embed from.
+
+        Returns:
+            list of embeddings (list of length 1 for 1 embedding).
+        """
+        raise NotImplementedError("Embed not supported for diffusers")
 
     @torch.no_grad()
     def score_sequence(
         self, prompt: Union[str, List[str]], **kwargs: Any
-    ) -> List[Tuple[float, List[float]]]:
+    ) -> List[Tuple[float, List[int], List[float]]]:
         """
         Score a sequence of choices.
 

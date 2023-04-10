@@ -7,6 +7,7 @@ How to make prompt programming with Foundation Models a little easier.
 - [Getting Started](#getting-started)
 - [Manifest](#manifest-components)
 - [Local HuggingFace Models](#local-huggingface-models)
+- [Embedding Models](#embedding-models)
 - [Development](#development)
 - [Cite](#cite)
 
@@ -21,12 +22,6 @@ Install with diffusion support:
 ```bash
 pip install manifest-ml[diffusers]
 ```
-
-Install with ChatGPT support:
-```bash
-pip install manifest-ml[chatgpt]
-```
-This installs [pyChatGPT](https://github.com/terry3041/pyChatGPT) and uses the ChatGPT session key to start a session. This key must be set as the `CHATGPT_SESSION_KEY` environment variable or passed in with `client_connection`.
 
 Install with HuggingFace local model support:
 ```bash
@@ -52,6 +47,9 @@ manifest = Manifest(
 )
 manifest.run("Why is the grass green?")
 ```
+
+## Examples
+We have example notebook and python scripts located at [examples](examples). These show how to use different models, model types (i.e. text, diffusers, or embedding models), and async running.
 
 # Manifest Components
 Manifest is meant to be a very light weight package to help with prompt design and iteration. Three key design decisions of Manifest are
@@ -106,24 +104,6 @@ manifest = Manifest(
 ```
 As a hint, if you want to get Redis running, see the `docker run` command below under development.
 
-## Sessions
-Each Manifest run supports a session that, in addition to a global cache, connects to a local SQLite DB to store user query history.
-```python
-manifest = Manifest(
-    client_name = "openai",
-    cache_name = "sqlite",
-    cache_connection = "mycache.sqlite",
-    session_id = "grass_color",
-)
-```
-will start a Manifest session with the session name `grass_color`. This can be helpful for a user to logically keep track of sessions, see interaction history, and resume sessions if desired. If the session id provided is `_default`, we generate a random id for the user.
-
-After a few queries, the user can explore their history
-```python
-manifest.get_last_queries(4)
-```
-will retrieve the last 4 model queries and responses.
-
 ## Running Queries
 Once you have a session open, you can write and develop prompts.
 
@@ -134,6 +114,12 @@ result = manifest.run("Hello, my name is Laurel")
 You can also run over multiple examples if supported by the client.
 ```python
 results = manifest.run(["Where are the cats?", "Where are the dogs?"])
+```
+
+We support async queries as well via
+```python
+import asyncio
+results = asyncio.run(manifest.arun_batch(["Where are the cats?", "Where are the dogs?"]))
 ```
 
 If something doesn't go right, you can also ask to get a raw manifest Response.
@@ -200,6 +186,23 @@ python3 -m manifest.api.app \
     --model_name_or_path bigscience/bloom \
     --use_bitsandbytes \
     --percent_max_gpu_mem_reduction 0.85
+```
+
+# Embedding Models
+Manifest also supports getting embeddings from models and available APIs. We do this all through changing the `client_name` argument. You still use `run` and `abatch_run`.
+
+To use OpenAI's embedding models, simply run
+```python
+manifest = Manifest(client_name="openaiembedding")
+embedding_as_np = manifest.run("Get me an embedding for a bunny")
+```
+
+As explained above, you can load local HuggingFace models that give you embeddings, too. If you want to use a standard generative model, load the model as above use use `client_name="huggingfaceembedding"`. If you want to use a standard embedding model, like those from SentenceTransformers, load your local model via
+```bash
+python3 -m manifest.api.app \
+    --model_type sentence_transformers \
+    --model_name_or_path all-mpnet-base-v2 \
+    --device 0
 ```
 
 # Development

@@ -1,19 +1,31 @@
 """Manifest test."""
-import json
+import asyncio
+import os
 from typing import cast
+from unittest.mock import MagicMock, Mock, patch
 
+import numpy as np
 import pytest
+import requests
+from requests import HTTPError
 
 from manifest import Manifest, Response
 from manifest.caches.noop import NoopCache
 from manifest.caches.sqlite import SQLiteCache
 from manifest.clients.dummy import DummyClient
-from manifest.session import Session
+
+URL = "http://localhost:6000"
+try:
+    _ = requests.post(URL + "/params").json()
+    MODEL_ALIVE = True
+except Exception:
+    MODEL_ALIVE = False
+
+OPENAI_ALIVE = os.environ.get("OPENAI_API_KEY") is not None
 
 
 @pytest.mark.usefixtures("sqlite_cache")
-@pytest.mark.usefixtures("session_cache")
-def test_init(sqlite_cache: str, session_cache: str) -> None:
+def test_init(sqlite_cache: str) -> None:
     """Test manifest initialization."""
     with pytest.raises(ValueError) as exc_info:
         Manifest(
@@ -32,7 +44,6 @@ def test_init(sqlite_cache: str, session_cache: str) -> None:
     assert manifest.client_name == "dummy"
     assert isinstance(manifest.client, DummyClient)
     assert isinstance(manifest.cache, SQLiteCache)
-    assert manifest.session is None
     assert manifest.client.n == 1  # type: ignore
     assert manifest.stop_token == ""
 
@@ -41,19 +52,16 @@ def test_init(sqlite_cache: str, session_cache: str) -> None:
         cache_name="noop",
         n=3,
         stop_token="\n",
-        session_id="_default",
     )
     assert manifest.client_name == "dummy"
     assert isinstance(manifest.client, DummyClient)
     assert isinstance(manifest.cache, NoopCache)
-    assert isinstance(manifest.session, Session)
     assert manifest.client.n == 3  # type: ignore
     assert manifest.stop_token == "\n"
 
 
 @pytest.mark.usefixtures("sqlite_cache")
-@pytest.mark.usefixtures("session_cache")
-def test_change_manifest(sqlite_cache: str, session_cache: str) -> None:
+def test_change_manifest(sqlite_cache: str) -> None:
     """Test manifest change."""
     manifest = Manifest(
         client_name="dummy",
@@ -65,7 +73,6 @@ def test_change_manifest(sqlite_cache: str, session_cache: str) -> None:
     assert manifest.client_name == "dummy"
     assert isinstance(manifest.client, DummyClient)
     assert isinstance(manifest.cache, SQLiteCache)
-    assert manifest.session is None
     assert manifest.client.n == 1  # type: ignore
     assert manifest.stop_token == ""
 
@@ -73,18 +80,14 @@ def test_change_manifest(sqlite_cache: str, session_cache: str) -> None:
     assert manifest.client_name == "dummy"
     assert isinstance(manifest.client, DummyClient)
     assert isinstance(manifest.cache, SQLiteCache)
-    assert manifest.session is None
     assert manifest.client.n == 1  # type: ignore
     assert manifest.stop_token == "\n"
 
 
 @pytest.mark.usefixtures("sqlite_cache")
-@pytest.mark.usefixtures("session_cache")
 @pytest.mark.parametrize("n", [1, 2])
 @pytest.mark.parametrize("return_response", [True, False])
-def test_run(
-    sqlite_cache: str, session_cache: str, n: int, return_response: bool
-) -> None:
+def test_run(sqlite_cache: str, n: int, return_response: bool) -> None:
     """Test manifest run."""
     manifest = Manifest(
         client_name="dummy",
@@ -107,19 +110,20 @@ def test_run(
     result = manifest.run(prompt, return_response=return_response)
     if return_response:
         assert isinstance(result, Response)
-        res = cast(Response, result).get_response(manifest.stop_token)
+        result = cast(Response, result)
+        assert len(result.get_json_response()["usage"]) == len(
+            result.get_json_response()["choices"]
+        )
+        res = result.get_response(manifest.stop_token)
     else:
         res = cast(str, result)
     assert (
-        manifest.cache.get_key(
-            json.dumps(
-                {
-                    "prompt": "This is a prompt",
-                    "engine": "dummy",
-                    "num_results": n,
-                },
-                sort_keys=True,
-            )
+        manifest.cache.get(
+            {
+                "prompt": "This is a prompt",
+                "engine": "dummy",
+                "num_results": n,
+            },
         )
         is not None
     )
@@ -132,20 +136,21 @@ def test_run(
     result = manifest.run(prompt, run_id="34", return_response=return_response)
     if return_response:
         assert isinstance(result, Response)
-        res = cast(Response, result).get_response(manifest.stop_token)
+        result = cast(Response, result)
+        assert len(result.get_json_response()["usage"]) == len(
+            result.get_json_response()["choices"]
+        )
+        res = result.get_response(manifest.stop_token)
     else:
         res = cast(str, result)
     assert (
-        manifest.cache.get_key(
-            json.dumps(
-                {
-                    "prompt": "This is a prompt",
-                    "engine": "dummy",
-                    "num_results": n,
-                    "run_id": "34",
-                },
-                sort_keys=True,
-            )
+        manifest.cache.get(
+            {
+                "prompt": "This is a prompt",
+                "engine": "dummy",
+                "num_results": n,
+                "run_id": "34",
+            }
         )
         is not None
     )
@@ -158,19 +163,20 @@ def test_run(
     result = manifest.run(prompt, return_response=return_response)
     if return_response:
         assert isinstance(result, Response)
-        res = cast(Response, result).get_response(manifest.stop_token)
+        result = cast(Response, result)
+        assert len(result.get_json_response()["usage"]) == len(
+            result.get_json_response()["choices"]
+        )
+        res = result.get_response(manifest.stop_token)
     else:
         res = cast(str, result)
     assert (
-        manifest.cache.get_key(
-            json.dumps(
-                {
-                    "prompt": "Hello is a prompt",
-                    "engine": "dummy",
-                    "num_results": n,
-                },
-                sort_keys=True,
-            )
+        manifest.cache.get(
+            {
+                "prompt": "Hello is a prompt",
+                "engine": "dummy",
+                "num_results": n,
+            },
         )
         is not None
     )
@@ -183,19 +189,20 @@ def test_run(
     result = manifest.run(prompt, stop_token="ll", return_response=return_response)
     if return_response:
         assert isinstance(result, Response)
-        res = cast(Response, result).get_response(stop_token="ll")
+        result = cast(Response, result)
+        assert len(result.get_json_response()["usage"]) == len(
+            result.get_json_response()["choices"]
+        )
+        res = result.get_response(stop_token="ll")
     else:
         res = cast(str, result)
     assert (
-        manifest.cache.get_key(
-            json.dumps(
-                {
-                    "prompt": "Hello is a prompt",
-                    "engine": "dummy",
-                    "num_results": n,
-                },
-                sort_keys=True,
-            )
+        manifest.cache.get(
+            {
+                "prompt": "Hello is a prompt",
+                "engine": "dummy",
+                "num_results": n,
+            },
         )
         is not None
     )
@@ -206,12 +213,9 @@ def test_run(
 
 
 @pytest.mark.usefixtures("sqlite_cache")
-@pytest.mark.usefixtures("session_cache")
 @pytest.mark.parametrize("n", [1, 2])
 @pytest.mark.parametrize("return_response", [True, False])
-def test_batch_run(
-    sqlite_cache: str, session_cache: str, n: int, return_response: bool
-) -> None:
+def test_batch_run(sqlite_cache: str, n: int, return_response: bool) -> None:
     """Test manifest run."""
     manifest = Manifest(
         client_name="dummy",
@@ -227,19 +231,74 @@ def test_batch_run(
     else:
         result = manifest.run(prompt, return_response=return_response)
         if return_response:
-            res = cast(Response, result).get_response(
-                manifest.stop_token, is_batch=True
+            assert isinstance(result, Response)
+            result = cast(Response, result)
+            assert len(result.get_json_response()["usage"]) == len(
+                result.get_json_response()["choices"]
             )
+            res = result.get_response(manifest.stop_token, is_batch=True)
         else:
             res = cast(str, result)
         assert res == ["hello"]
+        assert (
+            manifest.cache.get(
+                {
+                    "prompt": "This is a prompt",
+                    "engine": "dummy",
+                    "num_results": n,
+                },
+            )
+            is not None
+        )
 
         prompt = ["Hello is a prompt", "Hello is a prompt"]
         result = manifest.run(prompt, return_response=return_response)
         if return_response:
-            res = cast(Response, result).get_response(
-                manifest.stop_token, is_batch=True
+            assert isinstance(result, Response)
+            result = cast(Response, result)
+            assert len(result.get_json_response()["usage"]) == len(
+                result.get_json_response()["choices"]
             )
+            res = result.get_response(manifest.stop_token, is_batch=True)
+        else:
+            res = cast(str, result)
+        assert res == ["hello", "hello"]
+        assert (
+            manifest.cache.get(
+                {
+                    "prompt": "Hello is a prompt",
+                    "engine": "dummy",
+                    "num_results": n,
+                },
+            )
+            is not None
+        )
+
+        result = manifest.run(prompt, return_response=True)
+        res = cast(Response, result).get_response(manifest.stop_token, is_batch=True)
+        assert cast(Response, result).is_cached()
+
+        assert (
+            manifest.cache.get(
+                {
+                    "prompt": "New prompt",
+                    "engine": "dummy",
+                    "num_results": n,
+                },
+            )
+            is None
+        )
+        prompt = ["This is a prompt", "New prompt"]
+        result = manifest.run(prompt, return_response=return_response)
+        if return_response:
+            assert isinstance(result, Response)
+            result = cast(Response, result)
+            assert len(result.get_json_response()["usage"]) == len(
+                result.get_json_response()["choices"]
+            )
+            res = result.get_response(manifest.stop_token, is_batch=True)
+            # Cached because one item is in cache
+            assert result.is_cached()
         else:
             res = cast(str, result)
         assert res == ["hello", "hello"]
@@ -247,10 +306,110 @@ def test_batch_run(
         prompt = ["Hello is a prompt", "Hello is a prompt"]
         result = manifest.run(prompt, stop_token="ll", return_response=return_response)
         if return_response:
-            res = cast(Response, result).get_response(stop_token="ll", is_batch=True)
+            assert isinstance(result, Response)
+            result = cast(Response, result)
+            assert len(result.get_json_response()["usage"]) == len(
+                result.get_json_response()["choices"]
+            )
+            res = result.get_response(stop_token="ll", is_batch=True)
         else:
             res = cast(str, result)
         assert res == ["he", "he"]
+
+
+@pytest.mark.usefixtures("sqlite_cache")
+def test_abatch_run(sqlite_cache: str) -> None:
+    """Test manifest run."""
+    manifest = Manifest(
+        client_name="dummy",
+        cache_name="sqlite",
+        cache_connection=sqlite_cache,
+    )
+    prompt = ["This is a prompt"]
+    result = cast(
+        Response, asyncio.run(manifest.arun_batch(prompt, return_response=True))
+    )
+
+    assert len(result.get_json_response()["usage"]) == len(
+        result.get_json_response()["choices"]
+    )
+    res = result.get_response(manifest.stop_token, is_batch=True)
+    assert res == ["hello"]
+    assert (
+        manifest.cache.get(
+            {
+                "prompt": "This is a prompt",
+                "engine": "dummy",
+                "num_results": 1,
+            },
+        )
+        is not None
+    )
+
+    prompt = ["Hello is a prompt", "Hello is a prompt"]
+    result = cast(
+        Response, asyncio.run(manifest.arun_batch(prompt, return_response=True))
+    )
+
+    assert len(result.get_json_response()["usage"]) == len(
+        result.get_json_response()["choices"]
+    )
+    res = result.get_response(manifest.stop_token, is_batch=True)
+    assert res == ["hello", "hello"]
+    assert (
+        manifest.cache.get(
+            {
+                "prompt": "Hello is a prompt",
+                "engine": "dummy",
+                "num_results": 1,
+            },
+        )
+        is not None
+    )
+
+    result = cast(
+        Response, asyncio.run(manifest.arun_batch(prompt, return_response=True))
+    )
+
+    assert len(result.get_json_response()["usage"]) == len(
+        result.get_json_response()["choices"]
+    )
+    res = result.get_response(manifest.stop_token, is_batch=True)
+    assert result.is_cached()
+
+    assert (
+        manifest.cache.get(
+            {
+                "prompt": "New prompt",
+                "engine": "dummy",
+                "num_results": 1,
+            },
+        )
+        is None
+    )
+    prompt = ["This is a prompt", "New prompt"]
+    result = cast(
+        Response, asyncio.run(manifest.arun_batch(prompt, return_response=True))
+    )
+
+    assert len(result.get_json_response()["usage"]) == len(
+        result.get_json_response()["choices"]
+    )
+    res = result.get_response(manifest.stop_token, is_batch=True)
+    # Cached because one item is in cache
+    assert result.is_cached()
+    assert res == ["hello", "hello"]
+
+    prompt = ["Hello is a prompt", "Hello is a prompt"]
+    result = cast(
+        Response, asyncio.run(manifest.arun_batch(prompt, return_response=True))
+    )
+
+    assert len(result.get_json_response()["usage"]) == len(
+        result.get_json_response()["choices"]
+    )
+    res = result.get_response(stop_token="ll", is_batch=True)
+    assert res == ["he", "he"]
 
 
 @pytest.mark.usefixtures("sqlite_cache")
@@ -264,16 +423,14 @@ def test_score_run(sqlite_cache: str) -> None:
 
     prompt = "This is a prompt"
     result = manifest.score_prompt(prompt)
-
     assert (
-        manifest.cache.get_key(
-            json.dumps(
-                {
-                    "prompt": "This is a prompt",
-                    "engine": "dummy",
-                },
-                sort_keys=True,
-            )
+        manifest.cache.get(
+            {
+                "prompt": "This is a prompt",
+                "engine": "dummy",
+                "num_results": 1,
+                "request_type": "score_prompt",
+            },
         )
         is not None
     )
@@ -284,20 +441,35 @@ def test_score_run(sqlite_cache: str) -> None:
         "item_dtype": None,
         "response": {"choices": [{"text": "This is a prompt", "logprob": 0.3}]},
         "cached": False,
-        "request_params": {"prompt": "This is a prompt", "engine": "dummy"},
+        "request_params": {
+            "prompt": "This is a prompt",
+            "engine": "dummy",
+            "num_results": 1,
+            "request_type": "score_prompt",
+        },
     }
 
     prompt_list = ["Hello is a prompt", "Hello is another prompt"]
     result = manifest.score_prompt(prompt_list)
     assert (
-        manifest.cache.get_key(
-            json.dumps(
-                {
-                    "prompt": ["Hello is a prompt", "Hello is another prompt"],
-                    "engine": "dummy",
-                },
-                sort_keys=True,
-            )
+        manifest.cache.get(
+            {
+                "prompt": "Hello is a prompt",
+                "engine": "dummy",
+                "num_results": 1,
+                "request_type": "score_prompt",
+            },
+        )
+        is not None
+    )
+    assert (
+        manifest.cache.get(
+            {
+                "prompt": "Hello is another prompt",
+                "engine": "dummy",
+                "num_results": 1,
+                "request_type": "score_prompt",
+            },
         )
         is not None
     )
@@ -316,76 +488,486 @@ def test_score_run(sqlite_cache: str) -> None:
         "request_params": {
             "prompt": ["Hello is a prompt", "Hello is another prompt"],
             "engine": "dummy",
+            "num_results": 1,
+            "request_type": "score_prompt",
         },
     }
 
 
-@pytest.mark.usefixtures("session_cache")
-def test_log_query(session_cache: str) -> None:
-    """Test manifest session logging."""
-    manifest = Manifest(client_name="dummy", cache_name="noop", session_id="_default")
-    prompt = "This is a prompt"
-    _ = manifest.run(prompt, return_response=False)
-    query_key = {
-        "prompt": "This is a prompt",
-        "engine": "dummy",
-        "num_results": 1,
-    }
-    response_key = {
-        "cached": False,
-        "request_params": query_key,
-        "response": {"choices": [{"text": "hello"}]},
-        "generation_key": "choices",
-        "item_dtype": None,
-        "item_key": "text",
-        "logits_key": "token_logprobs",
-    }
-    assert manifest.get_last_queries(1) == [("This is a prompt", "hello")]
-    assert manifest.get_last_queries(1, return_raw_values=True) == [
-        (query_key, response_key)
-    ]
-    assert manifest.get_last_queries(3, return_raw_values=True) == [
-        (query_key, response_key)
-    ]
-    prior_cache_item = (query_key, response_key)
-
-    prompt_lst = ["This is a prompt", "This is a prompt2"]
-    _ = manifest.run(prompt_lst, return_response=False)
-    query_key = {
-        "prompt": ["This is a prompt", "This is a prompt2"],
-        "engine": "dummy",
-        "num_results": 1,
-    }
-    response_key = {
-        "cached": False,
-        "generation_key": "choices",
-        "item_dtype": None,
-        "item_key": "text",
-        "logits_key": "token_logprobs",
-        "request_params": query_key,
-        "response": {"choices": [{"text": "hello"}, {"text": "hello"}]},
-    }
-    assert manifest.get_last_queries(1) == [
-        (["This is a prompt", "This is a prompt2"], ["hello", "hello"])
-    ]
-    assert manifest.get_last_queries(1, return_raw_values=True) == [
-        (query_key, response_key)
-    ]
-    assert manifest.get_last_queries(3, return_raw_values=True) == [
-        prior_cache_item,
-        (query_key, response_key),
-    ]
-
-    # Test no session
-    manifest = Manifest(
-        client_name="dummy",
-        cache_name="noop",
+@pytest.mark.skipif(not MODEL_ALIVE, reason=f"No model at {URL}")
+@pytest.mark.usefixtures("sqlite_cache")
+def test_local_huggingface(sqlite_cache: str) -> None:
+    """Test local huggingface client."""
+    client = Manifest(
+        client_name="huggingface",
+        client_connection=URL,
+        cache_name="sqlite",
+        cache_connection=sqlite_cache,
     )
-    prompt = "This is a prompt"
-    _ = manifest.run(prompt, return_response=False)
-    with pytest.raises(ValueError) as exc_info:
-        manifest.get_last_queries(1)
+
+    res = client.run("Why are there apples?")
+    assert isinstance(res, str) and len(res) > 0
+
+    response = cast(Response, client.run("Why are there apples?", return_response=True))
+    assert isinstance(response.get_response(), str) and len(response.get_response()) > 0
+    assert response.is_cached() is True
+
+    response = cast(Response, client.run("Why are there apples?", return_response=True))
+    assert response.is_cached() is True
+
+    res_list = client.run(["Why are there apples?", "Why are there bananas?"])
+    assert isinstance(res_list, list) and len(res_list) == 2
+
+    response = cast(
+        Response, client.run("Why are there bananas?", return_response=True)
+    )
+    assert response.is_cached() is True
+
+    res_list = asyncio.run(
+        client.arun_batch(["Why are there pears?", "Why are there oranges?"])
+    )
+    assert isinstance(res_list, list) and len(res_list) == 2
+
+    response = cast(
+        Response, client.run("Why are there oranges?", return_response=True)
+    )
+    assert response.is_cached() is True
+
+    scores = client.score_prompt("Why are there apples?")
+    assert isinstance(scores, dict) and len(scores) > 0
+    assert scores["cached"] is False
+    assert len(scores["response"]["choices"][0]["token_logprobs"]) == len(
+        scores["response"]["choices"][0]["tokens"]
+    )
+
+    scores = client.score_prompt(["Why are there apples?", "Why are there bananas?"])
+    assert isinstance(scores, dict) and len(scores) > 0
+    assert scores["cached"] is True
+    assert len(scores["response"]["choices"][0]["token_logprobs"]) == len(
+        scores["response"]["choices"][0]["tokens"]
+    )
+    assert len(scores["response"]["choices"][0]["token_logprobs"]) == len(
+        scores["response"]["choices"][0]["tokens"]
+    )
+
+
+@pytest.mark.skipif(not MODEL_ALIVE, reason=f"No model at {URL}")
+@pytest.mark.usefixtures("sqlite_cache")
+def test_local_huggingfaceembedding(sqlite_cache: str) -> None:
+    """Test openaichat client."""
+    client = Manifest(
+        client_name="huggingfaceembedding",
+        client_connection=URL,
+        cache_name="sqlite",
+        cache_connection=sqlite_cache,
+    )
+
+    res = client.run("Why are there carrots?")
+    assert isinstance(res, np.ndarray)
+
+    response = cast(
+        Response, client.run("Why are there carrots?", return_response=True)
+    )
+    assert isinstance(response.get_response(), np.ndarray)
+    assert np.allclose(response.get_response(), res)
+
+    client = Manifest(
+        client_name="huggingfaceembedding",
+        client_connection=URL,
+        cache_name="sqlite",
+        cache_connection=sqlite_cache,
+    )
+
+    res = client.run("Why are there apples?")
+    assert isinstance(res, np.ndarray)
+
+    response = cast(Response, client.run("Why are there apples?", return_response=True))
+    assert isinstance(response.get_response(), np.ndarray)
+    assert np.allclose(response.get_response(), res)
+    assert response.is_cached() is True
+
+    response = cast(Response, client.run("Why are there apples?", return_response=True))
+    assert response.is_cached() is True
+
+    res_list = client.run(["Why are there apples?", "Why are there bananas?"])
     assert (
-        str(exc_info.value)
-        == "Session was not initialized. Set `session_id` when loading Manifest."
+        isinstance(res_list, list)
+        and len(res_list) == 2
+        and isinstance(res_list[0], np.ndarray)
     )
+
+    response = cast(
+        Response,
+        client.run(
+            ["Why are there apples?", "Why are there mangos?"], return_response=True
+        ),
+    )
+    assert (
+        isinstance(response.get_response(), list) and len(response.get_response()) == 2
+    )
+
+    response = cast(
+        Response, client.run("Why are there bananas?", return_response=True)
+    )
+    assert response.is_cached() is True
+
+    response = cast(
+        Response, client.run("Why are there oranges?", return_response=True)
+    )
+    assert response.is_cached() is False
+
+    res_list = asyncio.run(
+        client.arun_batch(["Why are there pears?", "Why are there oranges?"])
+    )
+    assert (
+        isinstance(res_list, list)
+        and len(res_list) == 2
+        and isinstance(res_list[0], np.ndarray)
+    )
+
+    response = cast(
+        Response,
+        asyncio.run(
+            client.arun_batch(
+                ["Why are there pinenuts?", "Why are there cocoa?"],
+                return_response=True,
+            )
+        ),
+    )
+    assert (
+        isinstance(response.get_response(), list)
+        and len(res_list) == 2
+        and isinstance(res_list[0], np.ndarray)
+    )
+
+    response = cast(
+        Response, client.run("Why are there oranges?", return_response=True)
+    )
+    assert response.is_cached() is True
+
+
+@pytest.mark.skipif(not OPENAI_ALIVE, reason="No openai key set")
+@pytest.mark.usefixtures("sqlite_cache")
+def test_openai(sqlite_cache: str) -> None:
+    """Test openai client."""
+    client = Manifest(
+        client_name="openai",
+        engine="text-ada-001",
+        cache_name="sqlite",
+        cache_connection=sqlite_cache,
+        temperature=0.0,
+    )
+
+    res = client.run("Why are there apples?")
+    assert isinstance(res, str) and len(res) > 0
+
+    response = cast(Response, client.run("Why are there apples?", return_response=True))
+    assert isinstance(response.get_response(), str) and len(response.get_response()) > 0
+    assert response.get_response() == res
+    assert response.is_cached() is True
+    assert "usage" in response.get_json_response()
+    assert response.get_json_response()["usage"][0]["total_tokens"] == 15
+
+    response = cast(Response, client.run("Why are there apples?", return_response=True))
+    assert response.is_cached() is True
+
+    res_list = client.run(["Why are there apples?", "Why are there bananas?"])
+    assert isinstance(res_list, list) and len(res_list) == 2
+
+    response = cast(
+        Response,
+        client.run(
+            ["Why are there apples?", "Why are there mangos?"], return_response=True
+        ),
+    )
+    assert (
+        isinstance(response.get_response(), list) and len(response.get_response()) == 2
+    )
+    assert (
+        "usage" in response.get_json_response()
+        and len(response.get_json_response()["usage"]) == 2
+    )
+    assert response.get_json_response()["usage"][0]["total_tokens"] == 15
+    assert response.get_json_response()["usage"][1]["total_tokens"] == 16
+
+    response = cast(
+        Response, client.run("Why are there bananas?", return_response=True)
+    )
+    assert response.is_cached() is True
+
+    res_list = asyncio.run(
+        client.arun_batch(["Why are there pears?", "Why are there oranges?"])
+    )
+    assert isinstance(res_list, list) and len(res_list) == 2
+
+    response = cast(
+        Response,
+        asyncio.run(
+            client.arun_batch(
+                ["Why are there pinenuts?", "Why are there cocoa?"],
+                return_response=True,
+            )
+        ),
+    )
+    assert (
+        isinstance(response.get_response(), list) and len(response.get_response()) == 2
+    )
+    assert (
+        "usage" in response.get_json_response()
+        and len(response.get_json_response()["usage"]) == 2
+    )
+    assert response.get_json_response()["usage"][0]["total_tokens"] == 17
+    assert response.get_json_response()["usage"][1]["total_tokens"] == 15
+
+    response = cast(
+        Response, client.run("Why are there oranges?", return_response=True)
+    )
+    assert response.is_cached() is True
+
+
+@pytest.mark.skipif(not OPENAI_ALIVE, reason="No openai key set")
+@pytest.mark.usefixtures("sqlite_cache")
+def test_openaichat(sqlite_cache: str) -> None:
+    """Test openaichat client."""
+    client = Manifest(
+        client_name="openaichat",
+        cache_name="sqlite",
+        cache_connection=sqlite_cache,
+    )
+
+    res = client.run("Why are there apples?")
+    assert isinstance(res, str) and len(res) > 0
+
+    response = cast(Response, client.run("Why are there apples?", return_response=True))
+    assert isinstance(response.get_response(), str) and len(response.get_response()) > 0
+    assert response.get_response() == res
+    assert response.is_cached() is True
+    assert "usage" in response.get_json_response()
+    assert response.get_json_response()["usage"][0]["total_tokens"] == 23
+
+    response = cast(Response, client.run("Why are there apples?", return_response=True))
+    assert response.is_cached() is True
+
+    response = cast(
+        Response, client.run("Why are there oranges?", return_response=True)
+    )
+    assert response.is_cached() is False
+
+    res_list = asyncio.run(
+        client.arun_batch(["Why are there pears?", "Why are there oranges?"])
+    )
+    assert isinstance(res_list, list) and len(res_list) == 2
+
+    response = cast(
+        Response,
+        asyncio.run(
+            client.arun_batch(
+                ["Why are there pinenuts?", "Why are there cocoa?"],
+                return_response=True,
+            )
+        ),
+    )
+    assert (
+        isinstance(response.get_response(), list) and len(response.get_response()) == 2
+    )
+    assert (
+        "usage" in response.get_json_response()
+        and len(response.get_json_response()["usage"]) == 2
+    )
+    assert response.get_json_response()["usage"][0]["total_tokens"] == 25
+    assert response.get_json_response()["usage"][1]["total_tokens"] == 23
+
+    response = cast(
+        Response, client.run("Why are there oranges?", return_response=True)
+    )
+    assert response.is_cached() is True
+
+
+@pytest.mark.skipif(not OPENAI_ALIVE, reason="No openai key set")
+@pytest.mark.usefixtures("sqlite_cache")
+def test_openaiembedding(sqlite_cache: str) -> None:
+    """Test openaichat client."""
+    client = Manifest(
+        client_name="openaiembedding",
+        cache_name="sqlite",
+        cache_connection=sqlite_cache,
+        array_serializer="local_file",
+    )
+
+    res = client.run("Why are there carrots?")
+    assert isinstance(res, np.ndarray)
+
+    response = cast(
+        Response, client.run("Why are there carrots?", return_response=True)
+    )
+    assert isinstance(response.get_response(), np.ndarray)
+    assert np.allclose(response.get_response(), res)
+
+    client = Manifest(
+        client_name="openaiembedding",
+        cache_name="sqlite",
+        cache_connection=sqlite_cache,
+    )
+
+    res = client.run("Why are there apples?")
+    assert isinstance(res, np.ndarray)
+
+    response = cast(Response, client.run("Why are there apples?", return_response=True))
+    assert isinstance(response.get_response(), np.ndarray)
+    assert np.allclose(response.get_response(), res)
+    assert response.is_cached() is True
+    assert "usage" in response.get_json_response()
+    assert response.get_json_response()["usage"][0]["total_tokens"] == 5
+
+    response = cast(Response, client.run("Why are there apples?", return_response=True))
+    assert response.is_cached() is True
+
+    res_list = client.run(["Why are there apples?", "Why are there bananas?"])
+    assert (
+        isinstance(res_list, list)
+        and len(res_list) == 2
+        and isinstance(res_list[0], np.ndarray)
+    )
+
+    response = cast(
+        Response,
+        client.run(
+            ["Why are there apples?", "Why are there mangos?"], return_response=True
+        ),
+    )
+    assert (
+        isinstance(response.get_response(), list) and len(response.get_response()) == 2
+    )
+    assert (
+        "usage" in response.get_json_response()
+        and len(response.get_json_response()["usage"]) == 2
+    )
+    assert response.get_json_response()["usage"][0]["total_tokens"] == 5
+    assert response.get_json_response()["usage"][1]["total_tokens"] == 6
+
+    response = cast(
+        Response, client.run("Why are there bananas?", return_response=True)
+    )
+    assert response.is_cached() is True
+
+    response = cast(
+        Response, client.run("Why are there oranges?", return_response=True)
+    )
+    assert response.is_cached() is False
+
+    res_list = asyncio.run(
+        client.arun_batch(["Why are there pears?", "Why are there oranges?"])
+    )
+    assert (
+        isinstance(res_list, list)
+        and len(res_list) == 2
+        and isinstance(res_list[0], np.ndarray)
+    )
+
+    response = cast(
+        Response,
+        asyncio.run(
+            client.arun_batch(
+                ["Why are there pinenuts?", "Why are there cocoa?"],
+                return_response=True,
+            )
+        ),
+    )
+    assert (
+        isinstance(response.get_response(), list)
+        and len(res_list) == 2
+        and isinstance(res_list[0], np.ndarray)
+    )
+    assert (
+        "usage" in response.get_json_response()
+        and len(response.get_json_response()["usage"]) == 2
+    )
+    assert response.get_json_response()["usage"][0]["total_tokens"] == 7
+    assert response.get_json_response()["usage"][1]["total_tokens"] == 5
+
+    response = cast(
+        Response, client.run("Why are there oranges?", return_response=True)
+    )
+    assert response.is_cached() is True
+
+
+def test_retry_handling() -> None:
+    """Test retry handling."""
+    # We'll mock the response so we won't need a real connection
+    client = Manifest(client_name="openai", client_connection="fake")
+    mock_create = MagicMock(
+        side_effect=[
+            # raise a 429 error
+            HTTPError(
+                response=Mock(status_code=429, json=Mock(return_value={})),
+                request=Mock(),
+            ),
+            # get a valid http response with a 200 status code
+            Mock(
+                status_code=200,
+                json=Mock(
+                    return_value={
+                        "choices": [
+                            {
+                                "finish_reason": "length",
+                                "index": 0,
+                                "logprobs": None,
+                                "text": " WHATTT.",
+                            },
+                            {
+                                "finish_reason": "length",
+                                "index": 1,
+                                "logprobs": None,
+                                "text": " UH OH.",
+                            },
+                            {
+                                "finish_reason": "length",
+                                "index": 2,
+                                "logprobs": None,
+                                "text": " HARG",
+                            },
+                        ],
+                        "created": 1679469056,
+                        "id": "cmpl-6wmuWfmyuzi68B6gfeNC0h5ywxXL5",
+                        "model": "text-ada-001",
+                        "object": "text_completion",
+                        "usage": {
+                            "completion_tokens": 30,
+                            "prompt_tokens": 24,
+                            "total_tokens": 54,
+                        },
+                    }
+                ),
+            ),
+        ]
+    )
+    prompts = [
+        "The sky is purple. This is because",
+        "The sky is magnet. This is because",
+        "The sky is fuzzy. This is because",
+    ]
+    with patch("manifest.clients.client.requests.post", mock_create):
+        # Run manifest
+        result = client.run(prompts, temperature=0, overwrite_cache=True)
+        assert result == ["WHATTT.", "UH OH.", "HARG"]
+
+        # Assert that OpenAI client was called twice
+        assert mock_create.call_count == 2
+
+    # Now make sure it errors when not a 429
+    mock_create = MagicMock(
+        side_effect=[
+            # raise a 500 error
+            HTTPError(
+                response=Mock(status_code=500, json=Mock(return_value={})),
+                request=Mock(),
+            ),
+        ]
+    )
+    with patch("manifest.clients.client.requests.post", mock_create):
+        # Run manifest
+        with pytest.raises(HTTPError):
+            client.run(prompts, temperature=0, overwrite_cache=True)
+
+        # Assert that OpenAI client was called once
+        assert mock_create.call_count == 1

@@ -1,6 +1,18 @@
 0.1.1 - Unreleased
 ---------------------
+Added
+^^^^^
+* Async support in arun_batch
 
+Fixed
+^^^^^
+* Batched runs now caches individual items
+* Score prompt does not truncate outside token
+
+Removed
+^^^^^
+* Deprecated chatGPT in favor of openaichat which uses OpenAI completions
+* Deprecated Sessions
 
 0.1.0 - 2022-01-31
 ---------------------

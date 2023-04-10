@@ -15,6 +15,7 @@ from manifest.api.models.huggingface import (
     CrossModalEncoderModel,
     TextGenerationModel,
 )
+from manifest.api.models.sentence_transformer import SentenceTransformerModel
 from manifest.api.response import ModelResponse
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
@@ -27,6 +28,7 @@ model_type = None
 PORT = int(os.environ.get("FLASK_PORT", 5000))
 MODEL_CONSTRUCTORS = {
     "huggingface": TextGenerationModel,
+    "sentence_transformers": SentenceTransformerModel,
     "huggingface_crossmodal": CrossModalEncoderModel,
     "diffuser": DiffuserModel,
 }
@@ -184,13 +186,13 @@ def completions() -> Response:
         if model_type == "diffuser":
             # Assign None logprob as it's not supported in diffusers
             results = [
-                {"array": r[0], "logprob": None, "token_logprobs": None}
+                {"array": r[0], "logprob": None, "tokens": None, "token_logprobs": None}
                 for r in result_gens
             ]
             res_type = "image_generation"
         else:
             results = [
-                {"text": r[0], "logprob": r[1], "token_logprobs": r[2]}
+                {"text": r[0], "logprob": r[1], "tokens": r[2], "token_logprobs": r[3]}
                 for r in result_gens
             ]
             res_type = "text_completion"
@@ -210,11 +212,14 @@ def completions() -> Response:
 
 
 @app.route("/embed", methods=["POST"])
-def embed() -> Dict:
+def embed() -> Response:
     """Get embed for generation."""
-    modality = request.json["modality"]
+    if "modality" in request.json:
+        modality = request.json["modality"]
+    else:
+        modality = "text"
     if modality == "text":
-        prompts = request.json["prompts"]
+        prompts = request.json["prompt"]
     elif modality == "image":
         import base64
 
@@ -222,19 +227,36 @@ def embed() -> Dict:
 
         prompts = [
             Image.open(io.BytesIO(base64.b64decode(data)))
-            for data in request.json["prompts"]
+            for data in request.json["prompt"]
         ]
     else:
         raise ValueError("modality must be text or image")
 
-    results = []
-    embeddings = model.embed(prompts)
-    for embedding in embeddings:
-        results.append(embedding.tolist())
+    try:
+        results = []
+        embeddings = model.embed(prompts)
+        for embedding in embeddings:
+            results.append(
+                {
+                    "array": embedding,
+                    "logprob": None,
+                    "tokens": None,
+                    "token_logprobs": None,
+                }
+            )
 
-    # transform the result into the openai format
-    # return Response(results, response_type="text_completion").__dict__()
-    return {"result": results}
+        return Response(
+            json.dumps(
+                ModelResponse(results, response_type="embedding_generation").__dict__()
+            ),
+            status=200,
+        )
+    except Exception as e:
+        logger.error(e)
+        return Response(
+            json.dumps({"message": str(e)}),
+            status=400,
+        )
 
 
 @app.route("/score_sequence", methods=["POST"])
@@ -253,7 +275,8 @@ def score_sequence() -> Response:
             {
                 "text": prompt if isinstance(prompt, str) else prompt[i],
                 "logprob": r[0],
-                "token_logprobs": r[1],
+                "tokens": r[1],
+                "token_logprobs": r[2],
             }
             for i, r in enumerate(score_list)
         ]

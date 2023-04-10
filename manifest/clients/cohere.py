@@ -26,9 +26,9 @@ class CohereClient(Client):
         "frequency_penalty": ("frequency_penalty", 0.0),
         "presence_penalty": ("presence_penalty", 0.0),
         "stop_sequences": ("stop_sequences", None),
-        "client_timeout": ("client_timeout", 60),  # seconds
     }
     REQUEST_CLS = LMRequest
+    NAME = "cohere"
 
     def connect(
         self,
@@ -91,14 +91,15 @@ class CohereClient(Client):
         Returns:
             model params.
         """
-        return {"model_name": "cohere", "engine": getattr(self, "engine")}
+        return {"model_name": self.NAME, "engine": getattr(self, "engine")}
 
-    def format_response(self, response: Dict) -> Dict[str, Any]:
+    def format_response(self, response: Dict, request: Dict) -> Dict[str, Any]:
         """
         Format response to dict.
 
         Args:
             response: response
+            request: request
 
         Return:
             response as dict

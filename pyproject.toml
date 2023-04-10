@@ -9,6 +9,7 @@ module = [
   "deepspeed",
   "numpy",
   "diffusers",
+  "sentence_transformers",
   "sqlitedict",
   "dill",
   "accelerate",

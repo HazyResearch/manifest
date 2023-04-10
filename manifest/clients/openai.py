@@ -1,10 +1,12 @@
 """OpenAI client."""
 import logging
 import os
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional, Type
+
+import tiktoken
 
 from manifest.clients.client import Client
-from manifest.request import LMRequest
+from manifest.request import LMRequest, Request
 
 logger = logging.getLogger(__name__)
 
@@ -38,9 +40,9 @@ class OpenAIClient(Client):
         "stop_sequences": ("stop", None),  # OpenAI doesn't like empty lists
         "presence_penalty": ("presence_penalty", 0.0),
         "frequency_penalty": ("frequency_penalty", 0.0),
-        "client_timeout": ("client_timeout", 60),  # seconds
     }
-    REQUEST_CLS = LMRequest
+    REQUEST_CLS: Type[Request] = LMRequest
+    NAME = "openai"
 
     def connect(
         self,
@@ -101,4 +103,29 @@ class OpenAIClient(Client):
         Returns:
             model params.
         """
-        return {"model_name": "openai", "engine": getattr(self, "engine")}
+        return {"model_name": self.NAME, "engine": getattr(self, "engine")}
+
+    def split_usage(self, request: Dict, choices: List[str]) -> List[Dict[str, int]]:
+        """Split usage into list of usages for each prompt."""
+        try:
+            encoding = tiktoken.encoding_for_model(getattr(self, "engine"))
+        except Exception:
+            return []
+        prompt = request["prompt"]
+        # If n > 1 and prompt is a string, we need to split it into a list
+        if isinstance(prompt, str):
+            prompts = [prompt] * len(choices)
+        else:
+            prompts = prompt
+        assert len(prompts) == len(choices)
+        usages = []
+        for pmt, chc in zip(prompts, choices):
+            pmt_tokens = len(encoding.encode(pmt))
+            chc_tokens = len(encoding.encode(chc["text"]))  # type: ignore
+            usage = {
+                "prompt_tokens": pmt_tokens,
+                "completion_tokens": chc_tokens,
+                "total_tokens": pmt_tokens + chc_tokens,
+            }
+            usages.append(usage)
+        return usages
