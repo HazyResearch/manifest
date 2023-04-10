@@ -5,8 +5,8 @@ import json
 import logging
 import os
 import socket
-from typing import Dict
 import traceback
+from typing import Dict
 
 from flask import Flask, Response, request
 
@@ -109,7 +109,11 @@ def parse_args() -> argparse.Namespace:
         "--port",
         type=int,
         default=PORT,
-        help=("Specify the port to run Flask server on. Defaults to FLASK_PORT environment variable. If that's not set, defaults to 5000"),
+        help=(
+            "Specify the port to run Flask server on."
+            "Defaults to FLASK_PORT environment variable."
+            "If that's not set, defaults to 5000"
+        ),
     )
     args = parser.parse_args()
     return args
@@ -309,11 +313,13 @@ def score_sequence_eleuther_lm_eval() -> Response:
         prompts_with_labels = [prompts_with_labels]
 
     try:
-        score_list = model.score_sequence_eleuther_lm_eval(prompts_with_labels, **generation_args)
+        score_list = model.score_sequence_eleuther_lm_eval(
+            prompts_with_labels, **generation_args
+        )
         results = [
             {
                 "prompt": p,
-                "label" : l,
+                "label": l,
                 "label_prob": probs,
             }
             for p, l, probs in score_list
@@ -327,6 +333,7 @@ def score_sequence_eleuther_lm_eval() -> Response:
             status=400,
         )
 
+
 @app.route("/params", methods=["POST"])
 def params() -> Dict:
     """Get model params."""
@@ -338,10 +345,12 @@ def model_config() -> Dict:
     """Get model config."""
     return model.pipeline.model.config.to_dict()
 
+
 @app.route("/tokenizer_config", methods=["GET"])
 def tokenizer_config() -> Dict:
     """Get tokenizer config."""
     return model.pipeline.tokenizer.__repr__()
+
 
 @app.route("/tokenize", methods=["POST"])
 def tokenize() -> Dict:
@@ -349,15 +358,15 @@ def tokenize() -> Dict:
     prompt = request.json["prompt"]
     encoded_prompt = model.tokenize(prompt)
     return {
-        'input_ids' : encoded_prompt['input_ids'],
-        'attention_mask' : encoded_prompt['attention_mask'],
+        "input_ids": encoded_prompt["input_ids"],
+        "attention_mask": encoded_prompt["attention_mask"],
     }
 
 
 @app.route("/")
 def index() -> str:
     """Get index completion."""
-    return 'Welcome to Manifest. Try using a different endpoint.'
+    return "Welcome to Manifest. Try using a different endpoint."
 
 
 if __name__ == "__main__":
