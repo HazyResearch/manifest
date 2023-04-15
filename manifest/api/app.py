@@ -128,8 +128,8 @@ def is_port_in_use(port: int) -> bool:
 def main() -> None:
     """Run main."""
     kwargs = parse_args()
-    if is_port_in_use(PORT):
-        raise ValueError(f"Port {PORT} is already in use.")
+    if is_port_in_use(kwargs.port):
+        raise ValueError(f"Port {kwargs.port} is already in use.")
     global model_type
     model_type = kwargs.model_type
     model_gen_type = kwargs.model_generation_type

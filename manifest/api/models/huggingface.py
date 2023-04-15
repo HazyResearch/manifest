@@ -241,6 +241,7 @@ class HuggingFaceModel(Model):
                 "use_bitsandbytes, use_deepspeed can be set to True"
             )
         # Check if providing path
+        self.model_path = model_name_or_path
         if Path(self.model_path).exists() and Path(self.model_path).is_dir():
             # Try to find config
             if (Path(self.model_path) / "config.json").exists():
@@ -249,7 +250,7 @@ class HuggingFaceModel(Model):
                     model_name_or_path = config["_name_or_path"]
                 except Exception:
                     # Wasn't able to load config
-                    pass
+                    print(f"Unable to load config from {self.model_path}")
         self.model_name = model_name_or_path
         self.model_type = model_type
         if self.model_name not in MODEL_REGISTRY and self.model_type is None:
@@ -709,6 +710,9 @@ class TextGenerationModel(HuggingFaceModel):
         """
         prompts: List[str] = [x[0] for x in prompt_with_label]
         labels: List[str] = [x[1] for x in prompt_with_label]
+        
+        # By default, will strip trailing/leading spaces from the label
+        is_strip_spaces: bool = kwargs.get('is_strip_spaces', True)
 
         if self.model_type == "text2text-generation":
             # For seq2seq models, we add the label as the
@@ -750,9 +754,9 @@ class TextGenerationModel(HuggingFaceModel):
             # between sequences, so the prompt's logprob
             # will be constant across all labels)
 
-            # Pad right instead of left
+            # Pad left instead of right
             encoded_prompt = self.pipeline.tokenizer(
-                [f"{x} {y}" for (x, y) in zip(prompts, labels)],
+                [f"{x} {y.strip() if is_strip_spaces else y}" for (x, y) in zip(prompts, labels)],
                 max_length=self.pipeline.max_length,
                 truncation=True,
                 padding=True,
