@@ -33,7 +33,7 @@ class Request(BaseModel):
     # Batch size for async batch run
     batch_size: int = 8
 
-    # Request type None is for completion. Used to scoring prompt
+    # Request type None is for completion. Used for scoring prompt
     request_type: str = None
 
     def to_dict(

@@ -4,20 +4,14 @@ from typing import Any, Dict, List, Union
 
 import numpy as np
 
+from manifest.request import DiffusionRequest, EmbeddingRequest
+
 RESPONSE_CONSTRUCTORS = {
-    "diffuser": {
+    EmbeddingRequest: {
         "logits_key": "token_logprobs",
         "item_key": "array",
     },
-    "tomadiffuser": {
-        "logits_key": "token_logprobs",
-        "item_key": "array",
-    },
-    "openaiembedding": {
-        "logits_key": "token_logprobs",
-        "item_key": "array",
-    },
-    "huggingfaceembedding": {
+    DiffusionRequest: {
         "logits_key": "token_logprobs",
         "item_key": "array",
     },

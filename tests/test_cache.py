@@ -1,5 +1,5 @@
 """Cache test."""
-from typing import Dict, cast
+from typing import Dict, Type, cast
 
 import numpy as np
 import pytest
@@ -11,16 +11,17 @@ from manifest.caches.noop import NoopCache
 from manifest.caches.postgres import PostgresCache
 from manifest.caches.redis import RedisCache
 from manifest.caches.sqlite import SQLiteCache
+from manifest.request import DiffusionRequest, LMRequest, Request
 
 
 def _get_postgres_cache(
-    client_name: str = "", cache_args: Dict = {}
+    request_type: Type[Request] = LMRequest, cache_args: Dict = {}
 ) -> Cache:  # type: ignore
     """Get postgres cache."""
     cache_args.update({"cache_user": "", "cache_password": "", "cache_db": ""})
     return PostgresCache(
         "postgres",
-        client_name=client_name,
+        request_type=request_type,
         cache_args=cache_args,
     )
 
@@ -105,11 +106,11 @@ def test_get(
     compute_arr_response = {"choices": [{"array": arr}]}
 
     if cache_type == "sqlite":
-        cache = SQLiteCache(sqlite_cache, client_name="diffuser")
+        cache = SQLiteCache(sqlite_cache, request_type=DiffusionRequest)
     elif cache_type == "redis":
-        cache = RedisCache(redis_cache, client_name="diffuser")
+        cache = RedisCache(redis_cache, request_type=DiffusionRequest)
     elif cache_type == "postgres":
-        cache = _get_postgres_cache(client_name="diffuser")
+        cache = _get_postgres_cache(request_type=DiffusionRequest)
 
     response = cache.get(test_request)
     assert response is None
@@ -128,18 +129,19 @@ def test_get(
     if cache_type == "sqlite":
         cache = SQLiteCache(
             sqlite_cache,
-            client_name="diffuser",
+            request_type=DiffusionRequest,
             cache_args={"array_serializer": "byte_string"},
         )
     elif cache_type == "redis":
         cache = RedisCache(
             redis_cache,
-            client_name="diffuser",
+            request_type=DiffusionRequest,
             cache_args={"array_serializer": "byte_string"},
         )
     elif cache_type == "postgres":
         cache = _get_postgres_cache(
-            client_name="diffuser", cache_args={"array_serializer": "byte_string"}
+            request_type=DiffusionRequest,
+            cache_args={"array_serializer": "byte_string"},
         )
 
     response = cache.get(test_request)
@@ -186,11 +188,11 @@ def test_get_batch_prompt(
     compute_arr_response = {"choices": [{"array": arr}, {"array": arr2}]}
 
     if cache_type == "sqlite":
-        cache = SQLiteCache(sqlite_cache, client_name="diffuser")
+        cache = SQLiteCache(sqlite_cache, request_type=DiffusionRequest)
     elif cache_type == "redis":
-        cache = RedisCache(redis_cache, client_name="diffuser")
+        cache = RedisCache(redis_cache, request_type=DiffusionRequest)
     elif cache_type == "postgres":
-        cache = _get_postgres_cache(client_name="diffuser")
+        cache = _get_postgres_cache(request_type=DiffusionRequest)
 
     response = cache.get(test_request)
     assert response is None
@@ -211,18 +213,19 @@ def test_get_batch_prompt(
     if cache_type == "sqlite":
         cache = SQLiteCache(
             sqlite_cache,
-            client_name="diffuser",
+            request_type=DiffusionRequest,
             cache_args={"array_serializer": "byte_string"},
         )
     elif cache_type == "redis":
         cache = RedisCache(
             redis_cache,
-            client_name="diffuser",
+            request_type=DiffusionRequest,
             cache_args={"array_serializer": "byte_string"},
         )
     elif cache_type == "postgres":
         cache = _get_postgres_cache(
-            client_name="diffuser", cache_args={"array_serializer": "byte_string"}
+            request_type=DiffusionRequest,
+            cache_args={"array_serializer": "byte_string"},
         )
 
     response = cache.get(test_request)

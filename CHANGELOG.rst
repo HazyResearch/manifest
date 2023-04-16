@@ -1,4 +1,14 @@
-0.1.1 - Unreleased
+0.1.4 - Unreleased
+---------------------
+Added
+^^^^^
+* Connection pools to swap between clients
+
+Fixed
+^^^^^
+* Determine cache and response by request type, not client name
+
+0.1.1
 ---------------------
 Added
 ^^^^^

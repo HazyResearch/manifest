@@ -1,17 +1,13 @@
 """Cache for queries and responses."""
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Union
+from typing import Any, Dict, Type, Union
 
 from manifest.caches.serializers import ArraySerializer, NumpyByteSerializer, Serializer
+from manifest.request import DiffusionRequest, EmbeddingRequest, LMRequest, Request
 from manifest.response import RESPONSE_CONSTRUCTORS, Response
 
 # Non-text return type caches
-ARRAY_CACHE_TYPES = {
-    "diffuser",
-    "tomadiffuser",
-    "openaiembedding",
-    "huggingfaceembedding",
-}
+ARRAY_CACHE_TYPES = {EmbeddingRequest, DiffusionRequest}
 
 
 class Cache(ABC):
@@ -20,7 +16,7 @@ class Cache(ABC):
     def __init__(
         self,
         connection_str: str,
-        client_name: str = "None",
+        request_type: Type[Request] = LMRequest,
         cache_args: Dict[str, Any] = {},
     ):
         """
@@ -28,7 +24,7 @@ class Cache(ABC):
 
         Args:
             connection_str: connection string.
-            client_name: name of client.
+            request_type: request type.
             cache_args: arguments for cache.
 
         cache_args are any arguments needed to initialize the cache.
@@ -41,12 +37,12 @@ class Cache(ABC):
         the entire byte string. `byte_string` is default.
 
         Args:
-            connection_str: connection string for client.
+            connection_str: connection string for cache.
             cache_args: cache arguments.
         """
-        self.client_name = client_name
+        self.request_type = request_type
         self.connect(connection_str, cache_args)
-        if self.client_name in ARRAY_CACHE_TYPES:
+        if self.request_type in ARRAY_CACHE_TYPES:
             array_serializer = cache_args.pop("array_serializer", "byte_string")
             if array_serializer not in ["local_file", "byte_string"]:
                 raise ValueError(
@@ -65,13 +61,13 @@ class Cache(ABC):
 
     @abstractmethod
     def close(self) -> None:
-        """Close the client."""
+        """Close the cache."""
         raise NotImplementedError()
 
     @abstractmethod
     def connect(self, connection_str: str, cache_args: Dict[str, Any]) -> None:
         """
-        Connect to client.
+        Connect to cache.
 
         Args:
             connection_str: connection string.
@@ -129,7 +125,7 @@ class Cache(ABC):
                 response,
                 cached,
                 request,
-                **RESPONSE_CONSTRUCTORS.get(self.client_name, {}),
+                **RESPONSE_CONSTRUCTORS.get(self.request_type, {}),
             )
         return None
 

@@ -298,7 +298,7 @@ class Client(ABC):
             response_dict,
             cached=False,
             request_params=request_params,
-            **RESPONSE_CONSTRUCTORS.get(self.NAME, {}),  # type: ignore
+            **RESPONSE_CONSTRUCTORS.get(self.REQUEST_CLS, {}),  # type: ignore
         )
 
     async def arun_batch_request(self, request: Request) -> Response:
@@ -352,7 +352,7 @@ class Client(ABC):
             final_response_dict,
             cached=False,
             request_params=request_params,
-            **RESPONSE_CONSTRUCTORS.get(self.NAME, {}),  # type: ignore
+            **RESPONSE_CONSTRUCTORS.get(self.REQUEST_CLS, {}),  # type: ignore
         )
 
     def get_score_prompt_request(
