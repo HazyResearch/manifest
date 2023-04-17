@@ -1,23 +1,18 @@
 """Client response."""
+import copy
 import json
 from typing import Any, Dict, List, Union
 
 import numpy as np
 
+from manifest.request import DiffusionRequest, EmbeddingRequest
+
 RESPONSE_CONSTRUCTORS = {
-    "diffuser": {
+    EmbeddingRequest: {
         "logits_key": "token_logprobs",
         "item_key": "array",
     },
-    "tomadiffuser": {
-        "logits_key": "token_logprobs",
-        "item_key": "array",
-    },
-    "openaiembedding": {
-        "logits_key": "token_logprobs",
-        "item_key": "array",
-    },
-    "huggingfaceembedding": {
+    DiffusionRequest: {
         "logits_key": "token_logprobs",
         "item_key": "array",
     },
@@ -149,6 +144,72 @@ class Response:
             return processed_results[0]
         else:
             return processed_results
+
+    @classmethod
+    def union_all(cls, responses: List["Response"]) -> "Response":
+        """Union a list of response."""
+        if not responses:
+            raise ValueError("Response list is empty.")
+        if len(responses) == 1:
+            return responses[0]
+        first_response = responses[0]
+        generation_key = first_response.generation_key
+        logits_key = first_response.logits_key
+        item_key = first_response.item_key
+        # Usage key may be None, so get first not-None value
+        possible_usage_keys = [r.usage_key for r in responses if r.usage_key]
+        if possible_usage_keys:
+            usage_key = possible_usage_keys[0]
+        else:
+            usage_key = None
+        request = first_response._request_params
+
+        # Make sure all responses have the same keys
+        if not all(
+            [
+                (r.generation_key == generation_key)
+                and (r.logits_key == logits_key)
+                and (r.item_key == item_key)
+                # Usage key can be empty
+                and (not r.usage_key or not usage_key or r.usage_key == usage_key)
+                for r in responses
+            ]
+        ):
+            raise ValueError("All responses must have the same keys.")
+
+        # Get all the prompts and model choices
+        all_prompts = []
+        all_choices = []
+        all_usages = []
+        for res in responses:
+            json_response = res.get_json_response()
+            res_prompt = res.get_request()["prompt"]
+            if isinstance(res_prompt, str):
+                res_prompt = [res_prompt]
+            all_prompts.extend(res_prompt)
+            all_choices.extend(json_response[generation_key])
+            if usage_key and usage_key in json_response:
+                all_usages.extend(json_response[usage_key])
+            else:
+                # Add empty usage
+                all_usages.extend([{}] * len(res_prompt))
+        new_request = copy.deepcopy(request)
+        # TODO: add both models back in request. This should be a lot
+        # easier after I pydantic the response and request more formally
+        new_request["prompt"] = all_prompts
+        new_response = {generation_key: all_choices}
+        if usage_key:
+            new_response[usage_key] = all_usages
+        response_obj = cls(
+            new_response,
+            cached=any(res.is_cached() for res in responses),
+            request_params=new_request,
+            generation_key=generation_key,
+            logits_key=logits_key,
+            item_key=item_key,
+            usage_key=usage_key,
+        )
+        return response_obj
 
     def serialize(self) -> str:
         """

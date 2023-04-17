@@ -8,6 +8,7 @@ How to make prompt programming with Foundation Models a little easier.
 - [Manifest](#manifest-components)
 - [Local HuggingFace Models](#local-huggingface-models)
 - [Embedding Models](#embedding-models)
+- [Road Map](#road-map)
 - [Development](#development)
 - [Cite](#cite)
 
@@ -56,7 +57,7 @@ Manifest is meant to be a very light weight package to help with prompt design a
 
 * All models are behind APIs
 * Supports caching of model inputs/outputs for iteration, reproducibility, and cost saving
-* Unified API of generate, score, and embed
+* Unified API to support generate, score, and embed
 
 ## Models
 Manifest provides model clients for [OpenAI](https://openai.com/), [AI21](https://studio.ai21.com/), [Cohere](https://cohere.ai/), [Together](https://together.xyz/), and HuggingFace (see [below](#huggingface-models) for how to use locally hosted HuggingFace models). You can toggle between the models by changing `client_name` and `client_connection`. For example, if a HuggingFace model is loaded locally, run
@@ -80,6 +81,33 @@ You can see the model details and possible model inputs to `run()` via
 ```python
 print(manifest.client.get_model_params())
 print(manifest.client.get_model_inputs())
+```
+
+## Model Pools
+Manifest supports querying multiple models with different schedulers. This is very much a work in progress effort, but Manifest will round robin select (or randomly select) the clients you want. You can use the same client multiple times with different connection strings (e.g. different API keys), or you can mix and match. The only requirement is that all clients are the same request type. I.e. you can't have a pool of generation models and embedding models.
+
+To query between a local model and OpenAI,
+```python
+from manifest.connections.client_pool import ClientConnection
+from manifest import Manifest
+
+client_connection1 = ClientConnection(
+    client_name="huggingface",
+    client_connection="http://127.0.0.1:5000",
+)
+client_connection2 = ClientConnection(client_name="openai", engine="text-ada-001")
+manifest = Manifest(
+    client_pool=[client_connection1, client_connection2],
+    cache_name="sqlite",
+    client_connection=sqlite_cache,
+)
+clmanifestient.run(...)
+```
+
+The speed benefit also comes in with async batched runs. When calling `arun_batch` with a list of prompts, Manifest supports a `chunk_size` param. This will break the prompts into `chunk_size` chunks to send across all client in the pool asynchronously. By default `chunk_size` is `-1` which means only one client will get a chunk of prompts. You must set `chunk_size > 1` to distribute across the pool. There is a further `batch_size` param which control the individual client `batch_size` to send to the model.
+
+```
+responses = asyncio.run(manifest.arun_batch(prompts, max_tokens=30, chunk_size=20))
 ```
 
 ## Global Cache
@@ -204,6 +232,19 @@ python3 -m manifest.api.app \
     --model_name_or_path all-mpnet-base-v2 \
     --device 0
 ```
+
+# Road Map
+Here's what's coming up next
+- [ ] Clients
+  - [ ] HuggingFace Hub
+  - [ ] Azure OpenAI
+  - [ ] Anthropic
+- [ ] Data Types
+  - [ ] Diffusion Models
+- [ ] Orchestration
+  - [ ] Connection pools
+- [ ] Local Inference
+  - [ ] FlexGen
 
 # Development
 Before submitting a PR, run

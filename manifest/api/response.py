@@ -30,8 +30,7 @@ class ModelResponse:
         """Return dictionary representation of response."""
         key = (
             "text"
-            if self.response_type
-            not in {"prompt_logit_score", "image_generation", "embedding_generation"}
+            if self.response_type not in {"image_generation", "embedding_generation"}
             else "array"
         )
         return {

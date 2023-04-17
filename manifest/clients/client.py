@@ -128,8 +128,12 @@ class Client(ABC):
             request.
         """
         params = {"prompt": prompt}
+        # Adds default values from self.PARAMS if not in request_args
         for key in self.PARAMS:
             params[key] = request_args.pop(key, getattr(self, key))
+        # Allows for overriding DEFAULT_REQUEST_KEYS even if they are not
+        # in self.PARAMS. Note that DEFAULT_REQUEST_KEYS match the default
+        # values in Request.
         for key in DEFAULT_REQUEST_KEYS:
             if key not in params and key in request_args:
                 params[key] = request_args.pop(key)
@@ -142,7 +146,10 @@ class Client(ABC):
         We drop these before sending to the model.
         """
         params_to_add = DEFAULT_REQUEST_KEYS.copy()
+        # This will override DEFAULT_REQUEST_KEYS with those in PARAMS
         params_to_add.update(self.PARAMS)
+        # to_dict will handle parameter renaming but not any
+        # default value handling - that is done in get_request()
         request_params = request.to_dict(params_to_add)
         return request_params
 
@@ -298,7 +305,7 @@ class Client(ABC):
             response_dict,
             cached=False,
             request_params=request_params,
-            **RESPONSE_CONSTRUCTORS.get(self.NAME, {}),  # type: ignore
+            **RESPONSE_CONSTRUCTORS.get(self.REQUEST_CLS, {}),  # type: ignore
         )
 
     async def arun_batch_request(self, request: Request) -> Response:
@@ -352,7 +359,7 @@ class Client(ABC):
             final_response_dict,
             cached=False,
             request_params=request_params,
-            **RESPONSE_CONSTRUCTORS.get(self.NAME, {}),  # type: ignore
+            **RESPONSE_CONSTRUCTORS.get(self.REQUEST_CLS, {}),  # type: ignore
         )
 
     def get_score_prompt_request(

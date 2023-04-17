@@ -13,6 +13,7 @@ from manifest import Manifest, Response
 from manifest.caches.noop import NoopCache
 from manifest.caches.sqlite import SQLiteCache
 from manifest.clients.dummy import DummyClient
+from manifest.connections.client_pool import ClientConnection
 
 URL = "http://localhost:6000"
 try:
@@ -41,10 +42,11 @@ def test_init(sqlite_cache: str) -> None:
         cache_name="sqlite",
         cache_connection=sqlite_cache,
     )
-    assert manifest.client_name == "dummy"
-    assert isinstance(manifest.client, DummyClient)
+    assert len(manifest.client_pool.client_pool) == 1
+    client = manifest.client_pool.get_client()
+    assert isinstance(client, DummyClient)
     assert isinstance(manifest.cache, SQLiteCache)
-    assert manifest.client.n == 1  # type: ignore
+    assert client.n == 1  # type: ignore
     assert manifest.stop_token == ""
 
     manifest = Manifest(
@@ -53,34 +55,11 @@ def test_init(sqlite_cache: str) -> None:
         n=3,
         stop_token="\n",
     )
-    assert manifest.client_name == "dummy"
-    assert isinstance(manifest.client, DummyClient)
+    assert len(manifest.client_pool.client_pool) == 1
+    client = manifest.client_pool.get_client()
+    assert isinstance(client, DummyClient)
     assert isinstance(manifest.cache, NoopCache)
-    assert manifest.client.n == 3  # type: ignore
-    assert manifest.stop_token == "\n"
-
-
-@pytest.mark.usefixtures("sqlite_cache")
-def test_change_manifest(sqlite_cache: str) -> None:
-    """Test manifest change."""
-    manifest = Manifest(
-        client_name="dummy",
-        cache_name="sqlite",
-        cache_connection=sqlite_cache,
-    )
-
-    manifest.change_client()
-    assert manifest.client_name == "dummy"
-    assert isinstance(manifest.client, DummyClient)
-    assert isinstance(manifest.cache, SQLiteCache)
-    assert manifest.client.n == 1  # type: ignore
-    assert manifest.stop_token == ""
-
-    manifest.change_client(stop_token="\n")
-    assert manifest.client_name == "dummy"
-    assert isinstance(manifest.client, DummyClient)
-    assert isinstance(manifest.cache, SQLiteCache)
-    assert manifest.client.n == 1  # type: ignore
+    assert client.n == 3  # type: ignore
     assert manifest.stop_token == "\n"
 
 
@@ -102,7 +81,7 @@ def test_run(sqlite_cache: str, n: int, return_response: bool) -> None:
     assert str(exc_info.value) == "[('bad_input', 5)] arguments are not recognized."
 
     # Allow params in the request object but not in the client to go through
-    assert "top_k" not in manifest.client.PARAMS
+    assert "top_k" not in manifest.client_pool.get_client().PARAMS
     result = manifest.run(prompt, return_response=return_response, top_k=5)
     assert result is not None
 
@@ -889,6 +868,133 @@ def test_openaiembedding(sqlite_cache: str) -> None:
         Response, client.run("Why are there oranges?", return_response=True)
     )
     assert response.is_cached() is True
+
+
+@pytest.mark.skipif(not OPENAI_ALIVE, reason="No openai key set")
+@pytest.mark.usefixtures("sqlite_cache")
+def test_openai_pool(sqlite_cache: str) -> None:
+    """Test openai and openaichat client."""
+    client_connection1 = ClientConnection(
+        client_name="openaichat",
+    )
+    client_connection2 = ClientConnection(client_name="openai", engine="text-ada-001")
+    client = Manifest(
+        client_pool=[client_connection1, client_connection2],
+        cache_name="sqlite",
+        client_connection=sqlite_cache,
+    )
+    res = client.run("Why are there apples?")
+    assert isinstance(res, str) and len(res) > 0
+
+    res2 = client.run("Why are there apples?")
+    assert isinstance(res2, str) and len(res2) > 0
+    # Different models
+    assert res != res2
+
+    assert cast(
+        Response, client.run("Why are there apples?", return_response=True)
+    ).is_cached()
+
+    res_list = asyncio.run(
+        client.arun_batch(["Why are there pears?", "Why are there oranges?"])
+    )
+    assert isinstance(res_list, list) and len(res_list) == 2
+    res_list2 = asyncio.run(
+        client.arun_batch(["Why are there pears?", "Why are there oranges?"])
+    )
+    assert isinstance(res_list2, list) and len(res_list2) == 2
+    # Different models
+    assert res_list != res_list2
+
+    assert cast(
+        Response,
+        asyncio.run(
+            client.arun_batch(
+                ["Why are there pears?", "Why are there oranges?"], return_response=True
+            )
+        ),
+    ).is_cached()
+
+    # Test chunk size of 1
+    res_list = asyncio.run(
+        client.arun_batch(
+            ["Why are there pineapples?", "Why are there pinecones?"], chunk_size=1
+        )
+    )
+    assert isinstance(res_list, list) and len(res_list) == 2
+    res_list2 = asyncio.run(
+        client.arun_batch(
+            ["Why are there pineapples?", "Why are there pinecones?"], chunk_size=1
+        )
+    )
+    # Because we split across both models exactly in first run,
+    # we will get the same result
+    assert res_list == res_list2
+
+
+@pytest.mark.skipif(
+    not OPENAI_ALIVE or not MODEL_ALIVE, reason="No openai or local model set"
+)
+@pytest.mark.usefixtures("sqlite_cache")
+def test_mixed_pool(sqlite_cache: str) -> None:
+    """Test openai and openaichat client."""
+    client_connection1 = ClientConnection(
+        client_name="huggingface",
+        client_connection=URL,
+    )
+    client_connection2 = ClientConnection(client_name="openai", engine="text-ada-001")
+    client = Manifest(
+        client_pool=[client_connection1, client_connection2],
+        cache_name="sqlite",
+        client_connection=sqlite_cache,
+    )
+
+    res = client.run("Why are there apples?")
+    assert isinstance(res, str) and len(res) > 0
+
+    res2 = client.run("Why are there apples?")
+    assert isinstance(res2, str) and len(res2) > 0
+    # Different models
+    assert res != res2
+    assert cast(
+        Response, client.run("Why are there apples?", return_response=True)
+    ).is_cached()
+
+    res_list = asyncio.run(
+        client.arun_batch(["Why are there pears?", "Why are there oranges?"])
+    )
+    assert isinstance(res_list, list) and len(res_list) == 2
+    res_list2 = asyncio.run(
+        client.arun_batch(["Why are there pears?", "Why are there oranges?"])
+    )
+    assert isinstance(res_list2, list) and len(res_list2) == 2
+    # Different models
+    assert res_list != res_list2
+
+    assert cast(
+        Response,
+        asyncio.run(
+            client.arun_batch(
+                ["Why are there pears?", "Why are there oranges?"], return_response=True
+            )
+        ),
+    ).is_cached()
+
+    # Test chunk size of 1
+    res_list = asyncio.run(
+        client.arun_batch(
+            ["Why are there pineapples?", "Why are there pinecones?"], chunk_size=1
+        )
+    )
+    assert isinstance(res_list, list) and len(res_list) == 2
+    res_list2 = asyncio.run(
+        client.arun_batch(
+            ["Why are there pineapples?", "Why are there pinecones?"], chunk_size=1
+        )
+    )
+    # Because we split across both models exactly in first run,
+    # we will get the same result
+    assert res_list == res_list2
 
 
 def test_retry_handling() -> None:

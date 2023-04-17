@@ -40,6 +40,7 @@ class OpenAIClient(Client):
         "stop_sequences": ("stop", None),  # OpenAI doesn't like empty lists
         "presence_penalty": ("presence_penalty", 0.0),
         "frequency_penalty": ("frequency_penalty", 0.0),
+        "batch_size": ("batch_size", 20),
     }
     REQUEST_CLS: Type[Request] = LMRequest
     NAME = "openai"
