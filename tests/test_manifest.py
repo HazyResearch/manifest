@@ -883,7 +883,6 @@ def test_openai_pool(sqlite_cache: str) -> None:
         cache_name="sqlite",
         client_connection=sqlite_cache,
     )
-
     res = client.run("Why are there apples?")
     assert isinstance(res, str) and len(res) > 0
 
@@ -915,6 +914,22 @@ def test_openai_pool(sqlite_cache: str) -> None:
             )
         ),
     ).is_cached()
+
+    # Test chunk size of 1
+    res_list = asyncio.run(
+        client.arun_batch(
+            ["Why are there pineapples?", "Why are there pinecones?"], chunk_size=1
+        )
+    )
+    assert isinstance(res_list, list) and len(res_list) == 2
+    res_list2 = asyncio.run(
+        client.arun_batch(
+            ["Why are there pineapples?", "Why are there pinecones?"], chunk_size=1
+        )
+    )
+    # Because we split across both models exactly in first run,
+    # we will get the same result
+    assert res_list == res_list2
 
 
 @pytest.mark.skipif(
@@ -964,6 +979,22 @@ def test_mixed_pool(sqlite_cache: str) -> None:
             )
         ),
     ).is_cached()
+
+    # Test chunk size of 1
+    res_list = asyncio.run(
+        client.arun_batch(
+            ["Why are there pineapples?", "Why are there pinecones?"], chunk_size=1
+        )
+    )
+    assert isinstance(res_list, list) and len(res_list) == 2
+    res_list2 = asyncio.run(
+        client.arun_batch(
+            ["Why are there pineapples?", "Why are there pinecones?"], chunk_size=1
+        )
+    )
+    # Because we split across both models exactly in first run,
+    # we will get the same result
+    assert res_list == res_list2
 
 
 def test_retry_handling() -> None:

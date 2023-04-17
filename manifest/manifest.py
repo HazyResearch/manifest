@@ -1,4 +1,5 @@
 """Manifest class."""
+import asyncio
 import copy
 import logging
 from typing import Any, Dict, List, Optional, Tuple, Union, cast
@@ -321,25 +322,93 @@ class Manifest:
         overwrite_cache: bool = False,
         stop_token: Optional[str] = None,
         return_response: bool = False,
+        chunk_size: int = -1,
         **kwargs: Any,
     ) -> Union[List[str], List[np.ndarray], Response]:
         """
         Run a batch of prompts with async.
 
+        If the client pool is a single client, all prompts will be sent
+        to one client and batch_size (which is passed it as kwargs) will
+        determine how the prompts are split.
+
+        If the client pool is a pool of clients, the prompts will be split
+        into chunks and sent to the clients. Each client will split the
+        chunk into batch_size prompts to send to the model.
+
         Args:
             prompts: prompts to run.
             overwrite_cache: whether to overwrite cache.
             stop_token: stop token for prompt generation.
-                        Default is self.stop_token.
-                        "" for no stop token.
+                Default is self.stop_token.
+                "" for no stop token.
             return_response: whether to return Response object.
+            chunk_size: number of prompts to send to a client in chunks.
+                For each chunk, the client will split the chunk into
+                batch_sized prompts to send to the model.
+                For a single manifest client, there is no impact to
+                setting chunk_size. For a client pool, chunk_size
+                can be used to distribute the load across the clients.
 
         Returns:
             response from prompt.
         """
-        # Get the client to run
-        client = self.client_pool.get_client()
+        # Split the prompts into chunks
+        prompt_chunks: List[Tuple[Client, List[str]]] = []
+        if chunk_size > 0:
+            for i in range(0, len(prompts), chunk_size):
+                prompt_chunks.append(
+                    (self.client_pool.get_client(), prompts[i : i + chunk_size])
+                )
+        else:
+            prompt_chunks = [(self.client_pool.get_client(), prompts)]
+
+        # Run the chunks
+        tasks = []
+        for client, chunk in prompt_chunks:
+            tasks.append(
+                asyncio.create_task(
+                    self._arun_batch_client(
+                        prompts=chunk,
+                        client=client,
+                        overwrite_cache=overwrite_cache,
+                        **kwargs,
+                    )
+                )
+            )
+        print(f"Running {len(tasks)} tasks across all clients.")
+        logger.info(f"Running {len(tasks)} tasks across all clients.")
+        responses = await asyncio.gather(*tasks)
+        final_response = Response.union_all(responses)
         stop_token = stop_token if stop_token is not None else self.stop_token
+
+        # Extract text results
+        if return_response:
+            return final_response
+        else:
+            return cast(
+                Union[List[str], List[np.ndarray]],
+                final_response.get_response(stop_token, True),
+            )
+
+    async def _arun_batch_client(
+        self,
+        prompts: List[str],
+        client: Client,
+        overwrite_cache: bool = False,
+        **kwargs: Any,
+    ) -> Response:
+        """
+        Run a batch of prompts with async for single client.
+
+        Args:
+            prompts: prompts to run.
+            client: client to run.
+            overwrite_cache: whether to overwrite cache.
+
+        Returns:
+            response from prompt.
+        """
         # Must pass kwargs as dict for client "pop" methods removed used arguments
         request_params = client.get_request(prompts, kwargs)
         # Avoid nested list of results - enforce n = 1 for batch
@@ -365,15 +434,7 @@ class Manifest:
             response=response,
             cached_idx_to_response=cached_idx_to_response,
         )
-
-        # Extract text results
-        if return_response:
-            return final_response
-        else:
-            return cast(
-                Union[List[str], List[np.ndarray]],
-                final_response.get_response(stop_token, True),
-            )
+        return final_response
 
     def score_prompt(
         self,

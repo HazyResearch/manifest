@@ -1,8 +1,11 @@
 """Response test."""
+from typing import Any, Dict
+
 import numpy as np
 import pytest
 
 from manifest import Response
+from manifest.request import LMRequest
 
 
 def test_init() -> None:
@@ -141,3 +144,87 @@ def test_get_results() -> None:
     )
     assert response.get_response() == [float_arr, float_arr]
     assert response.get_response(stop_token="m") == [float_arr, float_arr]
+
+
+def test_union_all() -> None:
+    """Test union all."""
+    request_paramsa = LMRequest(prompt=["apple", "orange", "pear"]).to_dict()
+    request_paramsa["model"] = "modelA"
+    response_paramsa = {
+        "choices": [
+            {"text": "hello", "token_logprobs": [1]},
+            {"text": "hello 2", "token_logprobs": [1]},
+            {"text": "hello 3", "token_logprobs": [1]},
+        ]
+    }
+    responsea = Response(response_paramsa, False, request_paramsa)
+
+    request_paramsb = LMRequest(prompt=["banana", "pineapple", "mango"]).to_dict()
+    request_paramsb["model"] = "modelB"
+    response_paramsb = {
+        "choices": [
+            {"text": "bye", "token_logprobs": [2]},
+            {"text": "bye 2", "token_logprobs": [2]},
+            {"text": "bye 3", "token_logprobs": [2]},
+        ]
+    }
+    responseb = Response(response_paramsb, False, request_paramsb)
+
+    final_response = Response.union_all([responsea, responseb])
+    assert final_response.get_json_response() == {
+        "choices": [
+            {"text": "hello", "token_logprobs": [1]},
+            {"text": "hello 2", "token_logprobs": [1]},
+            {"text": "hello 3", "token_logprobs": [1]},
+            {"text": "bye", "token_logprobs": [2]},
+            {"text": "bye 2", "token_logprobs": [2]},
+            {"text": "bye 3", "token_logprobs": [2]},
+        ]
+    }
+    final_request = LMRequest(
+        prompt=["apple", "orange", "pear", "banana", "pineapple", "mango"]
+    ).to_dict()
+    final_request["model"] = "modelA"
+    assert final_response.get_request() == final_request
+    assert not final_response.is_cached()
+
+    # Modify A to have usage and cached
+    response_paramsa_2: Dict[str, Any] = {
+        "choices": [
+            {"text": "hello", "token_logprobs": [1]},
+            {"text": "hello 2", "token_logprobs": [1]},
+            {"text": "hello 3", "token_logprobs": [1]},
+        ],
+        "usage": [
+            {"completion_tokens": 10},
+            {"completion_tokens": 10},
+            {"completion_tokens": 10},
+        ],
+    }
+    responsea = Response(response_paramsa_2, True, request_paramsa)
+
+    final_response = Response.union_all([responsea, responseb])
+    assert final_response.get_json_response() == {
+        "choices": [
+            {"text": "hello", "token_logprobs": [1]},
+            {"text": "hello 2", "token_logprobs": [1]},
+            {"text": "hello 3", "token_logprobs": [1]},
+            {"text": "bye", "token_logprobs": [2]},
+            {"text": "bye 2", "token_logprobs": [2]},
+            {"text": "bye 3", "token_logprobs": [2]},
+        ],
+        "usage": [
+            {"completion_tokens": 10},
+            {"completion_tokens": 10},
+            {"completion_tokens": 10},
+            {},
+            {},
+            {},
+        ],
+    }
+    final_request = LMRequest(
+        prompt=["apple", "orange", "pear", "banana", "pineapple", "mango"]
+    ).to_dict()
+    final_request["model"] = "modelA"
+    assert final_response.get_request() == final_request
+    assert final_response.is_cached()

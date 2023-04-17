@@ -4,9 +4,10 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 from pydantic import BaseModel
 
 NOT_CACHE_KEYS = {"client_timeout", "batch_size"}
+# The below should match those in Request.
 DEFAULT_REQUEST_KEYS = {
     "client_timeout": ("client_timeout", 60),  # seconds
-    "batch_size": ("batch_size", 1),
+    "batch_size": ("batch_size", 8),
     "run_id": ("run_id", None),
     "request_type": ("request_type", None),
 }
@@ -25,7 +26,7 @@ class Request(BaseModel):
     n: int = 1
 
     # Timeout
-    client_timeout: int = 120
+    client_timeout: int = 60
 
     # Run id used to repeat run with same parameters
     run_id: Optional[str] = None
@@ -41,6 +42,9 @@ class Request(BaseModel):
     ) -> Dict[str, Any]:
         """
         Convert request to a dictionary.
+
+        Handles parameter renaming but does not fill in default values.
+        It will drop any None values.
 
         Add prompt ensures the prompt is always in the output dictionary.
         """
