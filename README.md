@@ -83,33 +83,6 @@ print(manifest.client.get_model_params())
 print(manifest.client.get_model_inputs())
 ```
 
-## Model Pools
-Manifest supports querying multiple models with different schedulers. This is very much a work in progress effort, but Manifest will round robin select (or randomly select) the clients you want. You can use the same client multiple times with different connection strings (e.g. different API keys), or you can mix and match. The only requirement is that all clients are the same request type. I.e. you can't have a pool of generation models and embedding models.
-
-To query between a local model and OpenAI,
-```python
-from manifest.connections.client_pool import ClientConnection
-from manifest import Manifest
-
-client_connection1 = ClientConnection(
-    client_name="huggingface",
-    client_connection="http://127.0.0.1:5000",
-)
-client_connection2 = ClientConnection(client_name="openai", engine="text-ada-001")
-manifest = Manifest(
-    client_pool=[client_connection1, client_connection2],
-    cache_name="sqlite",
-    client_connection=sqlite_cache,
-)
-clmanifestient.run(...)
-```
-
-The speed benefit also comes in with async batched runs. When calling `arun_batch` with a list of prompts, Manifest supports a `chunk_size` param. This will break the prompts into `chunk_size` chunks to send across all client in the pool asynchronously. By default `chunk_size` is `-1` which means only one client will get a chunk of prompts. You must set `chunk_size > 1` to distribute across the pool. There is a further `batch_size` param which control the individual client `batch_size` to send to the model.
-
-```
-responses = asyncio.run(manifest.arun_batch(prompts, max_tokens=30, chunk_size=20))
-```
-
 ## Global Cache
 We support having queries and results stored in a global cache that can be shared across users. We treat inputs and outputs as key value pairs and support SQLite or Redis backends. To start with global caching using SQLite, run
 
@@ -166,6 +139,33 @@ result = manifest.run(prompt, "Laurel", stop_token="and")
 If you want to change default parameters to a model, we pass those as `kwargs` to the client.
 ```python
 result = manifest.run(prompt, "Laurel", max_tokens=50)
+```
+
+## Model Pools
+Manifest supports querying multiple models with different schedulers. This is very much a work in progress effort, but Manifest will round robin select (or randomly select) the clients you want. You can use the same client multiple times with different connection strings (e.g. different API keys), or you can mix and match. The only requirement is that all clients are the same request type. I.e. you can't have a pool of generation models and embedding models.
+
+To query between a local model and OpenAI,
+```python
+from manifest.connections.client_pool import ClientConnection
+from manifest import Manifest
+
+client_connection1 = ClientConnection(
+    client_name="huggingface",
+    client_connection="http://127.0.0.1:5000",
+)
+client_connection2 = ClientConnection(client_name="openai", engine="text-ada-001")
+manifest = Manifest(
+    client_pool=[client_connection1, client_connection2],
+    cache_name="sqlite",
+    client_connection=sqlite_cache,
+)
+manifest.run(...)
+```
+
+The speed benefit comes in with async batched runs. When calling `arun_batch` with a list of prompts, Manifest supports a `chunk_size` param. This will break the prompts into `chunk_size` chunks to spread across the client pool. By default `chunk_size` is `-1` which means only one client will get all the prompts to run asynchronously. You must set `chunk_size > 1` to distribute across the pool. There is a further `batch_size` param which control the individual client `batch_size` to send to the model.
+
+```python
+responses = asyncio.run(manifest.arun_batch(prompts, max_tokens=30, chunk_size=20))
 ```
 
 # Local Huggingface Models
@@ -242,7 +242,7 @@ Here's what's coming up next
 - [ ] Data Types
   - [ ] Diffusion Models
 - [ ] Orchestration
-  - [ ] Connection pools
+  - [x] Connection pools
 - [ ] Local Inference
   - [ ] FlexGen
 

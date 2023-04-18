@@ -3,6 +3,7 @@
 Added
 ^^^^^
 * Connection pools to swap between clients
+* Chunksize param for async runs
 
 Fixed
 ^^^^^
