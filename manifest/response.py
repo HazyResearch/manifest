@@ -52,7 +52,7 @@ class LMModelChoice(BaseModel):
 
     text: str
     token_logprobs: Optional[List[float]] = None
-    tokens: Optional[List[int]] = None
+    tokens: Optional[List[str]] = None
 
 
 class ArrayModelChoice(BaseModel):
