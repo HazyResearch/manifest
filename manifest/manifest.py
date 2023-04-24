@@ -2,7 +2,7 @@
 import asyncio
 import copy
 import logging
-from typing import Any, Dict, List, Optional, Tuple, Union, cast
+from typing import Any, Dict, List, Optional, Tuple, Type, Union, cast
 
 import numpy as np
 
@@ -17,8 +17,8 @@ from manifest.connections.client_pool import (
     ClientConnection,
     ClientConnectionPool,
 )
-from manifest.request import Request
-from manifest.response import Response
+from manifest.request import LMScoreRequest, Request
+from manifest.response import ModelChoices, Response, Usage, Usages
 
 logging.getLogger("openai").setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
@@ -178,82 +178,72 @@ class Manifest:
         number_prompts = len(cached_idx_to_response)
         single_output = False
         if response:
-            if isinstance(response.get_request()["prompt"], str):
+            if isinstance(response.get_request_obj().prompt, str):
                 single_output = True
                 number_prompts += 1
             else:
-                number_prompts += len(response.get_request()["prompt"])
-        response_gen_key = None
-        response_logits_key = None
-        response_item_key = None
+                number_prompts += len(response.get_request_obj().prompt)
+        response_type = None
+        request_type: Type[Request] = None
         for idx in range(number_prompts):
             if idx in cached_idx_to_response:
                 cached_res = cached_idx_to_response[idx]
-                response_gen_key = cached_res.generation_key
-                response_logits_key = cached_res.logits_key
-                response_item_key = cached_res.item_key
-                response_usage_key = cached_res.usage_key
-                all_input_prompts.append(cached_res.get_request()["prompt"])
-                json_response = cached_res.get_json_response()
+                response_type = cached_res._response_type
+                request_type = cached_res._request_type
+                all_input_prompts.append(cached_res.get_request_obj().prompt)
                 if request.n == 1:
                     assert (
-                        len(json_response[response_gen_key]) == 1
+                        len(cached_res.get_response_obj().choices) == 1
                     ), "cached response should have only one choice"
-                all_model_choices.extend(json_response[response_gen_key])
-                if response_usage_key:
-                    all_usages.extend(json_response[response_usage_key])
+                all_model_choices.extend(cached_res.get_response_obj().choices)
+                if cached_res.get_usage_obj().usages:
+                    all_usages.extend(cached_res.get_usage_obj().usages)
             else:
                 assert response is not None, "response should not be None"
                 response = cast(Response, response)
-                response_gen_key = response.generation_key
-                response_logits_key = response.logits_key
-                response_item_key = response.item_key
-                response_usage_key = response.usage_key
+                response_type = response._response_type
+                request_type = response._request_type
                 # the choices list in the response is a flat one.
                 # length is request.n * num_prompts
-                current_choices = response.get_json_response()[response_gen_key][
+                current_choices = response.get_response_obj().choices[
                     response_idx * request.n : (response_idx + 1) * request.n
                 ]
                 all_model_choices.extend(current_choices)
 
-                if isinstance(response.get_request()["prompt"], list):
-                    prompt = response.get_request()["prompt"][response_idx]
+                if isinstance(response.get_request_obj().prompt, list):
+                    prompt = response.get_request_obj().prompt[response_idx]
                 else:
-                    prompt = str(response.get_request()["prompt"])
-                if response_usage_key:
-                    usage = response.get_json_response()[response_usage_key][
+                    prompt = str(response.get_request_obj().prompt)
+                usages: Optional[List[Usage]] = None
+                if response.get_usage_obj().usages:
+                    usages = response.get_usage_obj().usages[
                         response_idx * request.n : (response_idx + 1) * request.n
                     ]
-                    all_usages.extend(usage)
+                    all_usages.extend(usages)
                 all_input_prompts.append(prompt)
                 # set cache
                 new_request = copy.deepcopy(request)
                 new_request.prompt = prompt
                 cache_key = client.get_cache_key(new_request)
-                new_response_key = copy.deepcopy(response.get_json_response())
-                new_response_key[response_gen_key] = current_choices
-                if response_usage_key:
-                    new_response_key[response_usage_key] = usage
-                self.cache.set(cache_key, new_response_key)
+                new_response = copy.deepcopy(response)
+                new_response._response.choices = current_choices
+                new_response._usages = Usages(usages=(usages or []))
+                self.cache.set(cache_key, new_response.to_dict(drop_request=True))
                 response_idx += 1
 
         new_request = copy.deepcopy(request)
         new_request.prompt = (
-            all_input_prompts
+            all_input_prompts  # type: ignore
             if len(all_input_prompts) > 1 or not single_output
             else all_input_prompts[0]
         )
-        new_response = {response_gen_key: all_model_choices}
-        if response_usage_key:
-            new_response[response_usage_key] = all_usages
         response_obj = Response(
-            new_response,
+            response=ModelChoices(choices=all_model_choices),
             cached=len(cached_idx_to_response) > 0,
-            request_params=client.get_cache_key(new_request),
-            generation_key=response_gen_key,
-            logits_key=response_logits_key,
-            item_key=response_item_key,
-            usage_key=response_usage_key,
+            request=new_request,
+            usages=Usages(usages=all_usages),
+            response_type=response_type,
+            request_type=request_type,
         )
         return response_obj
 
@@ -457,20 +447,20 @@ class Manifest:
         client = self.client_pool.get_client()
         # Must pass kwargs as dict for client "pop" methods removed used arguments
         request_params = client.get_request(prompt, kwargs)
-        request_params.request_type = "score_prompt"
+        request_params_as_score = LMScoreRequest(**request_params.to_dict())
 
-        if request_params.n > 1:
+        if request_params_as_score.n > 1:
             raise ValueError("Sequence scoring does not support n > 1.")
-        self._validate_kwargs(kwargs, request_params)
+        self._validate_kwargs(kwargs, request_params_as_score)
 
-        cached_idx_to_response, request_params = self._split_cached_requests(
-            request_params, client, overwrite_cache
+        cached_idx_to_response, request_params_as_score = self._split_cached_requests(  # type: ignore # noqa: E501
+            request_params_as_score, client, overwrite_cache
         )
         # If not None value or empty list - run new request
-        if request_params.prompt:
+        if request_params_as_score.prompt:
             try:
                 response = cast(HuggingFaceClient, client).get_score_prompt_request(
-                    request_params
+                    request_params_as_score
                 )
             except AttributeError:
                 raise ValueError("`score_prompt` only supported for HF models.")
@@ -479,7 +469,7 @@ class Manifest:
             response = None
 
         final_response = self._stitch_responses_and_cache(
-            request=request_params,
+            request=request_params_as_score,
             client=client,
             response=response,
             cached_idx_to_response=cached_idx_to_response,

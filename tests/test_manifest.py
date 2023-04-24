@@ -90,8 +90,8 @@ def test_run(sqlite_cache: str, n: int, return_response: bool) -> None:
     if return_response:
         assert isinstance(result, Response)
         result = cast(Response, result)
-        assert len(result.get_json_response()["usage"]) == len(
-            result.get_json_response()["choices"]
+        assert len(result.get_usage_obj().usages) == len(
+            result.get_response_obj().choices
         )
         res = result.get_response(manifest.stop_token)
     else:
@@ -101,6 +101,7 @@ def test_run(sqlite_cache: str, n: int, return_response: bool) -> None:
             {
                 "prompt": "This is a prompt",
                 "engine": "dummy",
+                "request_cls": "LMRequest",
                 "num_results": n,
             },
         )
@@ -116,8 +117,8 @@ def test_run(sqlite_cache: str, n: int, return_response: bool) -> None:
     if return_response:
         assert isinstance(result, Response)
         result = cast(Response, result)
-        assert len(result.get_json_response()["usage"]) == len(
-            result.get_json_response()["choices"]
+        assert len(result.get_usage_obj().usages) == len(
+            result.get_response_obj().choices
         )
         res = result.get_response(manifest.stop_token)
     else:
@@ -127,6 +128,7 @@ def test_run(sqlite_cache: str, n: int, return_response: bool) -> None:
             {
                 "prompt": "This is a prompt",
                 "engine": "dummy",
+                "request_cls": "LMRequest",
                 "num_results": n,
                 "run_id": "34",
             }
@@ -143,8 +145,8 @@ def test_run(sqlite_cache: str, n: int, return_response: bool) -> None:
     if return_response:
         assert isinstance(result, Response)
         result = cast(Response, result)
-        assert len(result.get_json_response()["usage"]) == len(
-            result.get_json_response()["choices"]
+        assert len(result.get_usage_obj().usages) == len(
+            result.get_response_obj().choices
         )
         res = result.get_response(manifest.stop_token)
     else:
@@ -154,6 +156,7 @@ def test_run(sqlite_cache: str, n: int, return_response: bool) -> None:
             {
                 "prompt": "Hello is a prompt",
                 "engine": "dummy",
+                "request_cls": "LMRequest",
                 "num_results": n,
             },
         )
@@ -169,8 +172,8 @@ def test_run(sqlite_cache: str, n: int, return_response: bool) -> None:
     if return_response:
         assert isinstance(result, Response)
         result = cast(Response, result)
-        assert len(result.get_json_response()["usage"]) == len(
-            result.get_json_response()["choices"]
+        assert len(result.get_usage_obj().usages) == len(
+            result.get_response_obj().choices
         )
         res = result.get_response(stop_token="ll")
     else:
@@ -180,6 +183,7 @@ def test_run(sqlite_cache: str, n: int, return_response: bool) -> None:
             {
                 "prompt": "Hello is a prompt",
                 "engine": "dummy",
+                "request_cls": "LMRequest",
                 "num_results": n,
             },
         )
@@ -212,8 +216,8 @@ def test_batch_run(sqlite_cache: str, n: int, return_response: bool) -> None:
         if return_response:
             assert isinstance(result, Response)
             result = cast(Response, result)
-            assert len(result.get_json_response()["usage"]) == len(
-                result.get_json_response()["choices"]
+            assert len(result.get_usage_obj().usages) == len(
+                result.get_response_obj().choices
             )
             res = result.get_response(manifest.stop_token, is_batch=True)
         else:
@@ -224,6 +228,7 @@ def test_batch_run(sqlite_cache: str, n: int, return_response: bool) -> None:
                 {
                     "prompt": "This is a prompt",
                     "engine": "dummy",
+                    "request_cls": "LMRequest",
                     "num_results": n,
                 },
             )
@@ -235,8 +240,8 @@ def test_batch_run(sqlite_cache: str, n: int, return_response: bool) -> None:
         if return_response:
             assert isinstance(result, Response)
             result = cast(Response, result)
-            assert len(result.get_json_response()["usage"]) == len(
-                result.get_json_response()["choices"]
+            assert len(result.get_usage_obj().usages) == len(
+                result.get_response_obj().choices
             )
             res = result.get_response(manifest.stop_token, is_batch=True)
         else:
@@ -247,6 +252,7 @@ def test_batch_run(sqlite_cache: str, n: int, return_response: bool) -> None:
                 {
                     "prompt": "Hello is a prompt",
                     "engine": "dummy",
+                    "request_cls": "LMRequest",
                     "num_results": n,
                 },
             )
@@ -262,6 +268,7 @@ def test_batch_run(sqlite_cache: str, n: int, return_response: bool) -> None:
                 {
                     "prompt": "New prompt",
                     "engine": "dummy",
+                    "request_cls": "LMRequest",
                     "num_results": n,
                 },
             )
@@ -272,8 +279,8 @@ def test_batch_run(sqlite_cache: str, n: int, return_response: bool) -> None:
         if return_response:
             assert isinstance(result, Response)
             result = cast(Response, result)
-            assert len(result.get_json_response()["usage"]) == len(
-                result.get_json_response()["choices"]
+            assert len(result.get_usage_obj().usages) == len(
+                result.get_response_obj().choices
             )
             res = result.get_response(manifest.stop_token, is_batch=True)
             # Cached because one item is in cache
@@ -287,8 +294,8 @@ def test_batch_run(sqlite_cache: str, n: int, return_response: bool) -> None:
         if return_response:
             assert isinstance(result, Response)
             result = cast(Response, result)
-            assert len(result.get_json_response()["usage"]) == len(
-                result.get_json_response()["choices"]
+            assert len(result.get_usage_obj().usages) == len(
+                result.get_response_obj().choices
             )
             res = result.get_response(stop_token="ll", is_batch=True)
         else:
@@ -309,9 +316,7 @@ def test_abatch_run(sqlite_cache: str) -> None:
         Response, asyncio.run(manifest.arun_batch(prompt, return_response=True))
     )
 
-    assert len(result.get_json_response()["usage"]) == len(
-        result.get_json_response()["choices"]
-    )
+    assert len(result.get_usage_obj().usages) == len(result.get_response_obj().choices)
     res = result.get_response(manifest.stop_token, is_batch=True)
     assert res == ["hello"]
     assert (
@@ -319,6 +324,7 @@ def test_abatch_run(sqlite_cache: str) -> None:
             {
                 "prompt": "This is a prompt",
                 "engine": "dummy",
+                "request_cls": "LMRequest",
                 "num_results": 1,
             },
         )
@@ -330,9 +336,7 @@ def test_abatch_run(sqlite_cache: str) -> None:
         Response, asyncio.run(manifest.arun_batch(prompt, return_response=True))
     )
 
-    assert len(result.get_json_response()["usage"]) == len(
-        result.get_json_response()["choices"]
-    )
+    assert len(result.get_usage_obj().usages) == len(result.get_response_obj().choices)
     res = result.get_response(manifest.stop_token, is_batch=True)
     assert res == ["hello", "hello"]
     assert (
@@ -340,6 +344,7 @@ def test_abatch_run(sqlite_cache: str) -> None:
             {
                 "prompt": "Hello is a prompt",
                 "engine": "dummy",
+                "request_cls": "LMRequest",
                 "num_results": 1,
             },
         )
@@ -350,9 +355,7 @@ def test_abatch_run(sqlite_cache: str) -> None:
         Response, asyncio.run(manifest.arun_batch(prompt, return_response=True))
     )
 
-    assert len(result.get_json_response()["usage"]) == len(
-        result.get_json_response()["choices"]
-    )
+    assert len(result.get_usage_obj().usages) == len(result.get_response_obj().choices)
     res = result.get_response(manifest.stop_token, is_batch=True)
     assert result.is_cached()
 
@@ -361,6 +364,7 @@ def test_abatch_run(sqlite_cache: str) -> None:
             {
                 "prompt": "New prompt",
                 "engine": "dummy",
+                "request_cls": "LMRequest",
                 "num_results": 1,
             },
         )
@@ -371,9 +375,7 @@ def test_abatch_run(sqlite_cache: str) -> None:
         Response, asyncio.run(manifest.arun_batch(prompt, return_response=True))
     )
 
-    assert len(result.get_json_response()["usage"]) == len(
-        result.get_json_response()["choices"]
-    )
+    assert len(result.get_usage_obj().usages) == len(result.get_response_obj().choices)
     res = result.get_response(manifest.stop_token, is_batch=True)
     # Cached because one item is in cache
     assert result.is_cached()
@@ -384,9 +386,7 @@ def test_abatch_run(sqlite_cache: str) -> None:
         Response, asyncio.run(manifest.arun_batch(prompt, return_response=True))
     )
 
-    assert len(result.get_json_response()["usage"]) == len(
-        result.get_json_response()["choices"]
-    )
+    assert len(result.get_usage_obj().usages) == len(result.get_response_obj().choices)
     res = result.get_response(stop_token="ll", is_batch=True)
     assert res == ["he", "he"]
 
@@ -407,25 +407,43 @@ def test_score_run(sqlite_cache: str) -> None:
             {
                 "prompt": "This is a prompt",
                 "engine": "dummy",
+                "request_cls": "LMScoreRequest",
                 "num_results": 1,
-                "request_type": "score_prompt",
             },
         )
         is not None
     )
     assert result == {
-        "generation_key": "choices",
-        "logits_key": "token_logprobs",
-        "item_key": "text",
-        "item_dtype": None,
-        "response": {"choices": [{"text": "This is a prompt", "logprob": 0.3}]},
-        "cached": False,
-        "request_params": {
-            "prompt": "This is a prompt",
-            "engine": "dummy",
-            "num_results": 1,
-            "request_type": "score_prompt",
+        "response": {
+            "choices": [
+                {"text": "This is a prompt", "token_logprobs": [0.3], "tokens": None}
+            ]
         },
+        "usages": {"usages": []},
+        "cached": False,
+        "request": {
+            "prompt": "This is a prompt",
+            "engine": "text-ada-001",
+            "n": 1,
+            "client_timeout": 60,
+            "run_id": None,
+            "batch_size": 8,
+            "temperature": 0.7,
+            "max_tokens": 100,
+            "top_p": 1.0,
+            "top_k": 50,
+            "logprobs": None,
+            "stop_sequences": None,
+            "num_beams": 1,
+            "do_sample": False,
+            "repetition_penalty": 1.0,
+            "length_penalty": 1.0,
+            "presence_penalty": 0.0,
+            "frequency_penalty": 0.0,
+        },
+        "response_type": "text",
+        "request_type": "LMScoreRequest",
+        "item_dtype": None,
     }
 
     prompt_list = ["Hello is a prompt", "Hello is another prompt"]
@@ -435,8 +453,8 @@ def test_score_run(sqlite_cache: str) -> None:
             {
                 "prompt": "Hello is a prompt",
                 "engine": "dummy",
+                "request_cls": "LMScoreRequest",
                 "num_results": 1,
-                "request_type": "score_prompt",
             },
         )
         is not None
@@ -446,30 +464,48 @@ def test_score_run(sqlite_cache: str) -> None:
             {
                 "prompt": "Hello is another prompt",
                 "engine": "dummy",
+                "request_cls": "LMScoreRequest",
                 "num_results": 1,
-                "request_type": "score_prompt",
             },
         )
         is not None
     )
     assert result == {
-        "generation_key": "choices",
-        "logits_key": "token_logprobs",
-        "item_key": "text",
-        "item_dtype": None,
         "response": {
             "choices": [
-                {"text": "Hello is a prompt", "logprob": 0.3},
-                {"text": "Hello is another prompt", "logprob": 0.3},
+                {"text": "Hello is a prompt", "token_logprobs": [0.3], "tokens": None},
+                {
+                    "text": "Hello is another prompt",
+                    "token_logprobs": [0.3],
+                    "tokens": None,
+                },
             ]
         },
+        "usages": {"usages": []},
         "cached": False,
-        "request_params": {
+        "request": {
             "prompt": ["Hello is a prompt", "Hello is another prompt"],
-            "engine": "dummy",
-            "num_results": 1,
-            "request_type": "score_prompt",
+            "engine": "text-ada-001",
+            "n": 1,
+            "client_timeout": 60,
+            "run_id": None,
+            "batch_size": 8,
+            "temperature": 0.7,
+            "max_tokens": 100,
+            "top_p": 1.0,
+            "top_k": 50,
+            "logprobs": None,
+            "stop_sequences": None,
+            "num_beams": 1,
+            "do_sample": False,
+            "repetition_penalty": 1.0,
+            "length_penalty": 1.0,
+            "presence_penalty": 0.0,
+            "frequency_penalty": 0.0,
         },
+        "response_type": "text",
+        "request_type": "LMScoreRequest",
+        "item_dtype": None,
     }
 
 
@@ -644,8 +680,8 @@ def test_openai(sqlite_cache: str) -> None:
     assert isinstance(response.get_response(), str) and len(response.get_response()) > 0
     assert response.get_response() == res
     assert response.is_cached() is True
-    assert "usage" in response.get_json_response()
-    assert response.get_json_response()["usage"][0]["total_tokens"] == 15
+    assert response.get_usage_obj().usages
+    assert response.get_usage_obj().usages[0].total_tokens == 15
 
     response = cast(Response, client.run("Why are there apples?", return_response=True))
     assert response.is_cached() is True
@@ -662,12 +698,9 @@ def test_openai(sqlite_cache: str) -> None:
     assert (
         isinstance(response.get_response(), list) and len(response.get_response()) == 2
     )
-    assert (
-        "usage" in response.get_json_response()
-        and len(response.get_json_response()["usage"]) == 2
-    )
-    assert response.get_json_response()["usage"][0]["total_tokens"] == 15
-    assert response.get_json_response()["usage"][1]["total_tokens"] == 16
+    assert response.get_usage_obj().usages and len(response.get_usage_obj().usages) == 2
+    assert response.get_usage_obj().usages[0].total_tokens == 15
+    assert response.get_usage_obj().usages[1].total_tokens == 16
 
     response = cast(
         Response, client.run("Why are there bananas?", return_response=True)
@@ -691,12 +724,9 @@ def test_openai(sqlite_cache: str) -> None:
     assert (
         isinstance(response.get_response(), list) and len(response.get_response()) == 2
     )
-    assert (
-        "usage" in response.get_json_response()
-        and len(response.get_json_response()["usage"]) == 2
-    )
-    assert response.get_json_response()["usage"][0]["total_tokens"] == 17
-    assert response.get_json_response()["usage"][1]["total_tokens"] == 15
+    assert response.get_usage_obj().usages and len(response.get_usage_obj().usages) == 2
+    assert response.get_usage_obj().usages[0].total_tokens == 17
+    assert response.get_usage_obj().usages[1].total_tokens == 15
 
     response = cast(
         Response, client.run("Why are there oranges?", return_response=True)
@@ -721,8 +751,8 @@ def test_openaichat(sqlite_cache: str) -> None:
     assert isinstance(response.get_response(), str) and len(response.get_response()) > 0
     assert response.get_response() == res
     assert response.is_cached() is True
-    assert "usage" in response.get_json_response()
-    assert response.get_json_response()["usage"][0]["total_tokens"] == 23
+    assert response.get_usage_obj().usages
+    assert response.get_usage_obj().usages[0].total_tokens == 23
 
     response = cast(Response, client.run("Why are there apples?", return_response=True))
     assert response.is_cached() is True
@@ -749,12 +779,9 @@ def test_openaichat(sqlite_cache: str) -> None:
     assert (
         isinstance(response.get_response(), list) and len(response.get_response()) == 2
     )
-    assert (
-        "usage" in response.get_json_response()
-        and len(response.get_json_response()["usage"]) == 2
-    )
-    assert response.get_json_response()["usage"][0]["total_tokens"] == 25
-    assert response.get_json_response()["usage"][1]["total_tokens"] == 23
+    assert response.get_usage_obj().usages and len(response.get_usage_obj().usages) == 2
+    assert response.get_usage_obj().usages[0].total_tokens == 25
+    assert response.get_usage_obj().usages[1].total_tokens == 23
 
     response = cast(
         Response, client.run("Why are there oranges?", return_response=True)
@@ -795,8 +822,8 @@ def test_openaiembedding(sqlite_cache: str) -> None:
     assert isinstance(response.get_response(), np.ndarray)
     assert np.allclose(response.get_response(), res)
     assert response.is_cached() is True
-    assert "usage" in response.get_json_response()
-    assert response.get_json_response()["usage"][0]["total_tokens"] == 5
+    assert response.get_usage_obj().usages
+    assert response.get_usage_obj().usages[0].total_tokens == 5
 
     response = cast(Response, client.run("Why are there apples?", return_response=True))
     assert response.is_cached() is True
@@ -817,12 +844,9 @@ def test_openaiembedding(sqlite_cache: str) -> None:
     assert (
         isinstance(response.get_response(), list) and len(response.get_response()) == 2
     )
-    assert (
-        "usage" in response.get_json_response()
-        and len(response.get_json_response()["usage"]) == 2
-    )
-    assert response.get_json_response()["usage"][0]["total_tokens"] == 5
-    assert response.get_json_response()["usage"][1]["total_tokens"] == 6
+    assert response.get_usage_obj().usages and len(response.get_usage_obj().usages) == 2
+    assert response.get_usage_obj().usages[0].total_tokens == 5
+    assert response.get_usage_obj().usages[1].total_tokens == 6
 
     response = cast(
         Response, client.run("Why are there bananas?", return_response=True)
@@ -857,12 +881,9 @@ def test_openaiembedding(sqlite_cache: str) -> None:
         and len(res_list) == 2
         and isinstance(res_list[0], np.ndarray)
     )
-    assert (
-        "usage" in response.get_json_response()
-        and len(response.get_json_response()["usage"]) == 2
-    )
-    assert response.get_json_response()["usage"][0]["total_tokens"] == 7
-    assert response.get_json_response()["usage"][1]["total_tokens"] == 5
+    assert response.get_usage_obj().usages and len(response.get_usage_obj().usages) == 2
+    assert response.get_usage_obj().usages[0].total_tokens == 7
+    assert response.get_usage_obj().usages[1].total_tokens == 5
 
     response = cast(
         Response, client.run("Why are there oranges?", return_response=True)

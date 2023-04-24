@@ -8,6 +8,7 @@ Added
 Fixed
 ^^^^^
 * Determine cache and response by request type, not client name
+* Refactor Response to use Pydantic types for Request and Response
 
 0.1.1
 ---------------------

@@ -10,8 +10,21 @@ import aiohttp
 import requests
 from tenacity import RetryCallState, retry, stop_after_attempt, wait_random_exponential
 
-from manifest.request import DEFAULT_REQUEST_KEYS, NOT_CACHE_KEYS, Request
-from manifest.response import RESPONSE_CONSTRUCTORS, Response
+from manifest.request import (
+    DEFAULT_REQUEST_KEYS,
+    NOT_CACHE_KEYS,
+    LMScoreRequest,
+    Request,
+)
+from manifest.response import (
+    RESPONSE_CONSTRUCTORS,
+    ArrayModelChoice,
+    LMModelChoice,
+    ModelChoices,
+    Response,
+    Usage,
+    Usages,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -161,16 +174,30 @@ class Client(ABC):
         request_params = self.get_request_params(request)
         for key in NOT_CACHE_KEYS:
             request_params.pop(key, None)
+        # Make sure to add model params and request class
         request_params.update(self.get_model_params())
+        request_params["request_cls"] = request.__class__.__name__
         return request_params
 
     def split_usage(self, request: Dict, choices: List[str]) -> List[Dict[str, int]]:
         """Split usage into list of usages for each prompt."""
         return []
 
-    def format_response(self, response: Dict, request: Dict) -> Dict[str, Any]:
+    def get_model_choices(self, response: Dict) -> ModelChoices:
+        """Format response to ModelChoices."""
+        # Array or text response
+        response_type = RESPONSE_CONSTRUCTORS[self.REQUEST_CLS]["response_type"]
+        if response_type == "array":
+            choices: List[Union[LMModelChoice, ArrayModelChoice]] = [
+                ArrayModelChoice(**choice) for choice in response["choices"]
+            ]
+        else:
+            choices = [LMModelChoice(**choice) for choice in response["choices"]]
+        return ModelChoices(choices=choices)
+
+    def validate_response(self, response: Dict, request: Dict) -> Dict[str, Any]:
         """
-        Format response to dict.
+        Validate response as dict.
 
         Args:
             response: response
@@ -246,7 +273,7 @@ class Client(ABC):
         except requests.exceptions.HTTPError:
             logger.error(res.json())
             raise requests.exceptions.HTTPError(res.json())
-        return self.format_response(res.json(), request_params)
+        return self.validate_response(res.json(), request_params)
 
     @retry(
         reraise=True,
@@ -277,7 +304,7 @@ class Client(ABC):
             ) as res:
                 res.raise_for_status()
                 res_json = await res.json(content_type=None)
-                return self.format_response(res_json, request_params)
+                return self.validate_response(res_json, request_params)
 
     def run_request(self, request: Request) -> Response:
         """
@@ -301,11 +328,16 @@ class Client(ABC):
         for key in DEFAULT_REQUEST_KEYS:
             request_params.pop(key, None)
         response_dict = self._run_completion(request_params, retry_timeout)
+        usages = None
+        if "usage" in response_dict:
+            usages = [Usage(**usage) for usage in response_dict["usage"]]
+
         return Response(
-            response_dict,
+            response=self.get_model_choices(response_dict),
             cached=False,
-            request_params=request_params,
-            **RESPONSE_CONSTRUCTORS.get(self.REQUEST_CLS, {}),  # type: ignore
+            request=request,
+            usages=Usages(usages=usages) if usages else None,
+            **RESPONSE_CONSTRUCTORS[self.REQUEST_CLS],  # type: ignore
         )
 
     async def arun_batch_request(self, request: Request) -> Response:
@@ -353,18 +385,20 @@ class Client(ABC):
             if "usage" in res_dict:
                 usages.extend(res_dict["usage"])
         final_response_dict = {"choices": choices}
+        final_usages = None
         if usages:
-            final_response_dict["usage"] = usages
+            final_usages = Usages(usages=[Usage(**usage) for usage in usages])
         return Response(
-            final_response_dict,
+            self.get_model_choices(final_response_dict),
             cached=False,
-            request_params=request_params,
-            **RESPONSE_CONSTRUCTORS.get(self.REQUEST_CLS, {}),  # type: ignore
+            request=request,
+            usages=final_usages,
+            **RESPONSE_CONSTRUCTORS[self.REQUEST_CLS],  # type: ignore
         )
 
     def get_score_prompt_request(
         self,
-        request: Request,
+        request: LMScoreRequest,
     ) -> Response:
         """
         Get the logit score of the prompt via a forward pass of the model.

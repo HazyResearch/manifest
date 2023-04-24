@@ -5,8 +5,8 @@ from typing import Any, Dict, Optional
 import requests
 
 from manifest.clients.client import Client
-from manifest.request import DEFAULT_REQUEST_KEYS, LMRequest, Request
-from manifest.response import Response
+from manifest.request import DEFAULT_REQUEST_KEYS, LMRequest, LMScoreRequest
+from manifest.response import LMModelChoice, ModelChoices, Response
 
 logger = logging.getLogger(__name__)
 
@@ -82,7 +82,7 @@ class HuggingFaceClient(Client):
 
     def get_score_prompt_request(
         self,
-        request: Request,
+        request: LMScoreRequest,
     ) -> Response:
         """
         Get the logit score of the prompt via a forward pass of the model.
@@ -116,4 +116,13 @@ class HuggingFaceClient(Client):
             logger.error(res.text)
             raise e
         response_dict = res.json()
-        return Response(response_dict, cached=False, request_params=request_params)
+        return Response(
+            response=ModelChoices(
+                choices=[LMModelChoice(**choice) for choice in response_dict["choices"]]
+            ),
+            cached=False,
+            request=request,
+            usages=None,
+            response_type="text",
+            request_type=LMScoreRequest,
+        )
