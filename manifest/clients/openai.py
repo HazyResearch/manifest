@@ -107,6 +107,27 @@ class OpenAIClient(Client):
         """
         return {"model_name": self.NAME, "engine": getattr(self, "engine")}
 
+    def validate_response(self, response: Dict, request: Dict) -> Dict[str, Any]:
+        """
+        Validate response as dict.
+
+        Args:
+            response: response
+            request: request
+
+        Return:
+            response as dict
+        """
+        validated_response = super().validate_response(response, request)
+        # Handle logprobs
+        for choice in validated_response["choices"]:
+            if "logprobs" in choice:
+                logprobs = choice.pop("logprobs")
+                if logprobs and "token_logprobs" in logprobs:
+                    choice["token_logprobs"] = logprobs["token_logprobs"]
+                    choice["tokens"] = logprobs["tokens"]
+        return validated_response
+
     def split_usage(self, request: Dict, choices: List[str]) -> List[Dict[str, int]]:
         """Split usage into list of usages for each prompt."""
         try:
