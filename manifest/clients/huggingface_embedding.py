@@ -72,7 +72,7 @@ class HuggingFaceEmbeddingClient(Client):
         res["client_name"] = self.NAME
         return res
 
-    def format_response(self, response: Dict, request: Dict) -> Dict[str, Any]:
+    def validate_response(self, response: Dict, request: Dict) -> Dict[str, Any]:
         """
         Format response to dict.
 

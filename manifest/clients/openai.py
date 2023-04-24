@@ -37,6 +37,7 @@ class OpenAIClient(Client):
         "n": ("n", 1),
         "top_p": ("top_p", 1.0),
         "top_k": ("best_of", 1),
+        "logprobs": ("logprobs", None),
         "stop_sequences": ("stop", None),  # OpenAI doesn't like empty lists
         "presence_penalty": ("presence_penalty", 0.0),
         "frequency_penalty": ("frequency_penalty", 0.0),

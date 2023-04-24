@@ -1,230 +1,301 @@
 """Response test."""
-from typing import Any, Dict
+from typing import List, cast
 
 import numpy as np
 import pytest
 
 from manifest import Response
-from manifest.request import LMRequest
+from manifest.request import EmbeddingRequest, LMRequest
+from manifest.response import ArrayModelChoice, ModelChoices, Usage, Usages
 
 
-def test_init() -> None:
+def test_init(
+    model_choice: ModelChoices,
+    model_choice_arr: ModelChoices,
+    model_choice_arr_int: ModelChoices,
+    request_lm: LMRequest,
+    request_array: EmbeddingRequest,
+) -> None:
     """Test response initialization."""
-    with pytest.raises(ValueError) as exc_info:
-        response = Response(4, False, {})  # type: ignore
-    assert str(exc_info.value) == "Response must be dict. Response is\n4."
-    with pytest.raises(ValueError) as exc_info:
-        response = Response({"test": "hello"}, False, {})
-    assert str(exc_info.value) == (
-        "Response must be serialized to a dict with a nonempty list of choices. "
-        "Response is\n{'test': 'hello'}."
+    response = Response(
+        response=model_choice,
+        cached=False,
+        request=request_lm,
+        usages=None,
+        request_type=LMRequest,
+        response_type="text",
     )
-    with pytest.raises(ValueError) as exc_info:
-        response = Response({"choices": [{"blah": "hello"}]}, False, {})
-    assert str(exc_info.value) == (
-        "Response must be serialized to a dict "
-        "with a list of choices with text field"
-    )
-    with pytest.raises(ValueError) as exc_info:
-        response = Response({"choices": []}, False, {})
-    assert str(exc_info.value) == (
-        "Response must be serialized to a dict with a nonempty list of choices. "
-        "Response is\n{'choices': []}."
-    )
-
-    response = Response({"choices": [{"text": "hello"}]}, False, {})
-    assert response._response == {"choices": [{"text": "hello"}]}
+    assert response._response == model_choice
     assert response._cached is False
-    assert response._request_params == {}
-    assert response.item_dtype is None
-
-    response = Response({"choices": [{"text": "hello"}]}, True, {"request": "yoyo"})
-    assert response._response == {"choices": [{"text": "hello"}]}
-    assert response._cached is True
-    assert response._request_params == {"request": "yoyo"}
-    assert response.item_dtype is None
+    assert response._request == request_lm
+    assert response._usages == Usages(usages=[])
+    assert response._request_type == LMRequest
+    assert response._response_type == "text"
+    assert response._item_dtype is None
 
     response = Response(
-        {"generations": [{"txt": "hello"}], "logits": []},
-        False,
-        {},
-        generation_key="generations",
-        logits_key="logits",
-        item_key="txt",
+        response=model_choice_arr_int,
+        cached=False,
+        request=request_array,
+        usages=Usages(usages=[Usage(total_tokens=4), Usage(total_tokens=6)]),
+        request_type=EmbeddingRequest,
+        response_type="array",
     )
-    assert response._response == {"generations": [{"txt": "hello"}], "logits": []}
     assert response._cached is False
-    assert response._request_params == {}
-    assert response.item_dtype is None
+    assert response._request == request_array
+    assert sum([usg.total_tokens for usg in response._usages.usages]) == 10
+    assert response._request_type == EmbeddingRequest
+    assert response._response_type == "array"
+    assert response._item_dtype == "int64"
 
-    int_arr = np.random.randint(20, size=(4, 4))
-    response = Response(
-        {"choices": [{"array": int_arr}]}, True, {"request": "yoyo"}, item_key="array"
+    with pytest.raises(ValueError) as excinfo:
+        Response(
+            response=model_choice,
+            cached=False,
+            request=request_lm,
+            usages=None,
+            request_type=LMRequest,
+            response_type="blah",
+        )
+    assert "blah" in str(excinfo.value)
+
+    # Can't convert array with text
+    with pytest.raises(ValueError) as excinfo:
+        Response(
+            response=model_choice,
+            cached=False,
+            request=request_lm,
+            usages=None,
+            request_type=LMRequest,
+            response_type="array",
+        )
+    assert str(excinfo.value) == (
+        "response_type is array but response is "
+        "<class 'manifest.response.LMModelChoice'>"
     )
-    assert response._response == {"choices": [{"array": int_arr}]}
-    assert response._cached is True
-    assert response._request_params == {"request": "yoyo"}
-    assert response.item_dtype == "int64"
+
+    # Can't convert text with array
+    with pytest.raises(ValueError) as excinfo:
+        Response(
+            response=model_choice_arr,
+            cached=False,
+            request=request_array,
+            usages=None,
+            request_type=LMRequest,
+            response_type="text",
+        )
+    assert str(excinfo.value) == (
+        "response_type is text but response is "
+        "<class 'manifest.response.ArrayModelChoice'>"
+    )
 
 
-def test_getters() -> None:
+def test_getters(model_choice: ModelChoices, request_lm: LMRequest) -> None:
     """Test response cached."""
-    response = Response({"choices": [{"text": "hello"}]}, False, {})
-    assert response.get_json_response() == {"choices": [{"text": "hello"}]}
+    response = Response(
+        response=model_choice,
+        cached=False,
+        request=request_lm,
+        usages=None,
+        request_type=LMRequest,
+        response_type="text",
+    )
+    assert response.get_response_obj() == model_choice
     assert response.is_cached() is False
-    assert response.get_request() == {}
-
-    response = Response({"choices": [{"text": "hello"}]}, True, {"request": "yoyo"})
-    assert response.get_json_response() == {"choices": [{"text": "hello"}]}
-    assert response.is_cached() is True
-    assert response.get_request() == {"request": "yoyo"}
-
-    int_arr = np.random.randint(20, size=(4, 4))
-    response = Response(
-        {"choices": [{"array": int_arr}]}, True, {"request": "yoyo"}, item_key="array"
-    )
-    assert response.get_json_response() == {"choices": [{"array": int_arr}]}
-    assert response.is_cached() is True
-    assert response.get_request() == {"request": "yoyo"}
+    assert response.get_request_obj() == request_lm
+    assert response.get_usage_obj() == Usages(usages=[])
+    assert response.get_json_response() == model_choice.dict()
+    assert response.get_response() == ["hello", "bye"]
 
 
-def test_serialize() -> None:
+def test_serialize(
+    model_choice: ModelChoices,
+    model_choice_arr: ModelChoices,
+    model_choice_arr_int: ModelChoices,
+    request_lm: LMRequest,
+    request_array: EmbeddingRequest,
+) -> None:
     """Test response serialization."""
-    response = Response({"choices": [{"text": "hello"}]}, True, {"request": "yoyo"})
-    deserialized_response = Response.deserialize(response.serialize())
-    assert deserialized_response._response == {"choices": [{"text": "hello"}]}
-    assert deserialized_response.is_cached() is True
-    assert deserialized_response._request_params == {"request": "yoyo"}
-
-    int_arr = np.random.randint(20, size=(4, 4))
     response = Response(
-        {"choices": [{"array": int_arr}]}, True, {"request": "yoyo"}, item_key="array"
+        response=model_choice,
+        cached=False,
+        request=request_lm,
+        usages=None,
+        request_type=LMRequest,
+        response_type="text",
     )
     deserialized_response = Response.deserialize(response.serialize())
-    assert np.array_equal(
-        deserialized_response._response["choices"][0]["array"], int_arr
-    )
-    assert deserialized_response.is_cached() is True
-    assert deserialized_response._request_params == {"request": "yoyo"}
+    assert deserialized_response.get_response_obj() == model_choice
+    assert deserialized_response.is_cached() is False
+    assert deserialized_response.get_request_obj() == request_lm
+    assert deserialized_response.get_usage_obj() == Usages(usages=[])
+    assert deserialized_response.get_json_response() == model_choice.dict()
+    assert deserialized_response.get_response() == ["hello", "bye"]
 
-    float_arr = np.random.randn(4, 4)
+    deserialized_response = Response.from_dict(response.to_dict())
+    assert deserialized_response.get_response_obj() == model_choice
+    assert deserialized_response.is_cached() is False
+    assert deserialized_response.get_request_obj() == request_lm
+    assert deserialized_response.get_usage_obj() == Usages(usages=[])
+    assert deserialized_response.get_json_response() == model_choice.dict()
+    assert deserialized_response.get_response() == ["hello", "bye"]
+
+    deserialized_response = Response.from_dict(
+        response.to_dict(drop_request=True), request_dict={"prompt": "blahhhh"}
+    )
+    assert deserialized_response.get_response_obj() == model_choice
+    assert deserialized_response.is_cached() is False
+    assert deserialized_response.get_request_obj().prompt == "blahhhh"
+    assert deserialized_response.get_usage_obj() == Usages(usages=[])
+    assert deserialized_response.get_json_response() == model_choice.dict()
+    assert deserialized_response.get_response() == ["hello", "bye"]
+
+    # Int type
     response = Response(
-        {"choices": [{"array": float_arr}]}, True, {"request": "yoyo"}, item_key="array"
+        response=model_choice_arr_int,
+        cached=False,
+        request=request_array,
+        usages=Usages(usages=[Usage(total_tokens=4), Usage(total_tokens=6)]),
+        request_type=EmbeddingRequest,
+        response_type="array",
     )
     deserialized_response = Response.deserialize(response.serialize())
-    assert np.array_equal(
-        deserialized_response._response["choices"][0]["array"], float_arr
+    assert deserialized_response._item_dtype == "int64"
+    assert (
+        cast(
+            ArrayModelChoice, deserialized_response.get_response_obj().choices[0]
+        ).array.dtype
+        == np.int64
     )
-    assert deserialized_response.is_cached() is True
-    assert deserialized_response._request_params == {"request": "yoyo"}
+    assert np.array_equal(
+        cast(
+            ArrayModelChoice, deserialized_response.get_response_obj().choices[0]
+        ).array,
+        cast(ArrayModelChoice, model_choice_arr_int.choices[0]).array,
+    )
+
+    # Float type
+    response = Response(
+        response=model_choice_arr,
+        cached=False,
+        request=request_array,
+        usages=Usages(usages=[Usage(total_tokens=4), Usage(total_tokens=6)]),
+        request_type=EmbeddingRequest,
+        response_type="array",
+    )
+    deserialized_response = Response.deserialize(response.serialize())
+    assert deserialized_response._item_dtype == "float64"
+    assert (
+        cast(
+            ArrayModelChoice, deserialized_response.get_response_obj().choices[0]
+        ).array.dtype
+        == np.float64
+    )
+    assert np.array_equal(
+        cast(
+            ArrayModelChoice, deserialized_response.get_response_obj().choices[0]
+        ).array,
+        cast(ArrayModelChoice, model_choice_arr.choices[0]).array,
+    )
 
 
-def test_get_results() -> None:
+def test_get_results(
+    model_choice: ModelChoices,
+    model_choice_single: ModelChoices,
+    model_choice_arr: ModelChoices,
+    request_lm: LMRequest,
+    request_array: EmbeddingRequest,
+) -> None:
     """Test response get results."""
-    response = Response({"choices": [{"text": "hello"}]}, True, {"request": "yoyo"})
-    assert response.get_response() == "hello"
+    response = Response(
+        response=model_choice_single,
+        cached=False,
+        request=request_lm,
+        usages=None,
+        request_type=LMRequest,
+        response_type="text",
+    )
+    assert response.get_response() == "helloo"
     assert response.get_response(stop_token="ll") == "he"
     assert response.get_response(stop_token="ll", is_batch=True) == ["he"]
 
     response = Response(
-        {"choices": [{"text": "hello"}, {"text": "my"}, {"text": "name"}]},
-        True,
-        {"request": "yoyo"},
+        response=model_choice,
+        cached=False,
+        request=request_lm,
+        usages=None,
+        request_type=LMRequest,
+        response_type="text",
     )
-    assert response.get_response() == ["hello", "my", "name"]
-    assert response.get_response(stop_token="m") == ["hello", "", "na"]
-    assert response.get_response(stop_token="m", is_batch=True) == ["hello", "", "na"]
+    assert response.get_response() == ["hello", "bye"]
+    assert response.get_response(stop_token="b") == ["hello", ""]
+    assert response.get_response(stop_token="y", is_batch=True) == ["hello", "b"]
 
-    float_arr = np.random.randn(4, 4)
+    float_arr1 = cast(ArrayModelChoice, model_choice_arr.choices[0]).array
+    float_arr2 = cast(ArrayModelChoice, model_choice_arr.choices[1]).array
     response = Response(
-        {"choices": [{"array": float_arr}, {"array": float_arr}]},
-        True,
-        {"request": "yoyo"},
-        item_key="array",
+        response=model_choice_arr,
+        cached=False,
+        request=request_array,
+        usages=Usages(usages=[Usage(total_tokens=4), Usage(total_tokens=6)]),
+        request_type=EmbeddingRequest,
+        response_type="array",
     )
-    assert response.get_response() == [float_arr, float_arr]
-    assert response.get_response(stop_token="m") == [float_arr, float_arr]
+    assert np.array_equal(response.get_response()[0], float_arr1)
+    assert np.array_equal(response.get_response()[1], float_arr2)
+    assert np.array_equal(response.get_response(stop_token="t")[0], float_arr1)
+    assert np.array_equal(response.get_response(stop_token="t")[1], float_arr2)
 
 
-def test_union_all() -> None:
+def test_union_all(
+    model_choice: ModelChoices,
+    model_choice_single: ModelChoices,
+    request_lm: LMRequest,
+    request_lm_single: LMRequest,
+) -> None:
     """Test union all."""
-    request_paramsa = LMRequest(prompt=["apple", "orange", "pear"]).to_dict()
-    request_paramsa["model"] = "modelA"
-    response_paramsa = {
-        "choices": [
-            {"text": "hello", "token_logprobs": [1]},
-            {"text": "hello 2", "token_logprobs": [1]},
-            {"text": "hello 3", "token_logprobs": [1]},
-        ]
-    }
-    responsea = Response(response_paramsa, False, request_paramsa)
+    response1 = Response(
+        response=model_choice,
+        cached=False,
+        request=request_lm,
+        usages=None,
+        request_type=LMRequest,
+        response_type="text",
+    )
 
-    request_paramsb = LMRequest(prompt=["banana", "pineapple", "mango"]).to_dict()
-    request_paramsb["model"] = "modelB"
-    response_paramsb = {
-        "choices": [
-            {"text": "bye", "token_logprobs": [2]},
-            {"text": "bye 2", "token_logprobs": [2]},
-            {"text": "bye 3", "token_logprobs": [2]},
-        ]
-    }
-    responseb = Response(response_paramsb, False, request_paramsb)
+    response2 = Response(
+        response=model_choice_single,
+        cached=False,
+        request=request_lm_single,
+        usages=None,
+        request_type=LMRequest,
+        response_type="text",
+    )
 
-    final_response = Response.union_all([responsea, responseb])
+    final_response = Response.union_all([response1, response2])
     assert final_response.get_json_response() == {
         "choices": [
-            {"text": "hello", "token_logprobs": [1]},
-            {"text": "hello 2", "token_logprobs": [1]},
-            {"text": "hello 3", "token_logprobs": [1]},
-            {"text": "bye", "token_logprobs": [2]},
-            {"text": "bye 2", "token_logprobs": [2]},
-            {"text": "bye 3", "token_logprobs": [2]},
+            {"text": "hello", "token_logprobs": [0.1, 0.2], "tokens": None},
+            {"text": "bye", "token_logprobs": [0.3], "tokens": None},
+            {"text": "helloo", "token_logprobs": [0.1, 0.2], "tokens": None},
         ]
     }
-    final_request = LMRequest(
-        prompt=["apple", "orange", "pear", "banana", "pineapple", "mango"]
-    ).to_dict()
-    final_request["model"] = "modelA"
-    assert final_response.get_request() == final_request
-    assert not final_response.is_cached()
+    assert final_response.get_usage_obj() == Usages(usages=[Usage(), Usage(), Usage()])
+    merged_prompts: List[str] = request_lm.prompt + [request_lm_single.prompt]  # type: ignore  # noqa: E501
+    assert final_response.get_request_obj().prompt == merged_prompts
+    assert final_response.get_request_obj().engine == "dummy::text-ada-001"
 
     # Modify A to have usage and cached
-    response_paramsa_2: Dict[str, Any] = {
-        "choices": [
-            {"text": "hello", "token_logprobs": [1]},
-            {"text": "hello 2", "token_logprobs": [1]},
-            {"text": "hello 3", "token_logprobs": [1]},
-        ],
-        "usage": [
-            {"completion_tokens": 10},
-            {"completion_tokens": 10},
-            {"completion_tokens": 10},
-        ],
-    }
-    responsea = Response(response_paramsa_2, True, request_paramsa)
+    response1 = Response(
+        response=model_choice,
+        cached=False,
+        request=request_lm,
+        usages=Usages(usages=[Usage(total_tokens=4), Usage(total_tokens=6)]),
+        request_type=LMRequest,
+        response_type="text",
+    )
 
-    final_response = Response.union_all([responsea, responseb])
-    assert final_response.get_json_response() == {
-        "choices": [
-            {"text": "hello", "token_logprobs": [1]},
-            {"text": "hello 2", "token_logprobs": [1]},
-            {"text": "hello 3", "token_logprobs": [1]},
-            {"text": "bye", "token_logprobs": [2]},
-            {"text": "bye 2", "token_logprobs": [2]},
-            {"text": "bye 3", "token_logprobs": [2]},
-        ],
-        "usage": [
-            {"completion_tokens": 10},
-            {"completion_tokens": 10},
-            {"completion_tokens": 10},
-            {},
-            {},
-            {},
-        ],
-    }
-    final_request = LMRequest(
-        prompt=["apple", "orange", "pear", "banana", "pineapple", "mango"]
-    ).to_dict()
-    final_request["model"] = "modelA"
-    assert final_response.get_request() == final_request
-    assert final_response.is_cached()
+    final_response = Response.union_all([response1, response2])
+    assert final_response.get_usage_obj() == Usages(
+        usages=[Usage(total_tokens=4), Usage(total_tokens=6), Usage()]
+    )

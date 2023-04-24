@@ -94,7 +94,7 @@ class AI21Client(Client):
         """
         return {"model_name": self.NAME, "engine": getattr(self, "engine")}
 
-    def format_response(self, response: Dict, request: Dict) -> Dict[str, Any]:
+    def validate_response(self, response: Dict, request: Dict) -> Dict[str, Any]:
         """
         Format response to dict.
 

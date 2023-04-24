@@ -126,9 +126,9 @@ results = asyncio.run(manifest.arun_batch(["Where are the cats?", "Where are the
 If something doesn't go right, you can also ask to get a raw manifest Response.
 ```python
 result_object = manifest.run(["Where are the cats?", "Where are the dogs?"], return_response=True)
-print(result_object.get_request())
+print(result_object.get_request_obj())
 print(result_object.is_cached())
-print(result_object.get_json_response())
+print(result_object.get_response_obj())
 ```
 
 By default, we do not truncate results based on a stop token. You can change this by either passing a new stop token to a Manifest session or to a `run`.

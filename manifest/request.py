@@ -3,13 +3,14 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 from pydantic import BaseModel
 
+# Used when unioning requests after async connection pool
+ENGINE_SEP = "::"
 NOT_CACHE_KEYS = {"client_timeout", "batch_size"}
 # The below should match those in Request.
 DEFAULT_REQUEST_KEYS = {
     "client_timeout": ("client_timeout", 60),  # seconds
     "batch_size": ("batch_size", 8),
     "run_id": ("run_id", None),
-    "request_type": ("request_type", None),
 }
 
 
@@ -33,9 +34,6 @@ class Request(BaseModel):
 
     # Batch size for async batch run
     batch_size: int = 8
-
-    # Request type None is for completion. Used for scoring prompt
-    request_type: str = None
 
     def to_dict(
         self, allowable_keys: Dict[str, Tuple[str, Any]] = None, add_prompt: bool = True
@@ -78,6 +76,9 @@ class LMRequest(Request):
     # Top k sampling taking top_k highest probability tokens
     top_k: int = 50
 
+    # Logprobs return value
+    logprobs: Optional[int] = None
+
     # Stop sequences
     stop_sequences: Optional[List[str]] = None
 
@@ -100,6 +101,12 @@ class LMRequest(Request):
     frequency_penalty: float = 0
 
 
+class LMScoreRequest(LMRequest):
+    """Language Model Score Request object."""
+
+    pass
+
+
 class EmbeddingRequest(Request):
     """Embedding Request object."""
 
@@ -108,9 +115,6 @@ class EmbeddingRequest(Request):
 
 class DiffusionRequest(Request):
     """Diffusion Model Request object."""
-
-    # Request type
-    request_type: str = "diffusion"
 
     # Number of steps
     num_inference_steps: int = 50

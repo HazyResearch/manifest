@@ -4,7 +4,7 @@ from typing import Any, Dict, Type, Union
 
 from manifest.caches.serializers import ArraySerializer, NumpyByteSerializer, Serializer
 from manifest.request import DiffusionRequest, EmbeddingRequest, LMRequest, Request
-from manifest.response import RESPONSE_CONSTRUCTORS, Response
+from manifest.response import Response
 
 # Non-text return type caches
 ARRAY_CACHE_TYPES = {EmbeddingRequest, DiffusionRequest}
@@ -119,14 +119,9 @@ class Cache(ABC):
         key = self.serializer.request_to_key(request)
         cached_response = self.get_key(key)
         if cached_response:
-            cached = True
             response = self.serializer.key_to_response(cached_response)
-            return Response(
-                response,
-                cached,
-                request,
-                **RESPONSE_CONSTRUCTORS.get(self.request_type, {}),
-            )
+            response["cached"] = True
+            return Response.from_dict(response, request_dict=request)
         return None
 
     def set(self, request: Dict, response: Dict) -> None:

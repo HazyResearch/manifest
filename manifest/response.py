@@ -1,21 +1,25 @@
 """Client response."""
 import copy
 import json
-from typing import Any, Dict, List, Union
+from typing import Any, Dict, List, Optional, Type, Union, cast
 
 import numpy as np
+from pydantic import BaseModel
 
-from manifest.request import DiffusionRequest, EmbeddingRequest
+from manifest.request import (
+    ENGINE_SEP,
+    DiffusionRequest,
+    EmbeddingRequest,
+    LMRequest,
+    LMScoreRequest,
+    Request,
+)
 
-RESPONSE_CONSTRUCTORS = {
-    EmbeddingRequest: {
-        "logits_key": "token_logprobs",
-        "item_key": "array",
-    },
-    DiffusionRequest: {
-        "logits_key": "token_logprobs",
-        "item_key": "array",
-    },
+RESPONSE_CONSTRUCTORS: Dict[Type[Request], Dict[str, Union[str, Type[Request]]]] = {
+    LMRequest: {"response_type": "text", "request_type": LMRequest},
+    LMScoreRequest: {"response_type": "text", "request_type": LMScoreRequest},
+    EmbeddingRequest: {"response_type": "array", "request_type": EmbeddingRequest},
+    DiffusionRequest: {"response_type": "array", "request_type": DiffusionRequest},
 }
 
 
@@ -29,94 +33,114 @@ class NumpyArrayEncoder(json.JSONEncoder):
         return json.JSONEncoder.default(self, obj)
 
 
+class Usage(BaseModel):
+    """Prompt usage class."""
+
+    completion_tokens: int = 0
+    prompt_tokens: int = 0
+    total_tokens: int = 0
+
+
+class Usages(BaseModel):
+    """Prompt usage class."""
+
+    usages: List[Usage]
+
+
+class LMModelChoice(BaseModel):
+    """Model single completion."""
+
+    text: str
+    token_logprobs: Optional[List[float]] = None
+    tokens: Optional[List[int]] = None
+
+
+class ArrayModelChoice(BaseModel):
+    """Model single completion."""
+
+    array: np.ndarray
+    token_logprobs: Optional[List[float]] = None
+
+    class Config:
+        """Pydantic config class."""
+
+        arbitrary_types_allowed = True
+
+
+class ModelChoices(BaseModel):
+    """Model choices."""
+
+    choices: List[Union[LMModelChoice, ArrayModelChoice]]
+
+
 class Response:
     """Response class."""
 
     def __init__(
         self,
-        response: Dict,  # TODO: make pydantic model
+        response: ModelChoices,
         cached: bool,
-        request_params: Dict,  # TODO: use request pydantic model
-        generation_key: str = "choices",
-        logits_key: str = "token_logprobs",
-        item_key: str = "text",
-        usage_key: str = "usage",
+        request: Request,
+        response_type: str,
+        request_type: Type[Request],
+        usages: Optional[Usages] = None,
     ):
         """
         Initialize response.
 
         Args:
             response: response dict.
+            usages: usage dict.
             cached: whether response is cached.
-            request_params: request parameters.
-            generation_key: key for generation results.
-            logits_key: key for logits.
-            item_key: key for item in the generations.
+            request: request.
+            response_type: response type.
+            request_type: request type.
         """
-        self.generation_key = generation_key
-        self.logits_key = logits_key
-        self.item_key = item_key
-        self.usage_key = usage_key
-        self.item_dtype = None
-        if isinstance(response, dict):
-            self._response = response
-        else:
-            raise ValueError(f"Response must be dict. Response is\n{response}.")
-        if (
-            (self.generation_key not in self._response)
-            or (not isinstance(self._response[self.generation_key], list))
-            or (len(self._response[self.generation_key]) <= 0)
-        ):
-            raise ValueError(
-                "Response must be serialized to a dict with a nonempty"
-                f" list of choices. Response is\n{self._response}."
-            )
-        # Turn off usage if it is not in response
-        if self.usage_key not in self._response:
-            self.usage_key = None
-        else:
-            if not isinstance(self._response[self.usage_key], list):
-                raise ValueError(
-                    "Response must be a list with usage dicts, one per choice."
-                    f" Response is\n{self._response}."
-                )
-
-        if self.item_key not in self._response[self.generation_key][0]:
-            raise ValueError(
-                "Response must be serialized to a dict with a "
-                f"list of choices with {self.item_key} field"
-            )
-        if (
-            self.logits_key in self._response[self.generation_key][0]
-            and self._response[self.generation_key][0][self.logits_key]
-        ):
-            if not isinstance(
-                self._response[self.generation_key][0][self.logits_key], list
-            ):
-                raise ValueError(
-                    f"{self.logits_key} must be a list of items "
-                    "one for each token in the choice."
-                )
-        if isinstance(
-            self._response[self.generation_key][0][self.item_key], np.ndarray
-        ):
-            self.item_dtype = str(
-                self._response[self.generation_key][0][self.item_key].dtype
-            )
+        self._item_dtype = None
+        self._response_type = response_type
+        if self._response_type not in {"array", "text"}:
+            raise ValueError(f"Invalid response type {self._response_type}")
+        self._request_type = request_type
+        self._response = response
+        self._usages = usages or Usages(usages=[])
         self._cached = cached
-        self._request_params = request_params
+        self._request = request
+        if self._response.choices:
+            if response_type == "array":
+                if not isinstance(self._response.choices[0], ArrayModelChoice):
+                    raise ValueError(
+                        "response_type is array but response is "
+                        f"{self._response.choices[0].__class__}"
+                    )
+                self._item_dtype = str(
+                    cast(ArrayModelChoice, self._response.choices[0]).array.dtype
+                )
+            else:
+                if not isinstance(self._response.choices[0], LMModelChoice):
+                    raise ValueError(
+                        "response_type is text but response is "
+                        f"{self._response.choices[0].__class__}"
+                    )
 
     def is_cached(self) -> bool:
         """Check if response is cached."""
         return self._cached
 
-    def get_request(self) -> Dict:
+    def get_request_obj(self) -> Request:
         """Get request parameters."""
-        return self._request_params
+        return self._request
+
+    def get_response_obj(self) -> ModelChoices:
+        """Get response object."""
+        return self._response
+
+    def get_usage_obj(self) -> Usages:
+        """Get usage object."""
+        return self._usages
 
     def get_json_response(self) -> Dict:
         """Get response dict without parsing."""
-        return self._response
+        return self._response.dict()
 
     def get_response(
         self, stop_token: str = "", is_batch: bool = False
@@ -132,7 +156,8 @@ class Response:
             lambda x: x.strip().split(stop_token)[0] if stop_token else x.strip()
         )
         extracted_items = [
-            choice[self.item_key] for choice in self._response[self.generation_key]
+            choice.text if isinstance(choice, LMModelChoice) else choice.array
+            for choice in self._response.choices
         ]
         if len(extracted_items) == 0:
             return None
@@ -153,25 +178,15 @@ class Response:
         if len(responses) == 1:
             return responses[0]
         first_response = responses[0]
-        generation_key = first_response.generation_key
-        logits_key = first_response.logits_key
-        item_key = first_response.item_key
-        # Usage key may be None, so get first not-None value
-        possible_usage_keys = [r.usage_key for r in responses if r.usage_key]
-        if possible_usage_keys:
-            usage_key = possible_usage_keys[0]
-        else:
-            usage_key = None
-        request = first_response._request_params
+        request_type = first_response._request_type
+        response_type = first_response._response_type
+        request = first_response.get_request_obj()
 
         # Make sure all responses have the same keys
         if not all(
             [
-                (r.generation_key == generation_key)
-                and (r.logits_key == logits_key)
-                and (r.item_key == item_key)
-                # Usage key can be empty
-                and (not r.usage_key or not usage_key or r.usage_key == usage_key)
+                (r._request_type == request_type)
+                and (r._response_type == response_type)
                 for r in responses
             ]
         ):
@@ -181,33 +196,31 @@ class Response:
         all_prompts = []
         all_choices = []
         all_usages = []
+        all_engines = []
         for res in responses:
-            json_response = res.get_json_response()
-            res_prompt = res.get_request()["prompt"]
+            all_engines.extend(res.get_request_obj().engine.split(ENGINE_SEP))
+            res_prompt = res.get_request_obj().prompt
             if isinstance(res_prompt, str):
                 res_prompt = [res_prompt]
             all_prompts.extend(res_prompt)
-            all_choices.extend(json_response[generation_key])
-            if usage_key and usage_key in json_response:
-                all_usages.extend(json_response[usage_key])
+            all_choices.extend(res.get_response_obj().choices)
+            if res.get_usage_obj().usages:
+                all_usages.extend(res.get_usage_obj().usages)
             else:
-                # Add empty usage
-                all_usages.extend([{}] * len(res_prompt))
+                # Add empty usages if not present
+                all_usages.extend([Usage()] * len(res_prompt))
         new_request = copy.deepcopy(request)
-        # TODO: add both models back in request. This should be a lot
-        # easier after I pydantic the response and request more formally
-        new_request["prompt"] = all_prompts
-        new_response = {generation_key: all_choices}
-        if usage_key:
-            new_response[usage_key] = all_usages
+        new_request.engine = ENGINE_SEP.join(sorted(set(all_engines)))
+        new_request.prompt = all_prompts
+        new_response = ModelChoices(choices=all_choices)
+        new_usages = Usages(usages=all_usages)
         response_obj = cls(
-            new_response,
+            response=new_response,
             cached=any(res.is_cached() for res in responses),
-            request_params=new_request,
-            generation_key=generation_key,
-            logits_key=logits_key,
-            item_key=item_key,
-            usage_key=usage_key,
+            request=new_request,
+            usages=new_usages,
+            request_type=request_type,
+            response_type=response_type,
         )
         return response_obj
 
@@ -232,56 +245,74 @@ class Response:
             serialized response.
         """
         deserialized = json.loads(value)
-        item_dtype = deserialized["item_dtype"]
-        if item_dtype:
-            for choice in deserialized["response"][deserialized["generation_key"]]:
-                choice[deserialized["item_key"]] = np.array(
-                    choice[deserialized["item_key"]]
-                ).astype(item_dtype)
-        return cls(
-            deserialized["response"],
-            deserialized["cached"],
-            deserialized["request_params"],
-            generation_key=deserialized["generation_key"],
-            logits_key=deserialized["logits_key"],
-            item_key=deserialized["item_key"],
-        )
+        return cls.from_dict(deserialized)
 
-    def to_dict(self) -> Dict:
+    def to_dict(self, drop_request: bool = False) -> Dict:
         """
         Get dictionary representation of response.
 
         Returns:
             dictionary representation of response.
         """
-        return {
-            "generation_key": self.generation_key,
-            "logits_key": self.logits_key,
-            "item_key": self.item_key,
-            "item_dtype": self.item_dtype,
-            "response": self._response,
+        to_return = {
+            "response": self._response.dict(),
+            "usages": self._usages.dict(),
             "cached": self._cached,
-            "request_params": self._request_params,
+            "request": self._request.dict(),
+            "response_type": self._response_type,
+            "request_type": str(self._request_type.__name__),
+            "item_dtype": self._item_dtype,
         }
+        if drop_request:
+            to_return.pop("request")
+        return to_return
 
     @classmethod
-    def from_dict(cls, response: Dict) -> "Response":
+    def from_dict(
+        cls, response_dict: Dict, request_dict: Optional[Dict] = None
+    ) -> "Response":
         """
         Create response from dictionary.
 
         Args:
             response: dictionary representation of response.
+            request_dict: dictionary representation of request which
+              will override what is in response_dict.
 
         Returns:
             response.
         """
+        if "request" not in response_dict and request_dict is None:
+            raise ValueError(
+                "Request dictionary must be provided if "
+                "request is not in response dictionary."
+            )
+        item_dtype = response_dict["item_dtype"]
+        response_type = response_dict["response_type"]
+        if response_dict["request_type"] == "LMRequest":
+            request_type: Type[Request] = LMRequest
+        elif response_dict["request_type"] == "LMScoreRequest":
+            request_type = LMScoreRequest
+        elif response_dict["request_type"] == "EmbeddingRequest":
+            request_type = EmbeddingRequest
+        elif response_dict["request_type"] == "DiffusionRequest":
+            request_type = DiffusionRequest
+        choices: List[Union[LMModelChoice, ArrayModelChoice]] = []
+        if item_dtype and response_type == "array":
+            for choice in response_dict["response"]["choices"]:
+                choice["array"] = np.array(choice["array"]).astype(item_dtype)
+                choices.append(ArrayModelChoice(**choice))
+        else:
+            for choice in response_dict["response"]["choices"]:
+                choices.append(LMModelChoice(**choice))
+        response = ModelChoices(choices=choices)
         return cls(
-            response["response"],
-            response["cached"],
-            response["request_params"],
-            generation_key=response["generation_key"],
-            logits_key=response["logits_key"],
-            item_key=response["item_key"],
+            response=response,
+            usages=Usages(**response_dict["usages"]),
+            cached=response_dict["cached"],
+            request=request_type(**(request_dict or response_dict["request"])),
+            response_type=response_type,
+            request_type=request_type,
         )
 
     def __str__(self) -> str:
