@@ -46,13 +46,13 @@ def test_timing() -> None:
     client_connection2 = ClientConnection(client_name="dummy")
     connection_pool = ClientConnectionPool([client_connection1, client_connection2])
 
-    connection_pool.get_client()
+    connection_pool.get_next_client()
     assert connection_pool.current_client_id == 0
     connection_pool.start_timer()
     time.sleep(2)
     connection_pool.end_timer()
 
-    connection_pool.get_client()
+    connection_pool.get_next_client()
     assert connection_pool.current_client_id == 1
     connection_pool.start_timer()
     time.sleep(1)
