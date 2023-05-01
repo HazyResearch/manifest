@@ -392,6 +392,58 @@ def test_abatch_run(sqlite_cache: str) -> None:
 
 
 @pytest.mark.usefixtures("sqlite_cache")
+def test_run_chat(sqlite_cache: str) -> None:
+    """Test manifest run."""
+    manifest = Manifest(
+        client_name="dummy",
+        cache_name="sqlite",
+        cache_connection=sqlite_cache,
+    )
+
+    prompt = [
+        {"role": "system", "content": "Hello."},
+    ]
+    result = manifest.run_chat(prompt, return_response=False)
+    assert result == "Hello."
+    assert (
+        manifest.cache.get(
+            {
+                "prompt": [{"content": "Hello.", "role": "system"}],
+                "engine": "dummy",
+                "num_results": 1,
+                "request_cls": "LMChatRequest",
+            },
+        )
+        is not None
+    )
+
+    prompt = [
+        {"role": "system", "content": "Hello."},
+        {"role": "user", "content": "Goodbye?"},
+    ]
+    result = manifest.run_chat(prompt, return_response=True)
+    assert isinstance(result, Response)
+    result = cast(Response, result)
+    assert len(result.get_usage_obj().usages) == len(result.get_response_obj().choices)
+    res = result.get_response()
+    assert res == "Hello."
+    assert (
+        manifest.cache.get(
+            {
+                "prompt": [
+                    {"role": "system", "content": "Hello."},
+                    {"role": "user", "content": "Goodbye?"},
+                ],
+                "engine": "dummy",
+                "num_results": 1,
+                "request_cls": "LMChatRequest",
+            },
+        )
+        is not None
+    )
+
+
+@pytest.mark.usefixtures("sqlite_cache")
 def test_score_run(sqlite_cache: str) -> None:
     """Test manifest run."""
     manifest = Manifest(
@@ -787,6 +839,32 @@ def test_openaichat(sqlite_cache: str) -> None:
         Response, client.run("Why are there oranges?", return_response=True)
     )
     assert response.is_cached() is True
+
+    chat_dict = [
+        {"role": "system", "content": "You are a helpful assistant."},
+        {"role": "user", "content": "Who won the world series in 2020?"},
+        {
+            "role": "assistant",
+            "content": "The Los Angeles Dodgers won the World Series in 2020.",
+        },
+        {"role": "user", "content": "Where was it played?"},
+    ]
+    res = client.run_chat(chat_dict)
+    assert isinstance(res, str) and len(res) > 0
+    response = cast(Response, client.run_chat(chat_dict, return_response=True))
+    assert response.is_cached() is True
+    assert response.get_usage_obj().usages[0].total_tokens == 67
+    chat_dict = [
+        {"role": "system", "content": "You are a helpful assistanttttt."},
+        {"role": "user", "content": "Who won the world series in 2020?"},
+        {
+            "role": "assistant",
+            "content": "The Los Angeles Dodgers won the World Series in 2020.",
+        },
+        {"role": "user", "content": "Where was it played?"},
+    ]
+    response = cast(Response, client.run_chat(chat_dict, return_response=True))
+    assert response.is_cached() is False
 
 
 @pytest.mark.skipif(not OPENAI_ALIVE, reason="No openai key set")

@@ -1,5 +1,8 @@
 0.1.5 - Unreleased
 ---------------------
+Added
+^^^^^
+* Added chat input for chat models.
 
 0.1.4 - 2022-04-24
 ---------------------

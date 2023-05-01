@@ -80,7 +80,7 @@ class HuggingFaceClient(Client):
         res["client_name"] = self.NAME
         return res
 
-    def get_score_prompt_request(
+    def run_score_prompt_request(
         self,
         request: LMScoreRequest,
     ) -> Response:

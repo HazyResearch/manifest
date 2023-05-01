@@ -13,6 +13,7 @@ from tenacity import RetryCallState, retry, stop_after_attempt, wait_random_expo
 from manifest.request import (
     DEFAULT_REQUEST_KEYS,
     NOT_CACHE_KEYS,
+    LMChatRequest,
     LMScoreRequest,
     Request,
 )
@@ -308,7 +309,7 @@ class Client(ABC):
 
     def run_request(self, request: Request) -> Response:
         """
-        Get request string function.
+        Run request.
 
         Args:
             request: request.
@@ -342,7 +343,7 @@ class Client(ABC):
 
     async def arun_batch_request(self, request: Request) -> Response:
         """
-        Get async request string function.
+        Run async request.
 
         Args:
             request: request.
@@ -396,7 +397,39 @@ class Client(ABC):
             **RESPONSE_CONSTRUCTORS[self.REQUEST_CLS],  # type: ignore
         )
 
-    def get_score_prompt_request(
+    def run_chat_request(
+        self,
+        request: LMChatRequest,
+    ) -> Response:
+        """
+        Get the response from chat model.
+
+        Args:
+            request: request.
+
+        Returns:
+            response.
+        """
+        request_params = self.get_request_params(request)
+        # Take the default keys we need and drop the rest as they
+        # are not part of the model request.
+        retry_timeout = request_params.pop("client_timeout")
+        for key in DEFAULT_REQUEST_KEYS:
+            request_params.pop(key, None)
+        response_dict = self._run_completion(request_params, retry_timeout)
+        usages = None
+        if "usage" in response_dict:
+            usages = [Usage(**usage) for usage in response_dict["usage"]]
+
+        return Response(
+            response=self.get_model_choices(response_dict),
+            cached=False,
+            request=request,
+            usages=Usages(usages=usages) if usages else None,
+            **RESPONSE_CONSTRUCTORS[LMChatRequest],  # type: ignore
+        )
+
+    def run_score_prompt_request(
         self,
         request: LMScoreRequest,
     ) -> Response:
@@ -407,8 +440,7 @@ class Client(ABC):
             request: request.
 
         Returns:
-            request function that takes no input.
-            request parameters as dict.
+            response.
         """
         raise NotImplementedError(
             f"{self.__class__.__name__} does not support prompt scoring request."

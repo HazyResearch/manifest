@@ -17,7 +17,7 @@ from manifest.connections.client_pool import (
     ClientConnection,
     ClientConnectionPool,
 )
-from manifest.request import LMScoreRequest, Request
+from manifest.request import LMChatRequest, LMScoreRequest, Request
 from manifest.response import ModelChoices, Response, Usage, Usages
 
 logging.getLogger("openai").setLevel(logging.WARNING)
@@ -142,7 +142,9 @@ class Manifest:
         cached_idx_to_response: Dict[int, Response] = {}
         new_request = copy.deepcopy(request)
         if not overwrite_cache:
-            if isinstance(new_request.prompt, list):
+            if isinstance(new_request.prompt, list) and not isinstance(
+                request, LMChatRequest
+            ):
                 new_request.prompt = []
                 for idx, prompt_str in enumerate(request.prompt):
                     single_request = copy.deepcopy(request)
@@ -154,11 +156,21 @@ class Manifest:
                         cached_idx_to_response[idx] = possible_response
                     else:
                         new_request.prompt.append(prompt_str)
-            else:
+            # Chat or single string requests are not broken down into
+            # subprompts for caching.
+            elif (isinstance(new_request.prompt, str)) or (
+                isinstance(new_request.prompt, list)
+                and isinstance(request, LMChatRequest)
+            ):
                 possible_response = self.cache.get(client.get_cache_key(new_request))
                 if possible_response:
                     cached_idx_to_response[0] = possible_response
                     new_request.prompt = None
+            else:
+                raise ValueError(
+                    f"Invalid prompt type: {type(new_request.prompt)}"
+                    f" with request type: {type(request)}"
+                )
         return cached_idx_to_response, new_request
 
     def _stitch_responses_and_cache(
@@ -173,16 +185,28 @@ class Manifest:
         # cached entries.
         all_model_choices = []
         all_usages = []
-        all_input_prompts = []
+        all_input_prompts: List[Union[str, List[str], List[Dict]]] = []
         response_idx = 0
         number_prompts = len(cached_idx_to_response)
-        single_output = False
+        single_completion_output = False
         if response:
             if isinstance(response.get_request_obj().prompt, str):
-                single_output = True
+                single_completion_output = True
+                number_prompts += 1
+            elif isinstance(response.get_request_obj().prompt, list) and not isinstance(
+                request, LMChatRequest
+            ):
+                number_prompts += len(response.get_request_obj().prompt)
+            elif isinstance(response.get_request_obj().prompt, list) and isinstance(
+                request, LMChatRequest
+            ):
+                assert len(cached_idx_to_response) <= 1
                 number_prompts += 1
             else:
-                number_prompts += len(response.get_request_obj().prompt)
+                raise ValueError(
+                    f"Invalid prompt type: {type(response.get_request_obj().prompt)}"
+                    f" with request type: {type(request)}"
+                )
         response_type = None
         request_type: Type[Request] = None
         for idx in range(number_prompts):
@@ -210,10 +234,24 @@ class Manifest:
                 ]
                 all_model_choices.extend(current_choices)
 
-                if isinstance(response.get_request_obj().prompt, list):
-                    prompt = response.get_request_obj().prompt[response_idx]
+                if isinstance(
+                    response.get_request_obj().prompt, list
+                ) and not isinstance(request, LMChatRequest):
+                    prompt: Union[
+                        str, List[str], List[Dict]
+                    ] = response.get_request_obj().prompt[response_idx]
+                # Chat request
+                elif isinstance(response.get_request_obj().prompt, list) and isinstance(
+                    request, LMChatRequest
+                ):
+                    # We will only have response_idx == 0 here as we can only
+                    # support single chat requests.
+                    assert request.n == 1
+                    assert number_prompts <= 1
+                    prompt = response.get_request_obj().prompt
                 else:
                     prompt = str(response.get_request_obj().prompt)
+
                 usages: Optional[List[Usage]] = None
                 if response.get_usage_obj().usages:
                     usages = response.get_usage_obj().usages[
@@ -223,7 +261,7 @@ class Manifest:
                 all_input_prompts.append(prompt)
                 # set cache
                 new_request = copy.deepcopy(request)
-                new_request.prompt = prompt
+                new_request.prompt = prompt  # type: ignore
                 cache_key = client.get_cache_key(new_request)
                 new_response = copy.deepcopy(response)
                 new_response._response.choices = current_choices
@@ -234,7 +272,7 @@ class Manifest:
         new_request = copy.deepcopy(request)
         new_request.prompt = (
             all_input_prompts  # type: ignore
-            if len(all_input_prompts) > 1 or not single_output
+            if len(all_input_prompts) > 1 or not single_completion_output
             else all_input_prompts[0]
         )
         response_obj = Response(
@@ -426,6 +464,67 @@ class Manifest:
         )
         return final_response
 
+    def run_chat(
+        self,
+        prompt: List[Dict[str, str]],
+        overwrite_cache: bool = False,
+        return_response: bool = False,
+        **kwargs: Any,
+    ) -> Union[str, Response]:
+        """
+        Run the prompt.
+
+        Args:
+            prompt: prompt dictionary to run.
+            overwrite_cache: whether to overwrite cache.
+            stop_token: stop token for prompt generation.
+                        Default is self.stop_token.
+                        "" for no stop token.
+            return_response: whether to return Response object.
+
+        Returns:
+            response from prompt.
+        """
+        is_batch = False
+        # Get the client to run
+        client = self.client_pool.get_client()
+        # Get a request for an empty prompt to handle all kwargs
+        request_params = client.get_request("", kwargs)
+        # Add prompt and cast as chat request
+        request_params_dict = request_params.to_dict()
+        request_params_dict["prompt"] = prompt
+        request_params_as_chat = LMChatRequest(**request_params_dict)
+        # Avoid nested list of results - enforce n = 1 for batch
+        if request_params_as_chat.n > 1:
+            raise ValueError("Chat mode does not support n > 1.")
+        self._validate_kwargs(kwargs, request_params_as_chat)
+
+        cached_idx_to_response, request_params_as_chat = self._split_cached_requests(  # type: ignore # noqa: E501
+            request_params_as_chat, client, overwrite_cache
+        )
+        # If not None value or empty list - run new request
+        if request_params_as_chat.prompt:
+            # Start timing metrics
+            self.client_pool.start_timer()
+            response = client.run_chat_request(request_params_as_chat)
+            self.client_pool.end_timer()
+        else:
+            # Nothing to run
+            response = None
+
+        final_response = self._stitch_responses_and_cache(
+            request=request_params_as_chat,
+            client=client,
+            response=response,
+            cached_idx_to_response=cached_idx_to_response,
+        )
+
+        # Extract text results
+        if return_response:
+            return final_response
+        else:
+            return cast(str, final_response.get_response("", is_batch))
+
     def score_prompt(
         self,
         prompt: Union[str, List[str]],
@@ -459,7 +558,7 @@ class Manifest:
         # If not None value or empty list - run new request
         if request_params_as_score.prompt:
             try:
-                response = cast(HuggingFaceClient, client).get_score_prompt_request(
+                response = cast(HuggingFaceClient, client).run_score_prompt_request(
                     request_params_as_score
                 )
             except AttributeError:

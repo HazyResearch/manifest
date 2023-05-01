@@ -10,6 +10,7 @@ from manifest.request import (
     ENGINE_SEP,
     DiffusionRequest,
     EmbeddingRequest,
+    LMChatRequest,
     LMRequest,
     LMScoreRequest,
     Request,
@@ -17,6 +18,7 @@ from manifest.request import (
 
 RESPONSE_CONSTRUCTORS: Dict[Type[Request], Dict[str, Union[str, Type[Request]]]] = {
     LMRequest: {"response_type": "text", "request_type": LMRequest},
+    LMChatRequest: {"response_type": "text", "request_type": LMChatRequest},
     LMScoreRequest: {"response_type": "text", "request_type": LMScoreRequest},
     EmbeddingRequest: {"response_type": "array", "request_type": EmbeddingRequest},
     DiffusionRequest: {"response_type": "array", "request_type": DiffusionRequest},
@@ -291,6 +293,8 @@ class Response:
         response_type = response_dict["response_type"]
         if response_dict["request_type"] == "LMRequest":
             request_type: Type[Request] = LMRequest
+        elif response_dict["request_type"] == "LMChatRequest":
+            request_type = LMChatRequest
         elif response_dict["request_type"] == "LMScoreRequest":
             request_type = LMScoreRequest
         elif response_dict["request_type"] == "EmbeddingRequest":

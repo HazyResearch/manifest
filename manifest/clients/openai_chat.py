@@ -92,10 +92,23 @@ class OpenAIChatClient(OpenAIClient):
         request_params = copy.deepcopy(request_params)
         prompt = request_params.pop("prompt")
         if isinstance(prompt, str):
-            prompt_list = [prompt]
-        else:
+            messages = [{"role": "user", "content": prompt}]
+        elif isinstance(prompt, list) and isinstance(prompt[0], str):
             prompt_list = prompt
-        messages = [{"role": "user", "content": prompt} for prompt in prompt_list]
+            messages = [{"role": "user", "content": prompt} for prompt in prompt_list]
+        elif isinstance(prompt, list) and isinstance(prompt[0], dict):
+            for pmt_dict in prompt:
+                if "role" not in pmt_dict or "content" not in pmt_dict:
+                    raise ValueError(
+                        "Prompt must be list of dicts with 'role' and 'content' "
+                        f"keys. Got {prompt}."
+                    )
+            messages = prompt
+        else:
+            raise ValueError(
+                "Prompt must be string, list of strings, or list of dicts."
+                f"Got {prompt}"
+            )
         request_params["messages"] = messages
         return request_params
 
