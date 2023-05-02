@@ -3,7 +3,7 @@ import logging
 from typing import Any, Dict, Optional
 
 from manifest.clients.client import Client
-from manifest.request import LMRequest, LMScoreRequest, Request
+from manifest.request import LMChatRequest, LMRequest, LMScoreRequest, Request
 from manifest.response import LMModelChoice, ModelChoices, Response, Usage, Usages
 
 logger = logging.getLogger(__name__)
@@ -123,7 +123,53 @@ class DummyClient(Client):
         """
         return self.run_request(request)
 
-    def get_score_prompt_request(
+    def run_chat_request(
+        self,
+        request: LMChatRequest,
+    ) -> Response:
+        """
+        Get the response from chat model.
+
+        Args:
+            request: request.
+
+        Returns:
+            response.
+        """
+        num_results = 1
+        response_dict = {
+            "choices": [
+                {
+                    "text": request.prompt[0]["content"],
+                }
+                for i in range(num_results)
+            ]
+        }
+        return Response(
+            response=ModelChoices(
+                choices=[
+                    LMModelChoice(**choice)  # type: ignore
+                    for choice in response_dict["choices"]
+                ]
+            ),
+            cached=False,
+            request=request,
+            usages=Usages(
+                usages=[
+                    Usage(
+                        **{
+                            "prompt_tokens": 1,
+                            "completion_tokens": 1,
+                            "total_tokens": 2,
+                        }
+                    )
+                ]
+            ),
+            response_type="text",
+            request_type=LMChatRequest,
+        )
+
+    def run_score_prompt_request(
         self,
         request: LMScoreRequest,
     ) -> Response:

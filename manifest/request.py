@@ -101,6 +101,12 @@ class LMRequest(Request):
     frequency_penalty: float = 0
 
 
+class LMChatRequest(LMRequest):
+    """Language Model Chat Request object."""
+
+    prompt: List[Dict[str, str]] = {}  # type: ignore
+
+
 class LMScoreRequest(LMRequest):
     """Language Model Score Request object."""
 

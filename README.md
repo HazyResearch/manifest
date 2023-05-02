@@ -7,6 +7,7 @@ How to make prompt programming with Foundation Models a little easier.
 - [Getting Started](#getting-started)
 - [Manifest](#manifest-components)
 - [Local HuggingFace Models](#local-huggingface-models)
+- [Chat Models](#chat-models)
 - [Embedding Models](#embedding-models)
 - [Road Map](#road-map)
 - [Development](#development)
@@ -79,8 +80,8 @@ You can also just set `export COHERE_API_KEY=<COHERE_API_KEY>` and not use `clie
 
 You can see the model details and possible model inputs to `run()` via
 ```python
-print(manifest.client.get_model_params())
-print(manifest.client.get_model_inputs())
+print(manifest.client_pool.get_client().get_model_params())
+print(manifest.client_pool.get_client().get_model_inputs())
 ```
 
 ## Global Cache
@@ -214,6 +215,18 @@ python3 -m manifest.api.app \
     --model_name_or_path bigscience/bloom \
     --use_bitsandbytes \
     --percent_max_gpu_mem_reduction 0.85
+```
+
+# Chat Models
+Manifest has specific support for executing against chat models in the more standard "system" / "user" dialogue. To pass in a dialogue history to Manifest, you must use the `run_chat` command with an associated chat model such as `openaichat`.
+
+```python
+manifest = Manifest(client_name="openaichat")
+dialogue = [
+    {"role": "system", "content": "You are a helpful assistant who also responds in rhymes"},
+    {"role": "user", "content": "What is the date?"},
+]
+res = manifest.run_chat(dialogue, max_tokens=100)
 ```
 
 # Embedding Models
