@@ -309,7 +309,7 @@ class Manifest:
         """
         is_batch = isinstance(prompt, list)
         # Get the client to run
-        client = self.client_pool.get_client()
+        client = self.client_pool.get_next_client()
         stop_token = stop_token if stop_token is not None else self.stop_token
         # Must pass kwargs as dict for client "pop" methods removed used arguments
         request_params = client.get_request(prompt, kwargs)
@@ -386,10 +386,10 @@ class Manifest:
         if chunk_size > 0:
             for i in range(0, len(prompts), chunk_size):
                 prompt_chunks.append(
-                    (self.client_pool.get_client(), prompts[i : i + chunk_size])
+                    (self.client_pool.get_next_client(), prompts[i : i + chunk_size])
                 )
         else:
-            prompt_chunks = [(self.client_pool.get_client(), prompts)]
+            prompt_chunks = [(self.client_pool.get_next_client(), prompts)]
 
         # Run the chunks
         tasks = []
@@ -487,7 +487,7 @@ class Manifest:
         """
         is_batch = False
         # Get the client to run
-        client = self.client_pool.get_client()
+        client = self.client_pool.get_next_client()
         # Get a request for an empty prompt to handle all kwargs
         request_params = client.get_request("", kwargs)
         # Add prompt and cast as chat request
@@ -543,7 +543,7 @@ class Manifest:
         Returns:
             response from prompt.
         """
-        client = self.client_pool.get_client()
+        client = self.client_pool.get_next_client()
         # Must pass kwargs as dict for client "pop" methods removed used arguments
         request_params = client.get_request(prompt, kwargs)
         request_params_as_score = LMScoreRequest(**request_params.to_dict())

@@ -158,11 +158,19 @@ class ClientConnectionPool:
         for client in self.client_pool:
             client.close()
 
-    def get_client(self) -> Client:
+    def num_clients(self) -> int:
+        """Get number of clients."""
+        return len(self.client_pool)
+
+    def get_next_client(self) -> Client:
         """Get client."""
         client_int = self.scheduler.get_client()
         self.current_client_id = client_int
         return self.client_pool[client_int]
+
+    def get_current_client(self) -> Client:
+        """Get current client."""
+        return self.client_pool[self.current_client_id]
 
     def start_timer(self) -> None:
         """Start timer."""

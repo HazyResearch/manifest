@@ -80,8 +80,8 @@ You can also just set `export COHERE_API_KEY=<COHERE_API_KEY>` and not use `clie
 
 You can see the model details and possible model inputs to `run()` via
 ```python
-print(manifest.client_pool.get_client().get_model_params())
-print(manifest.client_pool.get_client().get_model_inputs())
+print(manifest.client_pool.get_current_client().get_model_params())
+print(manifest.client_pool.get_current_client().get_model_inputs())
 ```
 
 ## Global Cache

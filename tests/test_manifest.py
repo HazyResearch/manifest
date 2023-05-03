@@ -43,7 +43,7 @@ def test_init(sqlite_cache: str) -> None:
         cache_connection=sqlite_cache,
     )
     assert len(manifest.client_pool.client_pool) == 1
-    client = manifest.client_pool.get_client()
+    client = manifest.client_pool.get_next_client()
     assert isinstance(client, DummyClient)
     assert isinstance(manifest.cache, SQLiteCache)
     assert client.n == 1  # type: ignore
@@ -56,7 +56,7 @@ def test_init(sqlite_cache: str) -> None:
         stop_token="\n",
     )
     assert len(manifest.client_pool.client_pool) == 1
-    client = manifest.client_pool.get_client()
+    client = manifest.client_pool.get_next_client()
     assert isinstance(client, DummyClient)
     assert isinstance(manifest.cache, NoopCache)
     assert client.n == 3  # type: ignore
@@ -81,7 +81,7 @@ def test_run(sqlite_cache: str, n: int, return_response: bool) -> None:
     assert str(exc_info.value) == "[('bad_input', 5)] arguments are not recognized."
 
     # Allow params in the request object but not in the client to go through
-    assert "top_k" not in manifest.client_pool.get_client().PARAMS
+    assert "top_k" not in manifest.client_pool.get_next_client().PARAMS
     result = manifest.run(prompt, return_response=return_response, top_k=5)
     assert result is not None
 
