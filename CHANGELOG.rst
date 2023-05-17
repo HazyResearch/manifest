@@ -1,17 +1,20 @@
 0.1.6 - Unreleased
 ---------------------
+
+0.1.7 - 2023-05-16
+---------------------
 Fixed
 ^^^^^
 * Unified `run` and `run_chat` methods so it's just `run` now.
 * LLama HF models for eval
 
-0.1.5 - 2022-05-03
+0.1.5 - 2023-05-03
 ---------------------
 Added
 ^^^^^
 * Added chat input for chat models.
 
-0.1.4 - 2022-04-24
+0.1.4 - 2023-04-24
 ---------------------
 Added
 ^^^^^
