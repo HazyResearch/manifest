@@ -48,7 +48,8 @@ EXTRAS = {
         "Flask>=2.1.2",
         "sentence_transformers>=2.2.0",
         "torch>=1.8.0",
-        "transformers>=4.20.0,<4.26.0",
+        "transformers>=4.29.0,<4.31.0",
+        "tokenizers>=0.13.3",
     ],
     "app": [
         "fastapi>=0.70.0",
