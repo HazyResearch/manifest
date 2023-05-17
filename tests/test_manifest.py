@@ -1161,12 +1161,12 @@ def test_retry_handling() -> None:
         # Assert that OpenAI client was called twice
         assert mock_create.call_count == 2
 
-    # Now make sure it errors when not a 429
+    # Now make sure it errors when not a 429 or 500
     mock_create = MagicMock(
         side_effect=[
-            # raise a 500 error
+            # raise a 505 error
             HTTPError(
-                response=Mock(status_code=500, json=Mock(return_value={})),
+                response=Mock(status_code=505, json=Mock(return_value={})),
                 request=Mock(),
             ),
         ]
