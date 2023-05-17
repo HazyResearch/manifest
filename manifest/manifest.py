@@ -335,6 +335,7 @@ class Manifest:
                 client=client,
                 overwrite_cache=overwrite_cache,
                 return_response=return_response,
+                **kwargs,
             )
         else:
             return self._run(
