@@ -218,7 +218,7 @@ python3 -m manifest.api.app \
 ```
 
 # Chat Models
-Manifest has specific support for executing against chat models in the more standard "system" / "user" dialogue. To pass in a dialogue history to Manifest, you must use the `run_chat` command with an associated chat model such as `openaichat`.
+Manifest has specific support for executing against chat models in the more standard "system" / "user" dialogue. To pass in a dialogue history to Manifest, use the `run` command with a list of dictionary inputs with `role` and `content` keys using an associated chat model such as `openaichat`.
 
 ```python
 manifest = Manifest(client_name="openaichat")
@@ -226,7 +226,7 @@ dialogue = [
     {"role": "system", "content": "You are a helpful assistant who also responds in rhymes"},
     {"role": "user", "content": "What is the date?"},
 ]
-res = manifest.run_chat(dialogue, max_tokens=100)
+res = manifest.run(dialogue, max_tokens=100)
 ```
 
 # Embedding Models

@@ -29,6 +29,7 @@ class OpenAIChatClient(OpenAIClient):
     }
     REQUEST_CLS = LMRequest
     NAME = "openaichat"
+    IS_CHAT = True
 
     def connect(
         self,
