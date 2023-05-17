@@ -37,7 +37,8 @@ def retry_if_ratelimit(retry_base: RetryCallState) -> bool:
             exception = cast(
                 requests.exceptions.HTTPError, retry_base.outcome.exception()
             )
-            if exception.response.status_code == 429:  # type: ignore
+            # 500 is a server error, 429 is a rate limit error
+            if exception.response.status_code in {429, 500}:  # type: ignore
                 return True
     except Exception:
         pass
