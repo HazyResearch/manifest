@@ -399,11 +399,13 @@ def test_run_chat(sqlite_cache: str) -> None:
         cache_name="sqlite",
         cache_connection=sqlite_cache,
     )
+    # Set CHAT to be true for this model
+    manifest.client_pool.client_pool[0].IS_CHAT = True
 
     prompt = [
         {"role": "system", "content": "Hello."},
     ]
-    result = manifest.run_chat(prompt, return_response=False)
+    result = manifest.run(prompt, return_response=False)
     assert result == "Hello."
     assert (
         manifest.cache.get(
@@ -421,7 +423,7 @@ def test_run_chat(sqlite_cache: str) -> None:
         {"role": "system", "content": "Hello."},
         {"role": "user", "content": "Goodbye?"},
     ]
-    result = manifest.run_chat(prompt, return_response=True)
+    result = manifest.run(prompt, return_response=True)
     assert isinstance(result, Response)
     result = cast(Response, result)
     assert len(result.get_usage_obj().usages) == len(result.get_response_obj().choices)
@@ -849,9 +851,9 @@ def test_openaichat(sqlite_cache: str) -> None:
         },
         {"role": "user", "content": "Where was it played?"},
     ]
-    res = client.run_chat(chat_dict)
+    res = client.run(chat_dict)
     assert isinstance(res, str) and len(res) > 0
-    response = cast(Response, client.run_chat(chat_dict, return_response=True))
+    response = cast(Response, client.run(chat_dict, return_response=True))
     assert response.is_cached() is True
     assert response.get_usage_obj().usages[0].total_tokens == 67
     chat_dict = [
@@ -863,7 +865,7 @@ def test_openaichat(sqlite_cache: str) -> None:
         },
         {"role": "user", "content": "Where was it played?"},
     ]
-    response = cast(Response, client.run_chat(chat_dict, return_response=True))
+    response = cast(Response, client.run(chat_dict, return_response=True))
     assert response.is_cached() is False
 
 

@@ -51,6 +51,7 @@ class Client(ABC):
     PARAMS: Dict[str, Tuple[str, Any]] = {}
     REQUEST_CLS = Request
     NAME: str = None
+    IS_CHAT: bool = False
 
     def __init__(
         self, connection_str: Optional[str] = None, client_args: Dict[str, Any] = {}
