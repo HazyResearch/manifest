@@ -511,7 +511,7 @@ class Manifest:
         if not isinstance(prompts[0], str):
             raise ValueError("Prompts must be a list of strings.")
 
-        # Split the prompts into chunks
+        # Split the prompts into chunks for connection pool
         prompt_chunks: List[Tuple[Client, List[str]]] = []
         if chunk_size > 0:
             for i in range(0, len(prompts), chunk_size):
@@ -534,7 +534,6 @@ class Manifest:
                     )
                 )
             )
-        print(f"Running {len(tasks)} tasks across all clients.")
         logger.info(f"Running {len(tasks)} tasks across all clients.")
         responses = await asyncio.gather(*tasks)
         final_response = Response.union_all(responses)

@@ -1,5 +1,13 @@
 0.1.8 - Unreleased
 ---------------------
+Added
+^^^^^
+* Azure model support
+* Google Vertex API model support
+
+Fixed
+^^^^^
+* `run` with batches now acts the same as async run except not async. We will batch requests into appropriate batchs sizes.
 
 0.1.7 - 2023-05-17
 ---------------------

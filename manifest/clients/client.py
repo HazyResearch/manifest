@@ -246,6 +246,29 @@ class Client(ABC):
             request_params_list.append(params)
         return request_params_list
 
+    def stitch_responses(self, request: Request, responses: List[Dict]) -> Response:
+        """Stitch responses together.
+
+        Useful for batch requests.
+        """
+        choices = []
+        usages = []
+        for res_dict in responses:
+            choices.extend(res_dict["choices"])
+            if "usage" in res_dict:
+                usages.extend(res_dict["usage"])
+        final_response_dict = {"choices": choices}
+        final_usages = None
+        if usages:
+            final_usages = Usages(usages=[Usage(**usage) for usage in usages])
+        return Response(
+            self.get_model_choices(final_response_dict),
+            cached=False,
+            request=request,
+            usages=final_usages,
+            **RESPONSE_CONSTRUCTORS[self.REQUEST_CLS],  # type: ignore
+        )
+
     @retry(
         reraise=True,
         retry=retry_if_ratelimit,
@@ -285,14 +308,13 @@ class Client(ABC):
         stop=stop_after_attempt(10),
     )
     async def _arun_completion(
-        self, request_params: Dict[str, Any], retry_timeout: int, batch_size: int
+        self, request_params: Dict[str, Any], retry_timeout: int
     ) -> Dict:
         """Async execute completion request.
 
         Args:
             request_params: request params.
             retry_timeout: retry timeout.
-            batch_size: batch size for requests.
 
         Returns:
             response as dict.
@@ -319,29 +341,44 @@ class Client(ABC):
         Returns:
             response.
         """
-        if isinstance(request.prompt, list) and not self.supports_batch_inference():
-            raise ValueError(
-                f"{self.__class__.__name__} does not support batch inference."
-            )
+        # Make everything list for consistency
+        if isinstance(request.prompt, list):
+            prompt_list = request.prompt
+        else:
+            prompt_list = [request.prompt]
 
         request_params = self.get_request_params(request)
+        # Set the params as a list. Do not set the request
+        # object itself as the cache will then store it as a
+        # list which is inconsistent with the request input.
+        request_params["prompt"] = prompt_list
+
+        # If batch_size is not set, set it to 1
+        batch_size = request_params.pop("batch_size") or 1
+        if not self.supports_batch_inference():
+            logger.warning(
+                f"{self.__class__.__name__} does not support batch inference."
+                " setting batch size ot 1"
+            )
+            batch_size = 1
+
         # Take the default keys we need and drop the rest as they
         # are not part of the model request.
         retry_timeout = request_params.pop("client_timeout")
         for key in DEFAULT_REQUEST_KEYS:
             request_params.pop(key, None)
-        response_dict = self._run_completion(request_params, retry_timeout)
-        usages = None
-        if "usage" in response_dict:
-            usages = [Usage(**usage) for usage in response_dict["usage"]]
 
-        return Response(
-            response=self.get_model_choices(response_dict),
-            cached=False,
-            request=request,
-            usages=Usages(usages=usages) if usages else None,
-            **RESPONSE_CONSTRUCTORS[self.REQUEST_CLS],  # type: ignore
-        )
+        # Batch requests
+        num_batches = len(prompt_list) // batch_size
+        if len(prompt_list) % batch_size != 0:
+            batch_size = int(math.ceil(len(prompt_list) / (num_batches + 1)))
+        request_batches = self.split_requests(request_params, batch_size)
+
+        response_dicts = [
+            self._run_completion(batch, retry_timeout) for batch in request_batches
+        ]
+        # Flatten responses
+        return self.stitch_responses(request, response_dicts)
 
     async def arun_batch_request(self, request: Request) -> Response:
         """
@@ -376,28 +413,12 @@ class Client(ABC):
 
         request_batches = self.split_requests(request_params, batch_size)
         all_tasks = [
-            asyncio.create_task(self._arun_completion(batch, retry_timeout, batch_size))
+            asyncio.create_task(self._arun_completion(batch, retry_timeout))
             for batch in request_batches
         ]
         responses = await asyncio.gather(*all_tasks)
         # Flatten responses
-        choices = []
-        usages = []
-        for res_dict in responses:
-            choices.extend(res_dict["choices"])
-            if "usage" in res_dict:
-                usages.extend(res_dict["usage"])
-        final_response_dict = {"choices": choices}
-        final_usages = None
-        if usages:
-            final_usages = Usages(usages=[Usage(**usage) for usage in usages])
-        return Response(
-            self.get_model_choices(final_response_dict),
-            cached=False,
-            request=request,
-            usages=final_usages,
-            **RESPONSE_CONSTRUCTORS[self.REQUEST_CLS],  # type: ignore
-        )
+        return self.stitch_responses(request, responses)
 
     def run_chat_request(
         self,

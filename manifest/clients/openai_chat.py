@@ -149,23 +149,20 @@ class OpenAIChatClient(OpenAIClient):
         return response_dict
 
     async def _arun_completion(
-        self, request_params: Dict[str, Any], retry_timeout: int, batch_size: int
+        self, request_params: Dict[str, Any], retry_timeout: int
     ) -> Dict:
         """Async execute completion request.
 
         Args:
             request_params: request params.
             retry_timeout: retry timeout.
-            batch_size: batch size for requests.
 
         Returns:
             response as dict.
         """
         # Format for chat model
         request_params = self._format_request_for_chat(request_params)
-        response_dict = await super()._arun_completion(
-            request_params, retry_timeout, batch_size
-        )
+        response_dict = await super()._arun_completion(request_params, retry_timeout)
         # Reformat for text model
         response_dict = self._format_request_from_chat(response_dict)
         return response_dict
