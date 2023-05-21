@@ -4,6 +4,7 @@ Added
 ^^^^^
 * Azure model support (completion and chat)
 * Google Vertex API model support (completion and chat)
+* Streaming responses for LM Completions (set stream=True)
 
 Fixed
 ^^^^^

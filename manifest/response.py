@@ -1,7 +1,7 @@
 """Client response."""
 import copy
 import json
-from typing import Any, Dict, List, Optional, Type, Union, cast
+from typing import Any, Dict, Generator, List, Optional, Type, Union, cast
 
 import numpy as np
 from pydantic import BaseModel
@@ -154,9 +154,7 @@ class Response:
             stop_token: stop token for string generation
             is_batch: whether response is batched
         """
-        process_result = (
-            lambda x: x.strip().split(stop_token)[0] if stop_token else x.strip()
-        )
+        process_result = lambda x: x.split(stop_token)[0] if stop_token else x
         extracted_items = [
             choice.text if isinstance(choice, LMModelChoice) else choice.array
             for choice in self._response.choices
@@ -173,8 +171,17 @@ class Response:
             return processed_results
 
     @classmethod
-    def union_all(cls, responses: List["Response"]) -> "Response":
-        """Union a list of response."""
+    def union_all(
+        cls, responses: List["Response"], as_single_lmchoice: bool = False
+    ) -> "Response":
+        """Union a list of response.
+
+        Args:
+            responses: list of responses to union.
+            as_single_lmchoice: if True, will concatenate all responses into a single
+                model choice. Useful for merging streaming responses. Only valid
+                for LMRequest responses.
+        """
         if not responses:
             raise ValueError("Response list is empty.")
         if len(responses) == 1:
@@ -183,6 +190,9 @@ class Response:
         request_type = first_response._request_type
         response_type = first_response._response_type
         request = first_response.get_request_obj()
+
+        if as_single_lmchoice and response_type != "text":
+            raise ValueError("as_single_lmchoice=True only works for text responses.")
 
         # Make sure all responses have the same keys
         if not all(
@@ -197,7 +207,7 @@ class Response:
         # Get all the prompts and model choices
         all_prompts = []
         all_choices = []
-        all_usages = []
+        all_usages: List[Usage] = []
         all_engines = []
         for res in responses:
             all_engines.extend(res.get_request_obj().engine.split(ENGINE_SEP))
@@ -213,18 +223,115 @@ class Response:
                 all_usages.extend([Usage()] * len(res_prompt))
         new_request = copy.deepcopy(request)
         new_request.engine = ENGINE_SEP.join(sorted(set(all_engines)))
-        new_request.prompt = all_prompts
-        new_response = ModelChoices(choices=all_choices)
-        new_usages = Usages(usages=all_usages)
-        response_obj = cls(
-            response=new_response,
-            cached=any(res.is_cached() for res in responses),
-            request=new_request,
-            usages=new_usages,
-            request_type=request_type,
-            response_type=response_type,
-        )
-        return response_obj
+
+        if as_single_lmchoice:
+            if len(set(all_prompts)) != 1:
+                raise ValueError("Prompts must be the same for as_single_lmchoice=True")
+            all_choices_txt = cast(List[LMModelChoice], all_choices)  # type: ignore
+            single_prompt = all_prompts[0]
+            single_text = "".join([choice.text for choice in all_choices_txt])
+            single_logprobs = [
+                logprob
+                for choice in all_choices_txt
+                for logprob in choice.token_logprobs or []
+            ]
+            single_tokens = [
+                token for choice in all_choices_txt for token in choice.tokens or []
+            ]
+            single_usage = Usage(
+                completion_tokens=sum(usg.completion_tokens for usg in all_usages),
+                prompt_tokens=sum(usg.prompt_tokens for usg in all_usages),
+                total_tokens=sum(usg.total_tokens for usg in all_usages),
+            )
+            new_choices = [
+                LMModelChoice(
+                    text=single_text,
+                    token_logprobs=single_logprobs,
+                    tokens=single_tokens,
+                )
+            ]
+            new_responses = ModelChoices(choices=new_choices)  # type: ignore
+            new_usages = Usages(usages=[single_usage])
+            new_request.prompt = single_prompt
+            response_obj = cls(
+                response=new_responses,
+                cached=any(res.is_cached() for res in responses),
+                request=new_request,
+                usages=new_usages,
+                request_type=request_type,
+                response_type=response_type,
+            )
+            return response_obj
+        else:
+            new_request.prompt = all_prompts
+            new_response = ModelChoices(choices=all_choices)
+            new_usages = Usages(usages=all_usages)
+            response_obj = cls(
+                response=new_response,
+                cached=any(res.is_cached() for res in responses),
+                request=new_request,
+                usages=new_usages,
+                request_type=request_type,
+                response_type=response_type,
+            )
+            return response_obj
+
+    # Return a token by token iterator over the response
+    def as_iter(self) -> Generator["Response", None, None]:
+        """Return a token by token iterator over the response.
+
+        Will return iterator of responses with one token each.
+        """
+        if self._response_type not in {"text"}:
+            raise ValueError(
+                f"Invalid response type {self._response_type} for as_iter()"
+            )
+        if not self._response.choices:
+            raise ValueError("No choices in response.")
+        if len(self._response.choices) > 1:
+            raise ValueError(
+                "Response has more than one choice. as_iter() "
+                "should be over single choice responses."
+            )
+        if not isinstance(self._response.choices[0], LMModelChoice):
+            raise ValueError(
+                "response_type is text but response is "
+                f"{self._response.choices[0].__class__}"
+            )
+        choice = cast(LMModelChoice, self._response.choices[0])
+        # If tokens, return iterator of tokens
+        if choice.tokens:
+            for token, logprob in zip(choice.tokens, choice.token_logprobs):
+                yield Response(
+                    response=ModelChoices(
+                        choices=[
+                            LMModelChoice(
+                                text=token, token_logprobs=[logprob], tokens=[token]
+                            )
+                        ]
+                    ),
+                    cached=self._cached,
+                    request=self._request,
+                    usages=self._usages,
+                    request_type=self._request_type,
+                    response_type=self._response_type,
+                )
+        # Otherwise, do it by words
+        else:
+            for i, word in enumerate(choice.text.split(" ")):
+                word = " " + word if i > 0 else word
+                yield Response(
+                    response=ModelChoices(
+                        choices=[
+                            LMModelChoice(text=word, token_logprobs=None, tokens=None)
+                        ]
+                    ),
+                    cached=self._cached,
+                    request=self._request,
+                    usages=self._usages,
+                    request_type=self._request_type,
+                    response_type=self._response_type,
+                )
 
     def serialize(self) -> str:
         """

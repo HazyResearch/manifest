@@ -6,9 +6,10 @@ How to make prompt programming with Foundation Models a little easier.
 - [Install](#install)
 - [Getting Started](#getting-started)
 - [Manifest](#manifest-components)
-- [Local HuggingFace Models](#local-huggingface-models)
-- [Chat Models](#chat-models)
-- [Embedding Models](#embedding-models)
+- [Other Models Types](#other-models)
+    - [Local HuggingFace Models](#local-huggingface-models)
+    - [Chat Models](#chat-models)
+    - [Embedding Models](#embedding-models)
 - [Road Map](#road-map)
 - [Development](#development)
 - [Cite](#cite)
@@ -43,7 +44,7 @@ Running is simple to get started. If using OpenAI, set `export OPENAI_API_KEY=<O
 ```python
 from manifest import Manifest
 
-# Start a manifest session to OpenAI - default `engine=text-davinci-002`
+# Start a manifest session to OpenAI - default `engine=text-davinci-003`
 manifest = Manifest(
     client_name = "openai",
 )
@@ -142,6 +143,16 @@ If you want to change default parameters to a model, we pass those as `kwargs` t
 result = manifest.run(prompt, "Laurel", max_tokens=50)
 ```
 
+## Streaming Queries
+Manifest also supports streaming the model response back, assuming it's supported by the underlying client. When calling `run`, pass `stream=True` to get a streaming iterator in response.
+
+```python
+result_iterator = manifest.run("Tell me a story. Once upon a time", max_tokens=100, stream=True)
+for res_text in result_iterator:
+    print(res_text)
+```
+Streaming responses are only supported for single string queries (not batch mode) for text completion models.
+
 ## Model Pools
 Manifest supports querying multiple models with different schedulers. This is very much a work in progress effort, but Manifest will round robin select (or randomly select) the clients you want. You can use the same client multiple times with different connection strings (e.g. different API keys), or you can mix and match. The only requirement is that all clients are the same request type. I.e. you can't have a pool of generation models and embedding models.
 
@@ -169,7 +180,9 @@ The speed benefit comes in with async batched runs. When calling `arun_batch` wi
 responses = asyncio.run(manifest.arun_batch(prompts, max_tokens=30, chunk_size=20))
 ```
 
-# Local Huggingface Models
+# Other Models
+
+## Local Huggingface Models
 To use a HuggingFace generative model, in `manifest/api` we have a Flask application that hosts the models for you.
 
 In a separate terminal or Tmux/Screen session, to load 6B parameters models, run
@@ -217,7 +230,7 @@ python3 -m manifest.api.app \
     --percent_max_gpu_mem_reduction 0.85
 ```
 
-# Chat Models
+## Chat Models
 Manifest has specific support for executing against chat models in the more standard "system" / "user" dialogue. To pass in a dialogue history to Manifest, use the `run` command with a list of dictionary inputs with `role` and `content` keys using an associated chat model such as `openaichat`.
 
 ```python
@@ -229,7 +242,7 @@ dialogue = [
 res = manifest.run(dialogue, max_tokens=100)
 ```
 
-# Embedding Models
+## Embedding Models
 Manifest also supports getting embeddings from models and available APIs. We do this all through changing the `client_name` argument. You still use `run` and `abatch_run`.
 
 To use OpenAI's embedding models, simply run
@@ -250,11 +263,14 @@ python3 -m manifest.api.app \
 Here's what's coming up next
 - [ ] Clients
   - [ ] HuggingFace Hub
-  - [ ] Azure OpenAI
+  - [x] Azure OpenAI
+  - [x] Google Vertex
   - [ ] Anthropic
+  - [x] Streaming Support Completions
+  - [ ] Streaming Support Chat Models
 - [ ] Data Types
   - [ ] Diffusion Models
-- [ ] Orchestration
+- [x] Orchestration
   - [x] Connection pools
 - [ ] Local Inference
   - [ ] FlexGen

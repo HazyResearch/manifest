@@ -1,10 +1,11 @@
 """Client class."""
 import asyncio
 import copy
+import json
 import logging
 import math
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional, Tuple, Union, cast
+from typing import Any, Dict, Generator, List, Optional, Tuple, Union, cast
 
 import aiohttp
 import requests
@@ -107,6 +108,7 @@ class Client(ABC):
         """
         Connect to client.
 
+        Override in child client class.
         Args:
             connection_str: connection string.
         """
@@ -114,12 +116,18 @@ class Client(ABC):
 
     @abstractmethod
     def close(self) -> None:
-        """Close the client."""
+        """Close the client.
+
+        Override in child client class.
+        """
         raise NotImplementedError()
 
     @abstractmethod
     def get_generation_url(self) -> str:
-        """Get generation URL."""
+        """Get generation URL.
+
+        Override in child client class.
+        """
         raise NotImplementedError()
 
     @abstractmethod
@@ -127,6 +135,7 @@ class Client(ABC):
         """
         Get generation header.
 
+        Override in child client class.
         Returns:
             header.
         """
@@ -134,7 +143,18 @@ class Client(ABC):
 
     @abstractmethod
     def supports_batch_inference(self) -> bool:
-        """Return whether the client supports batch inference."""
+        """Return whether the client supports batch inference.
+
+        Override in child client class.
+        """
+        raise NotImplementedError()
+
+    @abstractmethod
+    def supports_streaming_inference(self) -> bool:
+        """Return whether the client supports streaming inference.
+
+        Override in child client class.
+        """
         raise NotImplementedError()
 
     @abstractmethod
@@ -145,6 +165,7 @@ class Client(ABC):
         By getting model params from the server, we can add to request
         and make sure cache keys are unique to model.
 
+        Override in child client class.
         Returns:
             model params.
         """
@@ -153,6 +174,8 @@ class Client(ABC):
     def get_tokenizer(self, model: str) -> Tuple[Any, int]:
         """Get tokenizer for model.
 
+        Override in child client class. Return None, -1 if not supported
+        or no prompt truncation required.
         Returns:
             tokenizer: tokenizer with encoder and decode
             max_length: max length of model
@@ -177,6 +200,8 @@ class Client(ABC):
         """
         Preprocess request params.
 
+        Override in child client class to reformat requests to model.
+
         Args:
             request: request params.
 
@@ -190,6 +215,8 @@ class Client(ABC):
     ) -> Dict[str, Any]:
         """
         Postprocess and validate response as dict.
+
+        Override in child client class to reform model responses.
 
         Args:
             response: response
@@ -314,6 +341,7 @@ class Client(ABC):
         final_usages = None
         if usages:
             final_usages = Usages(usages=[Usage(**usage) for usage in usages])
+        # TODO: Add usage based on tokenizer
         return Response(
             self._get_model_choices(final_response_dict),
             cached=False,
@@ -414,6 +442,55 @@ class Client(ABC):
                 res.raise_for_status()
                 res_json = await res.json(content_type=None)
                 return self.postprocess_response(res_json, request_params)
+
+    @retry(
+        reraise=True,
+        retry=retry_if_ratelimit,
+        wait=wait_random_exponential(min=1, max=ATTEMPTS_TIMEOUT),
+        stop=stop_after_attempt(ATTEMPTS_BEFORE_STOP),
+    )
+    def _run_streaming_completion(
+        self, request_params: Dict[str, Any], retry_timeout: int
+    ) -> Generator[Dict, None, None]:
+        """Execute completion request streaming.
+
+        Args:
+            request_params: request params.
+            retry_timeout: retry timeout.
+
+        Returns:
+            response as dict.
+        """
+        request_params = self.preprocess_request_params(request_params)
+        request_params["stream"] = True
+        post_str = self.get_generation_url()
+        res_iter = requests.post(
+            post_str,
+            headers=self.get_generation_header(),
+            json=request_params,
+            timeout=retry_timeout,
+            stream=True,
+        )
+        for res_token in res_iter.iter_lines():
+            if res_token:
+                decoded_res_token = res_token.decode("utf-8")
+                decoded_res_token = decoded_res_token.replace("data: ", "")
+                if decoded_res_token == "[DONE]":
+                    break
+                try:
+                    decoded_res_token_dct = json.loads(decoded_res_token)
+                    postprocess_res_token_dct = self.postprocess_response(
+                        decoded_res_token_dct, request_params
+                    )
+                    # If nothing is returned, skip
+                    if (
+                        not postprocess_res_token_dct
+                        or not postprocess_res_token_dct["choices"]
+                    ):
+                        continue
+                    yield postprocess_res_token_dct
+                except Exception as e:
+                    raise e
 
     def run_request(self, request: Request) -> Response:
         """
@@ -562,6 +639,45 @@ class Client(ABC):
             usages=Usages(usages=usages) if usages else None,
             **RESPONSE_CONSTRUCTORS[LMChatRequest],  # type: ignore
         )
+
+    def run_streaming_request(
+        self, request: Request
+    ) -> Generator[Response, None, None]:
+        """
+        Run streaming request.
+
+        Args:
+            request: request.
+
+        Returns:
+            response.
+        """
+        if not isinstance(request.prompt, str):
+            raise ValueError("Streaming requests must have a single prompt.")
+        if not self.supports_streaming_inference():
+            raise ValueError(
+                f"{self.__class__.__name__} does not support streaming inference."
+            )
+        request_params = self._get_request_params(request)
+
+        # Take the default keys we need and drop the rest as they
+        # are not part of the model request.
+        retry_timeout = request_params.pop("client_timeout")
+        for key in DEFAULT_REQUEST_KEYS:
+            request_params.pop(key, None)
+
+        # Make sure requests are in the request length
+        # If no tokenizer is set or not LM request, this
+        # will do nothing
+        if isinstance(request, LMRequest):
+            self._verify_request_lengths(
+                request_params, model=request.engine, max_tokens=request.max_tokens
+            )
+
+        for token_response in self._run_streaming_completion(
+            request_params, retry_timeout
+        ):
+            yield self._stitch_responses(request, [token_response])
 
     def run_score_prompt_request(
         self,

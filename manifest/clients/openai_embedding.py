@@ -76,6 +76,13 @@ class OpenAIEmbeddingClient(OpenAIClient):
         """
         return {"model_name": self.NAME, "engine": getattr(self, "engine")}
 
+    def supports_streaming_inference(self) -> bool:
+        """Return whether the client supports streaming inference.
+
+        Override in child client class.
+        """
+        return False
+
     def postprocess_response(self, response: Dict, request: Dict) -> Dict[str, Any]:
         """
         Format response to dict.

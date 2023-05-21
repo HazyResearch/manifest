@@ -6,7 +6,13 @@ import pytest
 
 from manifest import Response
 from manifest.request import EmbeddingRequest, LMRequest
-from manifest.response import ArrayModelChoice, ModelChoices, Usage, Usages
+from manifest.response import (
+    ArrayModelChoice,
+    LMModelChoice,
+    ModelChoices,
+    Usage,
+    Usages,
+)
 
 
 def test_init(
@@ -275,9 +281,9 @@ def test_union_all(
     final_response = Response.union_all([response1, response2])
     assert final_response.get_json_response() == {
         "choices": [
-            {"text": "hello", "token_logprobs": [0.1, 0.2], "tokens": None},
-            {"text": "bye", "token_logprobs": [0.3], "tokens": None},
-            {"text": "helloo", "token_logprobs": [0.1, 0.2], "tokens": None},
+            {"text": "hello", "token_logprobs": [0.1, 0.2], "tokens": ["hel", "lo"]},
+            {"text": "bye", "token_logprobs": [0.3], "tokens": ["bye"]},
+            {"text": "helloo", "token_logprobs": [0.1, 0.2], "tokens": ["hel", "loo"]},
         ]
     }
     assert final_response.get_usage_obj() == Usages(usages=[Usage(), Usage(), Usage()])
@@ -299,3 +305,83 @@ def test_union_all(
     assert final_response.get_usage_obj() == Usages(
         usages=[Usage(total_tokens=4), Usage(total_tokens=6), Usage()]
     )
+
+    # Test merge to single
+    model_choices = ModelChoices(
+        choices=[
+            LMModelChoice(
+                text=" helloo this is a bug",
+                token_logprobs=[0.1, 0.2, 0.3],
+                tokens=[" helloo", " this is", " a bug"],
+            ),
+        ]
+    )
+    request = LMRequest(prompt="monkey", engine="dummy")
+    response1 = Response(
+        response=model_choices,
+        cached=False,
+        request=request,
+        usages=None,
+        request_type=LMRequest,
+        response_type="text",
+    )
+    final_response = Response.union_all([response1, response1], as_single_lmchoice=True)
+    assert final_response.get_json_response() == {
+        "choices": [
+            {
+                "text": " helloo this is a bug helloo this is a bug",
+                "token_logprobs": [0.1, 0.2, 0.3, 0.1, 0.2, 0.3],
+                "tokens": [
+                    " helloo",
+                    " this is",
+                    " a bug",
+                    " helloo",
+                    " this is",
+                    " a bug",
+                ],
+            },
+        ]
+    }
+    assert final_response.get_usage_obj() == Usages(usages=[Usage()])
+    assert final_response.get_request_obj().prompt == "monkey"
+    assert final_response.get_request_obj().engine == "dummy"
+
+
+def test_as_iter(
+    model_choice_single: ModelChoices, request_lm_single: LMRequest
+) -> None:
+    """Test as iter."""
+    response = Response(
+        response=model_choice_single,
+        cached=False,
+        request=request_lm_single,
+        usages=None,
+        request_type=LMRequest,
+        response_type="text",
+    )
+    response_iter_list = list(response.as_iter())
+    assert len(response_iter_list) == 2
+    assert response_iter_list[0].get_response() == "hel"
+    assert response_iter_list[1].get_response() == "loo"
+
+    model_choices = ModelChoices(
+        choices=[
+            LMModelChoice(text="helloo this is a bug"),
+        ]
+    )
+    request = LMRequest(prompt="monkey", engine="dummy")
+    response = Response(
+        response=model_choices,
+        cached=False,
+        request=request,
+        usages=None,
+        request_type=LMRequest,
+        response_type="text",
+    )
+    response_iter_list = list(response.as_iter())
+    assert len(response_iter_list) == 5
+    assert response_iter_list[0].get_response() == "helloo"
+    assert response_iter_list[1].get_response() == " this"
+    assert response_iter_list[2].get_response() == " is"
+    assert response_iter_list[3].get_response() == " a"
+    assert response_iter_list[4].get_response() == " bug"

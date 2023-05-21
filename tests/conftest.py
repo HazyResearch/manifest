@@ -17,8 +17,10 @@ def model_choice() -> ModelChoices:
     """Get dummy model choice."""
     model_choices = ModelChoices(
         choices=[
-            LMModelChoice(text="hello", token_logprobs=[0.1, 0.2]),
-            LMModelChoice(text="bye", token_logprobs=[0.3]),
+            LMModelChoice(
+                text="hello", token_logprobs=[0.1, 0.2], tokens=["hel", "lo"]
+            ),
+            LMModelChoice(text="bye", token_logprobs=[0.3], tokens=["bye"]),
         ]
     )
     return model_choices
@@ -29,7 +31,9 @@ def model_choice_single() -> ModelChoices:
     """Get dummy model choice."""
     model_choices = ModelChoices(
         choices=[
-            LMModelChoice(text="helloo", token_logprobs=[0.1, 0.2]),
+            LMModelChoice(
+                text="helloo", token_logprobs=[0.1, 0.2], tokens=["hel", "loo"]
+            ),
         ]
     )
     return model_choices
