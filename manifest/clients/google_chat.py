@@ -45,14 +45,26 @@ class GoogleChatClient(GoogleClient):
             connection_str: connection string.
             client_args: client arguments.
         """
-        self.api_key = os.environ.get("GOOGLE_API_KEY", connection_str)
+        connection_parts = connection_str.split("::")
+        if len(connection_parts) == 1:
+            self.api_key = connection_parts[0]
+        elif len(connection_parts) == 2:
+            self.api_key, self.project_id = connection_parts
+        else:
+            raise ValueError(
+                "Invalid connection string. "
+                "Must be either API_KEY or API_KEY::PROJECT_ID"
+            )
+        self.api_key = self.api_key or os.environ.get("GOOGLE_API_KEY")
         if self.api_key is None:
             raise ValueError(
                 "GoogleVertex API key not set. Set GOOGLE_API_KEY environment "
                 "variable or pass through `client_connection`. This can be "
                 "found by running `gcloud auth print-access-token`"
             )
-        self.project_id = os.environ.get("GOOGLE_PROJECT_ID") or get_project_id()
+        self.project_id = (
+            self.project_id or os.environ.get("GOOGLE_PROJECT_ID") or get_project_id()
+        )
         if self.project_id is None:
             raise ValueError("GoogleVertex project ID not set. Set GOOGLE_PROJECT_ID")
         self.host = f"https://us-central1-aiplatform.googleapis.com/v1/projects/{self.project_id}/locations/us-central1/publishers/google/models"  # noqa: E501
@@ -68,18 +80,19 @@ class GoogleChatClient(GoogleClient):
         """Return whether the client supports batch inference."""
         return False
 
-    def _format_request_for_chat(self, request_params: Dict[str, Any]) -> Dict:
-        """Format request params for chat.
+    def preprocess_request_params(self, request: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Preprocess request params.
 
         Args:
-            request_params: request params.
+            request: request params.
 
         Returns:
-            formatted request params.
+            request params.
         """
         # Format for chat model
-        request_params = copy.deepcopy(request_params)
-        prompt = request_params.pop("prompt")
+        request = copy.deepcopy(request)
+        prompt = request.pop("prompt")
         if isinstance(prompt, str):
             messages = [{"author": "user", "content": prompt}]
         elif isinstance(prompt, list) and isinstance(prompt[0], str):
@@ -100,51 +113,11 @@ class GoogleChatClient(GoogleClient):
             )
         new_request = {
             "instances": [{"messages": messages}],
-            "parameters": request_params,
+            "parameters": request,
         }
-        return new_request
+        return super(GoogleClient, self).preprocess_request_params(new_request)
 
-    def _run_completion(
-        self, request_params: Dict[str, Any], retry_timeout: int
-    ) -> Dict:
-        """Execute completion request.
-
-        Args:
-            request_params: request params.
-            retry_timeout: retry timeout.
-
-        Returns:
-            response as dict.
-        """
-        # Format for chat model
-        request_params = self._format_request_for_chat(request_params)
-        response_dict = super(GoogleClient, self)._run_completion(
-            request_params, retry_timeout
-        )
-        # Validate response handles the reformatting
-        return response_dict
-
-    async def _arun_completion(
-        self, request_params: Dict[str, Any], retry_timeout: int
-    ) -> Dict:
-        """Async execute completion request.
-
-        Args:
-            request_params: request params.
-            retry_timeout: retry timeout.
-
-        Returns:
-            response as dict.
-        """
-        # Format for chat model
-        request_params = self._format_request_for_chat(request_params)
-        response_dict = await super(GoogleClient, self)._arun_completion(
-            request_params, retry_timeout
-        )
-        # Validate response handles the reformatting
-        return response_dict
-
-    def validate_response(self, response: Dict, request: Dict) -> Dict[str, Any]:
+    def postprocess_response(self, response: Dict, request: Dict) -> Dict[str, Any]:
         """
         Validate response as dict.
 
@@ -179,4 +152,4 @@ class GoogleChatClient(GoogleClient):
                 for prediction in google_predictions
             ]
         }
-        return super(GoogleClient, self).validate_response(new_response, request)
+        return super(GoogleClient, self).postprocess_response(new_response, request)

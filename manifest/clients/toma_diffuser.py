@@ -46,7 +46,7 @@ class TOMADiffuserClient(TOMAClient):
         """
         return {"model_name": self.NAME, "engine": getattr(self, "engine")}
 
-    def validate_response(self, response: Dict, request: Dict) -> Dict[str, Any]:
+    def postprocess_response(self, response: Dict, request: Dict) -> Dict[str, Any]:
         """
         Format response to dict.
 

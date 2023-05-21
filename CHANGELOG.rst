@@ -2,12 +2,13 @@
 ---------------------
 Added
 ^^^^^
-* Azure model support
-* Google Vertex API model support
+* Azure model support (completion and chat)
+* Google Vertex API model support (completion and chat)
 
 Fixed
 ^^^^^
 * `run` with batches now acts the same as async run except not async. We will batch requests into appropriate batchs sizes.
+* Refactored client so unified preprocess and postprocess of requests and responses to better support model variants in request/response format.
 
 0.1.7 - 2023-05-17
 ---------------------

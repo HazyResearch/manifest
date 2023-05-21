@@ -143,7 +143,7 @@ class TOMAClient(Client):
             }
         return heartbeats
 
-    def validate_response(self, response: Dict, request: Dict) -> Dict[str, Any]:
+    def postprocess_response(self, response: Dict, request: Dict) -> Dict[str, Any]:
         """
         Format response to dict.
 

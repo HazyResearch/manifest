@@ -41,7 +41,7 @@ class OpenAIEmbeddingClient(OpenAIClient):
             connection_str: connection string.
             client_args: client arguments.
         """
-        self.api_key = os.environ.get("OPENAI_API_KEY", connection_str)
+        self.api_key = connection_str or os.environ.get("OPENAI_API_KEY")
         if self.api_key is None:
             raise ValueError(
                 "OpenAI API key not set. Set OPENAI_API_KEY environment "
@@ -76,7 +76,7 @@ class OpenAIEmbeddingClient(OpenAIClient):
         """
         return {"model_name": self.NAME, "engine": getattr(self, "engine")}
 
-    def validate_response(self, response: Dict, request: Dict) -> Dict[str, Any]:
+    def postprocess_response(self, response: Dict, request: Dict) -> Dict[str, Any]:
         """
         Format response to dict.
 

@@ -6,6 +6,8 @@ from typing import Any, Dict, List, Optional, Type
 from pydantic import BaseModel, Extra
 
 from manifest.clients.ai21 import AI21Client
+from manifest.clients.azureopenai import AzureClient
+from manifest.clients.azureopenai_chat import AzureChatClient
 from manifest.clients.client import Client
 from manifest.clients.cohere import CohereClient
 from manifest.clients.dummy import DummyClient
@@ -24,6 +26,8 @@ logger = logging.getLogger(__name__)
 
 CLIENT_CONSTRUCTORS = {
     AI21Client.NAME: AI21Client,
+    AzureClient.NAME: AzureClient,
+    AzureChatClient.NAME: AzureChatClient,
     CohereClient.NAME: CohereClient,
     DummyClient.NAME: DummyClient,
     GoogleClient.NAME: GoogleClient,

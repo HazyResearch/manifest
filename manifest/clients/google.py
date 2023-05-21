@@ -63,14 +63,27 @@ class GoogleClient(Client):
             connection_str: connection string.
             client_args: client arguments.
         """
-        self.api_key = os.environ.get("GOOGLE_API_KEY", connection_str)
+        connection_parts = connection_str.split("::")
+        if len(connection_parts) == 1:
+            self.api_key = connection_parts[0]
+            self.project_id = None
+        elif len(connection_parts) == 2:
+            self.api_key, self.project_id = connection_parts
+        else:
+            raise ValueError(
+                "Invalid connection string. "
+                "Must be either API_KEY or API_KEY::PROJECT_ID"
+            )
+        self.api_key = self.api_key or os.environ.get("GOOGLE_API_KEY")
         if self.api_key is None:
             raise ValueError(
                 "GoogleVertex API key not set. Set GOOGLE_API_KEY environment "
                 "variable or pass through `client_connection`. This can be "
                 "found by running `gcloud auth print-access-token`"
             )
-        self.project_id = os.environ.get("GOOGLE_PROJECT_ID") or get_project_id()
+        self.project_id = (
+            self.project_id or os.environ.get("GOOGLE_PROJECT_ID") or get_project_id()
+        )
         if self.project_id is None:
             raise ValueError("GoogleVertex project ID not set. Set GOOGLE_PROJECT_ID")
         self.host = f"https://us-central1-aiplatform.googleapis.com/v1/projects/{self.project_id}/locations/us-central1/publishers/google/models"  # noqa: E501
@@ -116,55 +129,31 @@ class GoogleClient(Client):
         """
         return {"model_name": self.NAME, "engine": getattr(self, "engine")}
 
-    def _reformat_request_for_google(
-        self, request_params: Dict[str, Any]
-    ) -> Dict[str, Any]:
-        """Reformat request for google."""
+    def preprocess_request_params(self, request: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Preprocess request params.
+
+        Args:
+            request: request params.
+
+        Returns:
+            request params.
+        """
         # Refortmat the request params for google
-        prompt = request_params.pop("prompt")
+        prompt = request.pop("prompt")
         if isinstance(prompt, str):
             prompt_list = [prompt]
         else:
             prompt_list = prompt
-        google_request_params = {
+        google_request = {
             "instances": [{"prompt": prompt} for prompt in prompt_list],
-            "parameters": request_params,
+            "parameters": request,
         }
-        return google_request_params
+        return super().preprocess_request_params(google_request)
 
-    def _run_completion(
-        self, request_params: Dict[str, Any], retry_timeout: int
-    ) -> Dict:
-        """Execute completion request.
-
-        Args:
-            request_params: request params.
-            retry_timeout: retry timeout.
-
-        Returns:
-            response as dict.
-        """
-        return super()._run_completion(
-            self._reformat_request_for_google(request_params), retry_timeout
-        )
-
-    async def _arun_completion(
-        self, request_params: Dict[str, Any], retry_timeout: int
-    ) -> Dict:
-        """Async execute completion request.
-
-        Args:
-            request_params: request params.
-            retry_timeout: retry timeout.
-
-        Returns:
-            response as dict.
-        """
-        return await super()._arun_completion(
-            self._reformat_request_for_google(request_params), retry_timeout
-        )
-
-    def validate_response(self, response: Dict, request: Dict) -> Dict[str, Any]:
+    def postprocess_response(
+        self, response: Dict[str, Any], request: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """
         Validate response as dict.
 
@@ -198,4 +187,4 @@ class GoogleClient(Client):
                 for prediction in google_predictions
             ]
         }
-        return super().validate_response(new_response, request)
+        return super().postprocess_response(new_response, request)

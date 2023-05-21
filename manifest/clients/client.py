@@ -8,12 +8,14 @@ from typing import Any, Dict, List, Optional, Tuple, Union, cast
 
 import aiohttp
 import requests
+import tqdm.asyncio
 from tenacity import RetryCallState, retry, stop_after_attempt, wait_random_exponential
 
 from manifest.request import (
     DEFAULT_REQUEST_KEYS,
     NOT_CACHE_KEYS,
     LMChatRequest,
+    LMRequest,
     LMScoreRequest,
     Request,
 )
@@ -29,6 +31,14 @@ from manifest.response import (
 
 logger = logging.getLogger(__name__)
 
+ATTEMPTS_BEFORE_STOP = 20
+ATTEMPTS_TIMEOUT = 120
+# http_status mainly for azure and e.code mainly for openai usage
+# e.http_status == 408 occurs when Azure times out
+# e.code == 429 rate lime
+# e.code == 500 or 502 occurs when server error
+API_ERROR_CODE = {408, 429, 500, 502}
+
 
 def retry_if_ratelimit(retry_base: RetryCallState) -> bool:
     """Return whether to retry if ratelimited."""
@@ -38,11 +48,30 @@ def retry_if_ratelimit(retry_base: RetryCallState) -> bool:
                 requests.exceptions.HTTPError, retry_base.outcome.exception()
             )
             # 500 is a server error, 429 is a rate limit error
-            if exception.response.status_code in {429, 500}:  # type: ignore
+            if exception.response.status_code in API_ERROR_CODE:  # type: ignore
                 return True
     except Exception:
         pass
     return False
+
+
+def return_error_response(retry_state: RetryCallState) -> dict:
+    """Return error response if all retries failed."""
+    request_params = retry_state.args[1]
+    number_of_prompts = (
+        len(request_params["prompt"])
+        if "prompt" in request_params
+        else len(request_params["messages"])
+    )
+    return {
+        "choices": [],
+        "usage": {
+            "total_tokens": 0,
+            "prompt_tokens": 0,
+            "completion_tokens": 0,
+        },
+        "errors": [str(retry_state.outcome.exception())] * number_of_prompts,
+    }
 
 
 class Client(ABC):
@@ -121,6 +150,15 @@ class Client(ABC):
         """
         raise NotImplementedError()
 
+    def get_tokenizer(self, model: str) -> Tuple[Any, int]:
+        """Get tokenizer for model.
+
+        Returns:
+            tokenizer: tokenizer with encoder and decode
+            max_length: max length of model
+        """
+        return None, -1
+
     def get_model_inputs(self) -> List:
         """
         Get allowable model inputs.
@@ -129,6 +167,51 @@ class Client(ABC):
             model inputs.
         """
         return list(self.PARAMS.keys())
+
+    def split_usage(self, request: Dict, choices: List[str]) -> List[Dict[str, int]]:
+        """Split usage into list of usages for each prompt."""
+        # TODO: add this in using default tokenizer
+        return []
+
+    def preprocess_request_params(self, request: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Preprocess request params.
+
+        Args:
+            request: request params.
+
+        Returns:
+            request params.
+        """
+        return request
+
+    def postprocess_response(
+        self, response: Dict[str, Any], request: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """
+        Postprocess and validate response as dict.
+
+        Args:
+            response: response
+            request: request
+
+        Return:
+            response as dict
+        """
+        if "choices" not in response:
+            raise ValueError(f"Invalid response: {response}")
+        if "usage" in response:
+            # Handle splitting the usages for batch requests
+            if len(response["choices"]) == 1:
+                if isinstance(response["usage"], list):
+                    response["usage"] = response["usage"][0]
+                response["usage"] = [response["usage"]]
+            else:
+                # Try to split usage
+                split_usage = self.split_usage(request, response["choices"])
+                if split_usage:
+                    response["usage"] = split_usage
+        return response
 
     def get_request(
         self, prompt: Union[str, List[str]], request_args: Dict[str, Any]
@@ -155,7 +238,7 @@ class Client(ABC):
                 params[key] = request_args.pop(key)
         return self.REQUEST_CLS(**params)  # type: ignore
 
-    def get_request_params(self, request: Request) -> Dict[str, Any]:
+    def _get_request_params(self, request: Request) -> Dict[str, Any]:
         """Get request params.
 
         Add default keys that we need for requests such as batch_size.
@@ -174,7 +257,7 @@ class Client(ABC):
 
         Skip keys that are not cache keys such as batch_size.
         """
-        request_params = self.get_request_params(request)
+        request_params = self._get_request_params(request)
         for key in NOT_CACHE_KEYS:
             request_params.pop(key, None)
         # Make sure to add model params and request class
@@ -182,49 +265,7 @@ class Client(ABC):
         request_params["request_cls"] = request.__class__.__name__
         return request_params
 
-    def split_usage(self, request: Dict, choices: List[str]) -> List[Dict[str, int]]:
-        """Split usage into list of usages for each prompt."""
-        return []
-
-    def get_model_choices(self, response: Dict) -> ModelChoices:
-        """Format response to ModelChoices."""
-        # Array or text response
-        response_type = RESPONSE_CONSTRUCTORS[self.REQUEST_CLS]["response_type"]
-        if response_type == "array":
-            choices: List[Union[LMModelChoice, ArrayModelChoice]] = [
-                ArrayModelChoice(**choice) for choice in response["choices"]
-            ]
-        else:
-            choices = [LMModelChoice(**choice) for choice in response["choices"]]
-        return ModelChoices(choices=choices)
-
-    def validate_response(self, response: Dict, request: Dict) -> Dict[str, Any]:
-        """
-        Validate response as dict.
-
-        Args:
-            response: response
-            request: request
-
-        Return:
-            response as dict
-        """
-        if "choices" not in response:
-            raise ValueError(f"Invalid response: {response}")
-        if "usage" in response:
-            # Handle splitting the usages for batch requests
-            if len(response["choices"]) == 1:
-                if isinstance(response["usage"], list):
-                    response["usage"] = response["usage"][0]
-                response["usage"] = [response["usage"]]
-            else:
-                # Try to split usage
-                split_usage = self.split_usage(request, response["choices"])
-                if split_usage:
-                    response["usage"] = split_usage
-        return response
-
-    def split_requests(
+    def _split_requests(
         self, request_params: Dict[str, Any], batch_size: int, key: str = "prompt"
     ) -> List[Dict[str, Any]]:
         """Split request into batch_sized request.
@@ -246,7 +287,19 @@ class Client(ABC):
             request_params_list.append(params)
         return request_params_list
 
-    def stitch_responses(self, request: Request, responses: List[Dict]) -> Response:
+    def _get_model_choices(self, response: Dict) -> ModelChoices:
+        """Format response to ModelChoices."""
+        # Array or text response
+        response_type = RESPONSE_CONSTRUCTORS[self.REQUEST_CLS]["response_type"]
+        if response_type == "array":
+            choices: List[Union[LMModelChoice, ArrayModelChoice]] = [
+                ArrayModelChoice(**choice) for choice in response["choices"]
+            ]
+        else:
+            choices = [LMModelChoice(**choice) for choice in response["choices"]]
+        return ModelChoices(choices=choices)
+
+    def _stitch_responses(self, request: Request, responses: List[Dict]) -> Response:
         """Stitch responses together.
 
         Useful for batch requests.
@@ -262,18 +315,47 @@ class Client(ABC):
         if usages:
             final_usages = Usages(usages=[Usage(**usage) for usage in usages])
         return Response(
-            self.get_model_choices(final_response_dict),
+            self._get_model_choices(final_response_dict),
             cached=False,
             request=request,
             usages=final_usages,
             **RESPONSE_CONSTRUCTORS[self.REQUEST_CLS],  # type: ignore
         )
 
+    def _verify_request_lengths(
+        self, request: Dict[str, Any], model: str, max_tokens: int
+    ) -> None:
+        """Verify that the request length is not too long."""
+        encoder, max_length = self.get_tokenizer(model)
+        if not encoder or max_length < 0:
+            return
+        if isinstance(request["prompt"], str):
+            prompts = [request["prompt"]]
+        else:
+            prompts = request["prompt"]
+        for i in range(len(prompts)):
+            prompt = prompts[i]
+            encoded_prompt = encoder.encode(prompt)
+            if len(encoded_prompt) + max_tokens > max_length:
+                logger.warning(
+                    f"Prompt {prompt} is too long for model {model}. "
+                    "Truncating prompt from left."
+                )
+                # -20 to be safe
+                prompt = encoder.decode(
+                    encoded_prompt[-int(max_length - max_tokens - 20) :]
+                )
+                prompts[i] = prompt
+        if isinstance(request["prompt"], str):
+            request["prompt"] = prompts[0]
+        else:
+            request["prompt"] = prompts
+
     @retry(
         reraise=True,
         retry=retry_if_ratelimit,
-        wait=wait_random_exponential(min=1, max=60),
-        stop=stop_after_attempt(10),
+        wait=wait_random_exponential(min=1, max=ATTEMPTS_TIMEOUT),
+        stop=stop_after_attempt(ATTEMPTS_BEFORE_STOP),
     )
     def _run_completion(
         self, request_params: Dict[str, Any], retry_timeout: int
@@ -287,6 +369,7 @@ class Client(ABC):
         Returns:
             response as dict.
         """
+        request_params = self.preprocess_request_params(request_params)
         post_str = self.get_generation_url()
         res = requests.post(
             post_str,
@@ -299,13 +382,13 @@ class Client(ABC):
         except requests.exceptions.HTTPError:
             logger.error(res.json())
             raise requests.exceptions.HTTPError(res.json())
-        return self.validate_response(res.json(), request_params)
+        return self.postprocess_response(res.json(), request_params)
 
     @retry(
         reraise=True,
         retry=retry_if_ratelimit,
-        wait=wait_random_exponential(min=1, max=60),
-        stop=stop_after_attempt(10),
+        wait=wait_random_exponential(min=1, max=ATTEMPTS_TIMEOUT),
+        stop=stop_after_attempt(ATTEMPTS_BEFORE_STOP),
     )
     async def _arun_completion(
         self, request_params: Dict[str, Any], retry_timeout: int
@@ -319,6 +402,7 @@ class Client(ABC):
         Returns:
             response as dict.
         """
+        request_params = self.preprocess_request_params(request_params)
         post_str = self.get_generation_url()
         async with aiohttp.ClientSession(timeout=retry_timeout) as session:
             async with session.post(
@@ -329,7 +413,7 @@ class Client(ABC):
             ) as res:
                 res.raise_for_status()
                 res_json = await res.json(content_type=None)
-                return self.validate_response(res_json, request_params)
+                return self.postprocess_response(res_json, request_params)
 
     def run_request(self, request: Request) -> Response:
         """
@@ -347,7 +431,7 @@ class Client(ABC):
         else:
             prompt_list = [request.prompt]
 
-        request_params = self.get_request_params(request)
+        request_params = self._get_request_params(request)
         # Set the params as a list. Do not set the request
         # object itself as the cache will then store it as a
         # list which is inconsistent with the request input.
@@ -355,10 +439,10 @@ class Client(ABC):
 
         # If batch_size is not set, set it to 1
         batch_size = request_params.pop("batch_size") or 1
-        if not self.supports_batch_inference():
+        if not self.supports_batch_inference() and batch_size != 1:
             logger.warning(
                 f"{self.__class__.__name__} does not support batch inference."
-                " setting batch size ot 1"
+                " Setting batch size to 1"
             )
             batch_size = 1
 
@@ -368,24 +452,34 @@ class Client(ABC):
         for key in DEFAULT_REQUEST_KEYS:
             request_params.pop(key, None)
 
+        # Make sure requests are in the request length
+        # If no tokenizer is set or not LM request, this
+        # will do nothing
+        if isinstance(request, LMRequest):
+            self._verify_request_lengths(
+                request_params, model=request.engine, max_tokens=request.max_tokens
+            )
+
         # Batch requests
         num_batches = len(prompt_list) // batch_size
         if len(prompt_list) % batch_size != 0:
             batch_size = int(math.ceil(len(prompt_list) / (num_batches + 1)))
-        request_batches = self.split_requests(request_params, batch_size)
+        request_batches = self._split_requests(request_params, batch_size)
 
         response_dicts = [
             self._run_completion(batch, retry_timeout) for batch in request_batches
         ]
         # Flatten responses
-        return self.stitch_responses(request, response_dicts)
+        return self._stitch_responses(request, response_dicts)
 
-    async def arun_batch_request(self, request: Request) -> Response:
+    async def arun_batch_request(
+        self, request: Request, verbose: bool = False
+    ) -> Response:
         """
         Run async request.
 
         Args:
-            request: request.
+            request: request.s
 
         Returns:
             response.
@@ -398,7 +492,7 @@ class Client(ABC):
                 "request.prompt must be a list for async batch inference."
             )
 
-        request_params = self.get_request_params(request)
+        request_params = self._get_request_params(request)
         # Take the default keys we need and drop the rest as they
         # are not part of the model request.
         retry_timeout = request_params.pop("client_timeout")
@@ -407,18 +501,27 @@ class Client(ABC):
         for key in DEFAULT_REQUEST_KEYS:
             request_params.pop(key, None)
 
+        # Make sure requests are in the request length
+        # If no tokenizer is set or not LM request, this
+        # will do nothing
+        if isinstance(request, LMRequest):
+            self._verify_request_lengths(
+                request_params, model=request.engine, max_tokens=request.max_tokens
+            )
+
+        # Batch requests
         num_batches = len(request.prompt) // batch_size
         if len(request.prompt) % batch_size != 0:
             batch_size = int(math.ceil(len(request.prompt) / (num_batches + 1)))
 
-        request_batches = self.split_requests(request_params, batch_size)
+        request_batches = self._split_requests(request_params, batch_size)
         all_tasks = [
             asyncio.create_task(self._arun_completion(batch, retry_timeout))
             for batch in request_batches
         ]
-        responses = await asyncio.gather(*all_tasks)
+        responses = await tqdm.asyncio.tqdm.gather(*all_tasks, disable=not verbose)
         # Flatten responses
-        return self.stitch_responses(request, responses)
+        return self._stitch_responses(request, responses)
 
     def run_chat_request(
         self,
@@ -433,19 +536,27 @@ class Client(ABC):
         Returns:
             response.
         """
-        request_params = self.get_request_params(request)
+        request_params = self._get_request_params(request)
         # Take the default keys we need and drop the rest as they
         # are not part of the model request.
         retry_timeout = request_params.pop("client_timeout")
         for key in DEFAULT_REQUEST_KEYS:
             request_params.pop(key, None)
+
+        # Make sure requests are in the request length
+        # If no tokenizer is set or not LM request, this
+        # will do nothing
+        self._verify_request_lengths(
+            request_params, model=request.engine, max_tokens=request.max_tokens
+        )
+
         response_dict = self._run_completion(request_params, retry_timeout)
         usages = None
         if "usage" in response_dict:
             usages = [Usage(**usage) for usage in response_dict["usage"]]
 
         return Response(
-            response=self.get_model_choices(response_dict),
+            response=self._get_model_choices(response_dict),
             cached=False,
             request=request,
             usages=Usages(usages=usages) if usages else None,
