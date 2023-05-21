@@ -129,6 +129,11 @@ class OpenAIChatClient(OpenAIClient):
         new_choices = []
         response = copy.deepcopy(response)
         for message in response["choices"]:
-            new_choices.append({"text": message["message"]["content"]})
+            if "delta" in message:
+                # This is a streaming response
+                if "content" in message["delta"]:
+                    new_choices.append({"text": message["delta"]["content"]})
+            else:
+                new_choices.append({"text": message["message"]["content"]})
         response["choices"] = new_choices
         return super().postprocess_response(response, request)

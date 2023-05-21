@@ -2,7 +2,18 @@
 import asyncio
 import copy
 import logging
-from typing import Any, Dict, List, Optional, Tuple, Type, Union, cast
+from typing import (
+    Any,
+    Dict,
+    Generator,
+    Iterator,
+    List,
+    Optional,
+    Tuple,
+    Type,
+    Union,
+    cast,
+)
 
 import numpy as np
 
@@ -291,8 +302,17 @@ class Manifest:
         overwrite_cache: bool = False,
         stop_token: Optional[str] = None,
         return_response: bool = False,
+        stream: bool = False,
         **kwargs: Any,
-    ) -> Union[str, List[str], np.ndarray, List[np.ndarray], Response]:
+    ) -> Union[
+        str,
+        List[str],
+        np.ndarray,
+        List[np.ndarray],
+        Response,
+        Iterator[str],
+        Iterator[Response],
+    ]:
         """
         Run the prompt.
 
@@ -302,9 +322,11 @@ class Manifest:
             prompt: prompt(s) to run.
             overwrite_cache: whether to overwrite cache.
             stop_token: stop token for prompt generation.
-                        Default is self.stop_token.
-                        "" for no stop token.
+                Default is self.stop_token.
+                "" for no stop token.
             return_response: whether to return Response object.
+            stream: whether to stream the prompt. Only supported
+                for single string prompts and LMs.
 
         Returns:
             response from prompt.
@@ -319,6 +341,24 @@ class Manifest:
             raise ValueError("Prompt cannot be empty list")
         # Get the client to run
         client = self.client_pool.get_next_client()
+        if stream:
+            if not client.supports_streaming_inference():
+                raise ValueError(
+                    f"Client {client} does not support streaming inference."
+                )
+            if not isinstance(prompt, str):
+                raise ValueError(
+                    "Stream is only supported for single string prompts. "
+                    "It will soon be supported for chat dictionary prompts, too."
+                )
+            return self._run_stream(
+                prompt=cast(str, prompt),
+                client=client,
+                overwrite_cache=overwrite_cache,
+                stop_token=stop_token,
+                return_response=return_response,
+                **kwargs,
+            )
         if isinstance(prompt, list) and isinstance(prompt[0], dict):
             if not client.IS_CHAT:
                 raise ValueError(
@@ -337,15 +377,14 @@ class Manifest:
                 return_response=return_response,
                 **kwargs,
             )
-        else:
-            return self._run(
-                prompt=cast(Union[str, List[str]], prompt),
-                client=client,
-                overwrite_cache=overwrite_cache,
-                stop_token=stop_token,
-                return_response=return_response,
-                **kwargs,
-            )
+        return self._run(
+            prompt=cast(Union[str, List[str]], prompt),
+            client=client,
+            overwrite_cache=overwrite_cache,
+            stop_token=stop_token,
+            return_response=return_response,
+            **kwargs,
+        )
 
     def _run(
         self,
@@ -399,7 +438,6 @@ class Manifest:
             response=response,
             cached_idx_to_response=cached_idx_to_response,
         )
-
         # Extract text results
         if return_response:
             return final_response
@@ -466,6 +504,77 @@ class Manifest:
             return final_response
         else:
             return cast(str, final_response.get_response("", is_batch))
+
+    def _run_stream(
+        self,
+        prompt: str,
+        client: Client,
+        overwrite_cache: bool = False,
+        stop_token: Optional[str] = None,
+        return_response: bool = False,
+        **kwargs: Any,
+    ) -> Union[Generator[str, None, None], Generator[Response, None, None]]:
+        """
+        Run the prompt in a stream.
+
+        Args:
+            prompt: prompt(s) to run.
+            client: client to run.
+            overwrite_cache: whether to overwrite cache.
+            stop_token: stop token for prompt generation.
+                        Default is self.stop_token.
+                        "" for no stop token.
+            return_response: whether to return Response object.
+
+        Returns:
+            response from prompt.
+        """
+        is_batch = False
+        stop_token = stop_token if stop_token is not None else self.stop_token
+        # Must pass kwargs as dict for client "pop" methods removed used arguments
+        request_params = client.get_request(prompt, kwargs)
+        # Avoid nested list of results - enforce n = 1 for batch
+        if request_params.n > 1:
+            raise ValueError("Stream mode does not support n > 1.")
+        self._validate_kwargs(kwargs, request_params)
+
+        cached_idx_to_response, request_params = self._split_cached_requests(
+            request_params, client, overwrite_cache
+        )
+        if request_params.prompt:
+            # Because we are streaming, we should have either a cached response
+            # a prompt to run
+            assert len(cached_idx_to_response) == 0
+            response_iter = client.run_streaming_request(request_params)
+            is_cached = False
+        else:
+            assert len(cached_idx_to_response) == 1
+            response_iter = cached_idx_to_response[0].as_iter()
+            is_cached = True
+
+        saved_responses = []
+        # Start timing metrics
+        self.client_pool.start_timer()
+        for response_token in response_iter:
+            saved_responses.append(response_token)
+            if return_response:
+                yield response_token
+            else:
+                yield cast(
+                    Union[str, Response], response_token.get_response("", is_batch)
+                )
+        self.client_pool.end_timer()
+
+        if not is_cached:
+            final_response = Response.union_all(
+                saved_responses, as_single_lmchoice=True
+            )
+            self._stitch_responses_and_cache(
+                request=request_params,
+                client=client,
+                response=final_response,
+                cached_idx_to_response=cached_idx_to_response,
+            )
 
     async def arun_batch(
         self,

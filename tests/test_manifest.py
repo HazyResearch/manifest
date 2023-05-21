@@ -1,7 +1,7 @@
 """Manifest test."""
 import asyncio
 import os
-from typing import cast
+from typing import Iterator, cast
 from unittest.mock import MagicMock, Mock, patch
 
 import numpy as np
@@ -787,6 +787,45 @@ def test_openai(sqlite_cache: str) -> None:
     )
     assert response.is_cached() is True
 
+    # Test streaming
+    num_responses = 0
+    streaming_response_text = cast(
+        Iterator[str], client.run("Why are there oranges?", stream=True)
+    )
+    for res_text in streaming_response_text:
+        num_responses += 1
+        assert isinstance(res_text, str) and len(res_text) > 0
+    assert num_responses == 8
+
+    streaming_response = cast(
+        Iterator[Response],
+        client.run("Why are there mandarines?", return_response=True, stream=True),
+    )
+    num_responses = 0
+    merged_res = []
+    for res in streaming_response:
+        num_responses += 1
+        assert isinstance(res, Response) and len(res.get_response()) > 0
+        merged_res.append(cast(str, res.get_response()))
+        assert not res.is_cached()
+    assert num_responses == 10
+
+    # Make sure cached
+    streaming_response = cast(
+        Iterator[Response],
+        client.run("Why are there mandarines?", return_response=True, stream=True),
+    )
+    num_responses = 0
+    merged_res_cachced = []
+    for res in streaming_response:
+        num_responses += 1
+        assert isinstance(res, Response) and len(res.get_response()) > 0
+        merged_res_cachced.append(cast(str, res.get_response()))
+        assert res.is_cached()
+    # OpenAI stream does not return logprobs, so this is by number of words
+    assert num_responses == 7
+    assert "".join(merged_res) == "".join(merged_res_cachced)
+
 
 @pytest.mark.skipif(not OPENAI_ALIVE, reason="No openai key set")
 @pytest.mark.usefixtures("sqlite_cache")
@@ -796,6 +835,7 @@ def test_openaichat(sqlite_cache: str) -> None:
         client_name="openaichat",
         cache_name="sqlite",
         cache_connection=sqlite_cache,
+        temperature=0.0,
     )
 
     res = client.run("Why are there apples?")
@@ -867,6 +907,45 @@ def test_openaichat(sqlite_cache: str) -> None:
     ]
     response = cast(Response, client.run(chat_dict, return_response=True))
     assert response.is_cached() is False
+
+    # Test streaming
+    num_responses = 0
+    streaming_response_text = cast(
+        Iterator[str], client.run("Why are there oranges?", stream=True)
+    )
+    for res_text in streaming_response_text:
+        num_responses += 1
+        assert isinstance(res_text, str) and len(res_text) > 0
+    assert num_responses == 9
+
+    streaming_response = cast(
+        Iterator[Response],
+        client.run("Why are there mandarines?", return_response=True, stream=True),
+    )
+    num_responses = 0
+    merged_res = []
+    for res in streaming_response:
+        num_responses += 1
+        assert isinstance(res, Response) and len(res.get_response()) > 0
+        merged_res.append(cast(str, res.get_response()))
+        assert not res.is_cached()
+    assert num_responses == 10
+
+    # Make sure cached
+    streaming_response = cast(
+        Iterator[Response],
+        client.run("Why are there mandarines?", return_response=True, stream=True),
+    )
+    num_responses = 0
+    merged_res_cachced = []
+    for res in streaming_response:
+        num_responses += 1
+        assert isinstance(res, Response) and len(res.get_response()) > 0
+        merged_res_cachced.append(cast(str, res.get_response()))
+        assert res.is_cached()
+    # OpenAI stream does not return logprobs, so this is by number of words
+    assert num_responses == 7
+    assert "".join(merged_res) == "".join(merged_res_cachced)
 
 
 @pytest.mark.skipif(not OPENAI_ALIVE, reason="No openai key set")
@@ -1156,7 +1235,7 @@ def test_retry_handling() -> None:
     with patch("manifest.clients.client.requests.post", mock_create):
         # Run manifest
         result = client.run(prompts, temperature=0, overwrite_cache=True)
-        assert result == ["WHATTT.", "UH OH.", "HARG"]
+        assert result == [" WHATTT.", " UH OH.", " HARG"]
 
         # Assert that OpenAI client was called twice
         assert mock_create.call_count == 2

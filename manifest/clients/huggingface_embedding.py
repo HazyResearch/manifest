@@ -58,6 +58,13 @@ class HuggingFaceEmbeddingClient(Client):
         """Return whether the client supports batch inference."""
         return True
 
+    def supports_streaming_inference(self) -> bool:
+        """Return whether the client supports streaming inference.
+
+        Override in child client class.
+        """
+        return False
+
     def get_model_params(self) -> Dict:
         """
         Get model params.
