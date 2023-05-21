@@ -47,7 +47,7 @@ class AI21Client(Client):
         """
         # Taken from https://studio.ai21.com/docs/api/
         self.host = "https://api.ai21.com/studio/v1"
-        self.api_key = os.environ.get("AI21_API_KEY", connection_str)
+        self.api_key = connection_str or os.environ.get("AI21_API_KEY")
         if self.api_key is None:
             raise ValueError(
                 "AI21 API key not set. Set AI21_API_KEY environment "
@@ -94,7 +94,7 @@ class AI21Client(Client):
         """
         return {"model_name": self.NAME, "engine": getattr(self, "engine")}
 
-    def validate_response(self, response: Dict, request: Dict) -> Dict[str, Any]:
+    def postprocess_response(self, response: Dict, request: Dict) -> Dict[str, Any]:
         """
         Format response to dict.
 

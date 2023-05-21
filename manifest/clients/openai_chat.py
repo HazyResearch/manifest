@@ -26,6 +26,7 @@ class OpenAIChatClient(OpenAIClient):
         "stop_sequences": ("stop", None),  # OpenAI doesn't like empty lists
         "presence_penalty": ("presence_penalty", 0.0),
         "frequency_penalty": ("frequency_penalty", 0.0),
+        "batch_size": ("batch_size", 1),
     }
     REQUEST_CLS = LMRequest
     NAME = "openaichat"
@@ -45,7 +46,7 @@ class OpenAIChatClient(OpenAIClient):
             connection_str: connection string.
             client_args: client arguments.
         """
-        self.api_key = os.environ.get("OPENAI_API_KEY", connection_str)
+        self.api_key = connection_str or os.environ.get("OPENAI_API_KEY")
         if self.api_key is None:
             raise ValueError(
                 "OpenAI API key not set. Set OPENAI_API_KEY environment "
@@ -80,18 +81,19 @@ class OpenAIChatClient(OpenAIClient):
         """
         return {"model_name": self.NAME, "engine": getattr(self, "engine")}
 
-    def _format_request_for_chat(self, request_params: Dict[str, Any]) -> Dict:
-        """Format request params for chat.
+    def preprocess_request_params(self, request: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Preprocess request params.
 
         Args:
-            request_params: request params.
+            request: request params.
 
         Returns:
-            formatted request params.
+            request params.
         """
         # Format for chat model
-        request_params = copy.deepcopy(request_params)
-        prompt = request_params.pop("prompt")
+        request = copy.deepcopy(request)
+        prompt = request.pop("prompt")
         if isinstance(prompt, str):
             messages = [{"role": "user", "content": prompt}]
         elif isinstance(prompt, list) and isinstance(prompt[0], str):
@@ -110,62 +112,23 @@ class OpenAIChatClient(OpenAIClient):
                 "Prompt must be string, list of strings, or list of dicts."
                 f"Got {prompt}"
             )
-        request_params["messages"] = messages
-        return request_params
+        request["messages"] = messages
+        return super().preprocess_request_params(request)
 
-    def _format_request_from_chat(self, response_dict: Dict[str, Any]) -> Dict:
-        """Format response for standard response from chat.
+    def postprocess_response(self, response: Dict, request: Dict) -> Dict[str, Any]:
+        """
+        Postprocess and validate response as dict.
 
         Args:
-            response_dict: response.
+            response: response
+            request: request
 
         Return:
-            formatted response.
+            response as dict
         """
         new_choices = []
-        response_dict = copy.deepcopy(response_dict)
-        for message in response_dict["choices"]:
+        response = copy.deepcopy(response)
+        for message in response["choices"]:
             new_choices.append({"text": message["message"]["content"]})
-        response_dict["choices"] = new_choices
-        return response_dict
-
-    def _run_completion(
-        self, request_params: Dict[str, Any], retry_timeout: int
-    ) -> Dict:
-        """Execute completion request.
-
-        Args:
-            request_params: request params.
-            retry_timeout: retry timeout.
-
-        Returns:
-            response as dict.
-        """
-        # Format for chat model
-        request_params = self._format_request_for_chat(request_params)
-        response_dict = super()._run_completion(request_params, retry_timeout)
-        # Reformat for text model
-        response_dict = self._format_request_from_chat(response_dict)
-        return response_dict
-
-    async def _arun_completion(
-        self, request_params: Dict[str, Any], retry_timeout: int, batch_size: int
-    ) -> Dict:
-        """Async execute completion request.
-
-        Args:
-            request_params: request params.
-            retry_timeout: retry timeout.
-            batch_size: batch size for requests.
-
-        Returns:
-            response as dict.
-        """
-        # Format for chat model
-        request_params = self._format_request_for_chat(request_params)
-        response_dict = await super()._arun_completion(
-            request_params, retry_timeout, batch_size
-        )
-        # Reformat for text model
-        response_dict = self._format_request_from_chat(response_dict)
-        return response_dict
+        response["choices"] = new_choices
+        return super().postprocess_response(response, request)

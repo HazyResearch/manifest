@@ -6,9 +6,13 @@ from typing import Any, Dict, List, Optional, Type
 from pydantic import BaseModel, Extra
 
 from manifest.clients.ai21 import AI21Client
+from manifest.clients.azureopenai import AzureClient
+from manifest.clients.azureopenai_chat import AzureChatClient
 from manifest.clients.client import Client
 from manifest.clients.cohere import CohereClient
 from manifest.clients.dummy import DummyClient
+from manifest.clients.google import GoogleClient
+from manifest.clients.google_chat import GoogleChatClient
 from manifest.clients.huggingface import HuggingFaceClient
 from manifest.clients.huggingface_embedding import HuggingFaceEmbeddingClient
 from manifest.clients.openai import OpenAIClient
@@ -21,14 +25,18 @@ logging.getLogger("openai").setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
 
 CLIENT_CONSTRUCTORS = {
+    AI21Client.NAME: AI21Client,
+    AzureClient.NAME: AzureClient,
+    AzureChatClient.NAME: AzureChatClient,
+    CohereClient.NAME: CohereClient,
+    DummyClient.NAME: DummyClient,
+    GoogleClient.NAME: GoogleClient,
+    GoogleChatClient.NAME: GoogleChatClient,
+    HuggingFaceClient.NAME: HuggingFaceClient,
+    HuggingFaceEmbeddingClient.NAME: HuggingFaceEmbeddingClient,
     OpenAIClient.NAME: OpenAIClient,
     OpenAIChatClient.NAME: OpenAIChatClient,
     OpenAIEmbeddingClient.NAME: OpenAIEmbeddingClient,
-    CohereClient.NAME: CohereClient,
-    AI21Client.NAME: AI21Client,
-    HuggingFaceClient.NAME: HuggingFaceClient,
-    HuggingFaceEmbeddingClient.NAME: HuggingFaceEmbeddingClient,
-    DummyClient.NAME: DummyClient,
     TOMAClient.NAME: TOMAClient,
 }
 

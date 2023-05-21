@@ -111,7 +111,9 @@ class DummyClient(Client):
             request_type=self.REQUEST_CLS,
         )
 
-    async def arun_batch_request(self, request: Request) -> Response:
+    async def arun_batch_request(
+        self, request: Request, verbose: bool = False
+    ) -> Response:
         """
         Get async request string function.
 

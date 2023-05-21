@@ -474,6 +474,7 @@ class Manifest:
         stop_token: Optional[str] = None,
         return_response: bool = False,
         chunk_size: int = -1,
+        verbose: bool = False,
         **kwargs: Any,
     ) -> Union[List[str], List[np.ndarray], Response]:
         """
@@ -500,6 +501,7 @@ class Manifest:
                 For a single manifest client, there is no impact to
                 setting chunk_size. For a client pool, chunk_size
                 can be used to distribute the load across the clients.
+            verbose: whether to print progress of async tasks.
 
         Returns:
             response from prompt.
@@ -511,7 +513,7 @@ class Manifest:
         if not isinstance(prompts[0], str):
             raise ValueError("Prompts must be a list of strings.")
 
-        # Split the prompts into chunks
+        # Split the prompts into chunks for connection pool
         prompt_chunks: List[Tuple[Client, List[str]]] = []
         if chunk_size > 0:
             for i in range(0, len(prompts), chunk_size):
@@ -530,11 +532,11 @@ class Manifest:
                         prompts=chunk,
                         client=client,
                         overwrite_cache=overwrite_cache,
+                        verbose=verbose,
                         **kwargs,
                     )
                 )
             )
-        print(f"Running {len(tasks)} tasks across all clients.")
         logger.info(f"Running {len(tasks)} tasks across all clients.")
         responses = await asyncio.gather(*tasks)
         final_response = Response.union_all(responses)
@@ -554,6 +556,7 @@ class Manifest:
         prompts: List[str],
         client: Client,
         overwrite_cache: bool = False,
+        verbose: bool = False,
         **kwargs: Any,
     ) -> Response:
         """
@@ -563,6 +566,7 @@ class Manifest:
             prompts: prompts to run.
             client: client to run.
             overwrite_cache: whether to overwrite cache.
+            verbose: whether to print progress of async tasks.
 
         Returns:
             response from prompt.
@@ -580,7 +584,7 @@ class Manifest:
         # If not None value or empty list - run new request
         if request_params.prompt:
             self.client_pool.start_timer()
-            response = await client.arun_batch_request(request_params)
+            response = await client.arun_batch_request(request_params, verbose=verbose)
             self.client_pool.end_timer()
         else:
             # Nothing to run

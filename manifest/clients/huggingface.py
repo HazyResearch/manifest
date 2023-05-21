@@ -94,7 +94,7 @@ class HuggingFaceClient(Client):
             request function that takes no input.
             request parameters as dict.
         """
-        request_params = self.get_request_params(request)
+        request_params = self._get_request_params(request)
         retry_timeout = request_params.pop("client_timeout")
         for key in DEFAULT_REQUEST_KEYS:
             request_params.pop(key, None)
