@@ -1,4 +1,4 @@
-"""OpenAI client."""
+"""Google client."""
 import copy
 import logging
 import os
