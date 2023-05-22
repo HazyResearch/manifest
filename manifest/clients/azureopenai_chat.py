@@ -1,4 +1,4 @@
-"""OpenAI client."""
+"""Azure client."""
 import logging
 import os
 from typing import Any, Dict, Optional

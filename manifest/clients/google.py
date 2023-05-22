@@ -1,4 +1,4 @@
-"""OpenAI client."""
+"""Google client."""
 import logging
 import os
 import subprocess
