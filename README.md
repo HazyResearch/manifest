@@ -78,6 +78,13 @@ manifest = Manifest(
 ```
 You can also just set `export COHERE_API_KEY=<COHERE_API_KEY>` and not use `client_connection`.
 
+If you want to use AI21 Labs, run
+```python
+manifest = Manifest(
+    client_name = "ai21",
+    client_connection = <AI21_API_KEY>,
+)
+```
 
 You can see the model details and possible model inputs to `run()` via
 ```python
