@@ -53,7 +53,7 @@ class LMModelChoice(BaseModel):
     """Model single completion."""
 
     text: str
-    token_logprobs: Optional[List[float]] = None
+    token_logprobs: Optional[List[Optional[float]]] = None
     tokens: Optional[List[str]] = None
 
 
