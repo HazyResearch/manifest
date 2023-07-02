@@ -9,9 +9,9 @@ from manifest.request import LMRequest
 logger = logging.getLogger(__name__)
 
 AI21_ENGINES = {
-    "j1-jumbo",
-    "j1-grande",
-    "j1-large",
+    "j2-ultra",
+    "j2-mid",
+    "j2-light",
 }
 
 
@@ -20,9 +20,9 @@ class AI21Client(Client):
 
     # User param -> (client param, default value)
     PARAMS = {
-        "engine": ("engine", "j1-large"),
-        "temperature": ("temperature", 1.0),
-        "max_tokens": ("maxTokens", 10),
+        "engine": ("engine", "j2-ultra"),
+        "temperature": ("temperature", 0.7),
+        "max_tokens": ("maxTokens", 40),
         "top_k": ("topKReturn", 0),
         "n": ("numResults", 1),
         "top_p": ("topP", 1.0),
@@ -45,7 +45,7 @@ class AI21Client(Client):
             connection_str: connection string.
             client_args: client arguments.
         """
-        # Taken from https://studio.ai21.com/docs/api/
+        # Taken from https://docs.ai21.com/
         self.host = "https://api.ai21.com/studio/v1"
         self.api_key = connection_str or os.environ.get("AI21_API_KEY")
         if self.api_key is None:
