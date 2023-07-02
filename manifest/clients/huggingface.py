@@ -1,5 +1,6 @@
 """Hugging Face client."""
 import logging
+from functools import lru_cache
 from typing import Any, Dict, Optional
 
 import requests
@@ -73,6 +74,7 @@ class HuggingFaceClient(Client):
         """
         return False
 
+    @lru_cache(maxsize=1)
     def get_model_params(self) -> Dict:
         """
         Get model params.

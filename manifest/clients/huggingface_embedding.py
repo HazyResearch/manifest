@@ -1,5 +1,6 @@
 """Hugging Face client."""
 import logging
+from functools import lru_cache
 from typing import Any, Dict, Optional, Tuple
 
 import numpy as np
@@ -65,6 +66,7 @@ class HuggingFaceEmbeddingClient(Client):
         """
         return False
 
+    @lru_cache(maxsize=1)
     def get_model_params(self) -> Dict:
         """
         Get model params.
