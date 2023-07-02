@@ -1,5 +1,9 @@
 0.1.9 - Unreleased
 ---------------------
+Fixed
+^^^^^
+* Added trust code params HF models
+* Added LRU cache to HF model param calls to avoid extra calls
 
 0.1.8 - 2023-05-22
 ---------------------
