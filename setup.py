@@ -29,7 +29,7 @@ VERSION = main_ns["__version__"]
 # What packages are required for this module to be executed?
 REQUIRED = [
     "numpy>=1.20.0",
-    "pydantic>=1.9.0",
+    "pydantic>=1.9.0,<2.0",
     "redis>=4.3.1",
     "requests>=2.27.1",
     "aiohttp>=3.8.0",
