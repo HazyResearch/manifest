@@ -11,6 +11,7 @@ from manifest.request import LMRequest, Request
 logger = logging.getLogger(__name__)
 
 OPENAI_ENGINES = {
+    "gpt-3.5-turbo-instruct",
     "text-davinci-003",
     "text-davinci-002",
     "text-davinci-001",
