@@ -10,7 +10,13 @@ from manifest.request import LMRequest
 logger = logging.getLogger(__name__)
 
 # List from https://platform.openai.com/docs/models/model-endpoint-compatibility
-OPENAICHAT_ENGINES = {"gpt-3.5-turbo", "gpt-3.5-turbo-16k", "gpt-4", "gpt-4-32k"}
+OPENAICHAT_ENGINES = {
+    "gpt-3.5-turbo",
+    "gpt-3.5-turbo-16k",
+    "gpt-4",
+    "gpt-4-32k",
+    "gpt-4-1106-preview",
+}
 
 
 class OpenAIChatClient(OpenAIClient):
