@@ -23,7 +23,7 @@ DESCRIPTION = "Manifest for Prompting Foundation Models."
 URL = "https://github.com/HazyResearch/manifest"
 EMAIL = "laurel.orr@numbersstation.ai"
 AUTHOR = "Laurel Orr"
-REQUIRES_PYTHON = ">=3.8.0"
+REQUIRES_PYTHON = ">=3.10.0"
 VERSION = main_ns["__version__"]
 
 # What packages are required for this module to be executed?
@@ -43,12 +43,12 @@ REQUIRED = [
 EXTRAS = {
     "api": [
         "accelerate>=0.10.0",
-        "deepspeed>=0.7.0",
+        "deepspeed>=0.10.0",
         "diffusers>=0.6.0",
         "Flask>=2.1.2",
         "sentence_transformers>=2.2.0",
         "torch>=1.8.0",
-        "transformers>=4.29.0,<4.31.0",
+        "transformers>=4.29.0",
         "tokenizers>=0.13.3",
     ],
     "app": [
@@ -66,7 +66,7 @@ EXTRAS = {
     "dev": [
         "autopep8>=1.6.0",
         "black>=22.3.0",
-        "isort>=5.9.3",
+        "isort>=5.13.2",
         "flake8>=4.0.0",
         "flake8-docstrings>=1.6.0",
         "mypy>=0.950",
