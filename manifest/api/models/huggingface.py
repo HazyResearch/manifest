@@ -186,7 +186,9 @@ class GenerationPipeline:
                 "logprobs": logits[
                     range(num_generated_tokens), i, output_seq[-num_generated_tokens:]
                 ].tolist(),
-                "tokens": output_seq[-num_generated_tokens:].tolist(),
+                "tokens": self.tokenizer.convert_ids_to_tokens(
+                    output_seq[-num_generated_tokens:].tolist()
+                ),
             }
             for i, output_seq in enumerate(output_dict.sequences)
         ]
