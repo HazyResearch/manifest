@@ -10,7 +10,7 @@ format:
 	black manifest/ tests/ web_app/
 
 check:
-	isort -c -v manifest/ tests/ web_app/
+	isort -c manifest/ tests/ web_app/
 	black manifest/ tests/ web_app/ --check
 	flake8 manifest/ tests/ web_app/
 	mypy manifest/ tests/ web_app/

@@ -75,7 +75,7 @@ class DiffuserModel(Model):
     @torch.no_grad()
     def generate(
         self, prompt: Union[str, List[str]], **kwargs: Any
-    ) -> List[Tuple[Any, float, List[int], List[float]]]:
+    ) -> List[Tuple[Any, float, List[str], List[float]]]:
         """
         Generate the prompt from model.
 
