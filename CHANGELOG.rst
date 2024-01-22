@@ -1,9 +1,14 @@
-0.1.9 - Unreleased
+0.1.10 - Unreleased
+---------------------
+
+0.1.9 - 2024-01-22
 ---------------------
 Fixed
 ^^^^^
 * Added trust code params HF models
 * Added LRU cache to HF model param calls to avoid extra calls
+* Fixed pydantic type issue HF model return
+* Support for Python 3.10-3.11
 
 0.1.8 - 2023-05-22
 ---------------------
