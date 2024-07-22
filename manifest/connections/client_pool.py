@@ -18,6 +18,7 @@ from manifest.clients.huggingface_embedding import HuggingFaceEmbeddingClient
 from manifest.clients.openai import OpenAIClient
 from manifest.clients.openai_chat import OpenAIChatClient
 from manifest.clients.openai_embedding import OpenAIEmbeddingClient
+from manifest.clients.openrouter import OpenRouterClient
 from manifest.clients.toma import TOMAClient
 from manifest.connections.scheduler import RandomScheduler, RoundRobinScheduler
 
@@ -37,6 +38,7 @@ CLIENT_CONSTRUCTORS = {
     OpenAIClient.NAME: OpenAIClient,
     OpenAIChatClient.NAME: OpenAIChatClient,
     OpenAIEmbeddingClient.NAME: OpenAIEmbeddingClient,
+    OpenRouterClient.NAME: OpenRouterClient,
     TOMAClient.NAME: TOMAClient,
 }
 
